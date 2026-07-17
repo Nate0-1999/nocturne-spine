@@ -1,17 +1,25 @@
 """P0 stubs for the memory endpoints in SPEC C.4."""
 
-from typing import Literal
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Query, Request
 
-from spine.contracts import ContractRequest
+from spine.contracts import (
+    ContractRequest,
+    CreatedMemoryResponse,
+    CreateMemoryConflictResponse,
+    MemoryKind,
+    MemoryListResponse,
+    MemoryStatus,
+    MemoryUnit,
+    PatchMemoryConflictResponse,
+    SearchResponse,
+    SimilarMemoryResponse,
+)
 from spine.problems import ProblemJSONResponse, not_implemented, problem_openapi
 
 router = APIRouter(tags=["memory"])
-
-MemoryKind = Literal["fact", "preference", "procedure", "project_note", "persona", "pinned"]
-MemoryStatus = Literal["active", "quarantined", "tombstoned"]
 
 STUB_RESPONSES = {
     401: problem_openapi("Bearer token missing or invalid"),
@@ -29,6 +37,8 @@ class CreateMemoryRequest(ContractRequest):
     project_key: str | None = None
     thread_origin: str | None = None
     editor: str
+    machine_id: str
+    force: bool = False
 
 
 class PatchMemoryRequest(ContractRequest):
@@ -41,6 +51,7 @@ class PatchMemoryRequest(ContractRequest):
     status: MemoryStatus | None = None
     editor: str
     reason: str
+    machine_id: str
 
 
 class SearchRequest(ContractRequest):
@@ -52,9 +63,19 @@ class SearchRequest(ContractRequest):
 
 @router.post(
     "/v1/memories",
-    status_code=501,
-    response_class=ProblemJSONResponse,
-    responses=STUB_RESPONSES,
+    status_code=201,
+    response_model=CreatedMemoryResponse,
+    responses=STUB_RESPONSES
+    | {
+        200: {
+            "description": "Similar memories require an explicit force retry",
+            "model": SimilarMemoryResponse,
+        },
+        409: {
+            "description": "Active-label collision or hard duplicate",
+            "model": CreateMemoryConflictResponse,
+        },
+    },
 )
 async def create_memory(_: CreateMemoryRequest, request: Request) -> ProblemJSONResponse:
     return not_implemented("POST /v1/memories", request.url.path)
@@ -62,9 +83,14 @@ async def create_memory(_: CreateMemoryRequest, request: Request) -> ProblemJSON
 
 @router.patch(
     "/v1/memories/{id}",
-    status_code=501,
-    response_class=ProblemJSONResponse,
-    responses=STUB_RESPONSES,
+    response_model=MemoryUnit,
+    responses=STUB_RESPONSES
+    | {
+        409: {
+            "description": "CAS or active-label conflict",
+            "model": PatchMemoryConflictResponse,
+        }
+    },
 )
 async def patch_memory(
     id: UUID,
@@ -77,8 +103,7 @@ async def patch_memory(
 
 @router.get(
     "/v1/memories",
-    status_code=501,
-    response_class=ProblemJSONResponse,
+    response_model=MemoryListResponse,
     responses=STUB_RESPONSES,
 )
 async def list_memories(
@@ -86,15 +111,16 @@ async def list_memories(
     project_key: str | None = None,
     status: MemoryStatus | None = None,
     q: str | None = None,
+    limit: Annotated[int, Query(le=200)] = 50,
+    offset: int = 0,
 ) -> ProblemJSONResponse:
-    del project_key, status, q
+    del project_key, status, q, limit, offset
     return not_implemented("GET /v1/memories", request.url.path)
 
 
 @router.post(
     "/v1/search",
-    status_code=501,
-    response_class=ProblemJSONResponse,
+    response_model=SearchResponse,
     responses=STUB_RESPONSES,
 )
 async def search(_: SearchRequest, request: Request) -> ProblemJSONResponse:

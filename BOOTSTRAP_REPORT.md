@@ -1,29 +1,49 @@
 # Spine Agent Zero bootstrap report
 
-Status: **P0 scaffold complete; Garden packet blocked on FLAGS F001–F005**
+Status: **P0 v1.5 refresh complete and locally verified**
 
 ## What exists
 
-- A standalone Python 3.12 git repository with the exact C.1 package areas,
-  the frozen byte-for-byte SPEC v1.4 reference at `docs/SPEC.md`, and both
-  relay ground-rule files from Garden Plan §6.
+- A standalone Python 3.12 repository with the C.1 package areas, a
+  byte-for-byte frozen SPEC v1.5 at `docs/SPEC.md`, and both relay ground-rule
+  files regenerated from Garden Plan §6.
 - FastAPI app factory, static bearer middleware, RFC 7807 auth/validation/HTTP
   errors, and authenticated `/healthz` returning `{ok, version}`.
 - Async SQLAlchemy/Alembic plumbing and migration `0001`, containing the full
-  authoritative C.2 DDL plus active scorer `v0` seeded with C.3 weights and
-  parameters.
+  v1.5 C.2 DDL—including `memory_unit_active_label`—plus the active scorer `v0`
+  seed from C.3.
+- Strict request, query, success, and alternate-response schemas for the full
+  v1.5 C.4 surface. The committed `openapi.json` exposes those schemas while
+  the P0 runtime remains deliberately inert; prepare cards require concrete
+  features/rank, while dedup/search cards require those fields to be null.
 - A Python 3.12 image and Compose topology with `pgvector/pgvector:pg16` plus
   `spine`; the service applies Alembic before Uvicorn starts.
-- Ruff/pytest CI and testcontainers verification for migration, scorer seed,
-  health/auth, validation, every stub, and committed OpenAPI drift.
-- A tracked pre-commit scope fence, repeated over all tracked files in CI,
-  which blocks the forbidden M1 feature families named by Garden Plan §7.
+- Ruff/pytest CI, testcontainers migration evidence, and a tracked M1
+  pre-commit scope fence repeated over all tracked files in CI.
+
+## Human-gate resolutions now frozen
+
+The v1.5 constitution and scaffold incorporate Garden F001–F005's accepted
+resolution:
+
+- active `(principal_id, label)` values are protected by the exact partial
+  unique index; quarantine/tombstone frees the label;
+- memory create carries `machine_id` and `force=false`, and patch carries
+  `machine_id`;
+- revision attribution is therefore available as `origin_machine_id`;
+- commit responses include `wrong_removed: [MemoryUnit]`;
+- `MemoryUnit`, create/PATCH alternatives, and list `limit`/`offset` paging are
+  explicit response/query contracts.
+
+No unresolved v1.4 seam remains in this repository. Decision 001 records the
+historical P0 stop; Decision 003 records how the refreshed, typed OpenAPI stays
+separate from later packets' behavior.
 
 ## What is deliberately stubbed
 
-The complete C.4 M1 surface is registered but contains no business logic.
-Each valid call returns `501 application/problem+json`, with an RFC 7807 body
-whose `endpoint` extension names the stub:
+All seven C.4 routes are registered with exact v1.5 signatures but contain no
+business logic. Every valid call returns `501 application/problem+json` and an
+`endpoint` extension naming the stub:
 
 1. `POST /v1/inject/prepare`
 2. `POST /v1/inject/commit`
@@ -37,23 +57,6 @@ There is no CRUD, embedding, scoring, injection, feedback, event-writing,
 learning, maintenance, extraction, relay, presence, or multi-principal auth
 behavior in P0.
 
-## Literal contract seams left untouched
-
-- C.2's `label` comment describes a principal-scoped partial unique index for
-  active rows, but the authoritative SQL does not define one. Migration 0001
-  does not invent it.
-- C.4's memory-create behavior mentions retrying with `force=true`, but the
-  exact request body and route signature do not define `force`. The P0 schema
-  does not invent it.
-- C.4 calls the memory list paged without defining paging parameters or a
-  response body. Its create and patch bodies also omit the
-  `origin_machine_id` that C.2 requires on every revision row. P0 does not add
-  undocumented request fields or persistence defaults.
-
-These and two related response-shape seams are recorded as Garden FLAGS
-F001–F005 rather than silently resolved. The human must resolve them before
-the relay advances.
-
 ## Where the next gardeners begin
 
 S1 begins with **SPEC C.2 plus ADR-004**: literal model mappings and the
@@ -63,10 +66,15 @@ not prebuilt either packet's behavior.
 
 ## Verification
 
-On 2026-07-17, Ruff passed, all 14 pytest checks passed against Python 3.12.9
-and disposable pgvector Postgres, and a clean Compose build returned the
-authenticated health response. Alembic reported `0001 (head)`, the v0 seed
-matched C.3, and live calls to all seven C.4 stubs returned their named RFC
-7807 responses. The scope fence passed the repository and rejected a staged
-forbidden-feature probe. Exact commands and observed output are in
+On 2026-07-17, the frozen spec matched the workspace master byte for byte,
+Ruff lint and format checks passed, and all 17 pytest checks passed against
+Python 3.12.9 and disposable pgvector Postgres. Tests exercise the new index's
+collision/reuse behavior, v1.5 request requirements and paging validation, all
+seven inert routes, and committed OpenAPI drift.
+
+A clean Compose build returned the authenticated health response. Alembic
+reported `0001 (head)`, Postgres exposed the exact partial unique index, the
+v0 seed remained intact, and live valid v1.5 calls to all seven C.4 routes
+returned their named RFC 7807 `501` responses. The scope fence passed the
+repository. Reproducible commands and output are in
 `verification/bootstrap/README.md`.

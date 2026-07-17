@@ -54,6 +54,10 @@ def upgrade() -> None:
     )
     _execute("CREATE INDEX ON memory_unit USING hnsw (embedding vector_cosine_ops)")
     _execute("CREATE INDEX ON memory_unit (principal_id, status, project_key)")
+    _execute(
+        "CREATE UNIQUE INDEX memory_unit_active_label "
+        "ON memory_unit (principal_id, label) WHERE status = 'active'"
+    )
 
     _execute(
         """

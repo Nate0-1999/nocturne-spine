@@ -33,6 +33,40 @@
         "title": "CommitRequest",
         "type": "object"
       },
+      "CommitResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "final_block": {
+            "title": "Final Block",
+            "type": "string"
+          },
+          "wrong_removed": {
+            "items": {
+              "$ref": "#/components/schemas/MemoryUnit"
+            },
+            "title": "Wrong Removed",
+            "type": "array"
+          }
+        },
+        "required": [
+          "final_block",
+          "wrong_removed"
+        ],
+        "title": "CommitResponse",
+        "type": "object"
+      },
+      "CreateMemoryConflictResponse": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/LabelConflictResponse"
+          },
+          {
+            "$ref": "#/components/schemas/DuplicateMemoryResponse"
+          }
+        ],
+        "description": "The two exact 409 bodies for memory creation.",
+        "title": "CreateMemoryConflictResponse"
+      },
       "CreateMemoryRequest": {
         "additionalProperties": false,
         "properties": {
@@ -43,6 +77,11 @@
           "editor": {
             "title": "Editor",
             "type": "string"
+          },
+          "force": {
+            "default": false,
+            "title": "Force",
+            "type": "boolean"
           },
           "keywords": {
             "anyOf": [
@@ -72,6 +111,10 @@
           },
           "label": {
             "title": "Label",
+            "type": "string"
+          },
+          "machine_id": {
+            "title": "Machine Id",
             "type": "string"
           },
           "principal_id": {
@@ -106,9 +149,36 @@
           "label",
           "body",
           "kind",
-          "editor"
+          "editor",
+          "machine_id"
         ],
         "title": "CreateMemoryRequest",
+        "type": "object"
+      },
+      "CreatedMemoryResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "created": {
+            "$ref": "#/components/schemas/MemoryUnit"
+          }
+        },
+        "required": [
+          "created"
+        ],
+        "title": "CreatedMemoryResponse",
+        "type": "object"
+      },
+      "DuplicateMemoryResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "duplicate_of": {
+            "$ref": "#/components/schemas/SimilarityMemoryCard"
+          }
+        },
+        "required": [
+          "duplicate_of"
+        ],
+        "title": "DuplicateMemoryResponse",
         "type": "object"
       },
       "FeedbackRequest": {
@@ -141,6 +211,21 @@
         "title": "FeedbackRequest",
         "type": "object"
       },
+      "FeedbackResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "ok": {
+            "const": true,
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "title": "FeedbackResponse",
+        "type": "object"
+      },
       "HealthResponse": {
         "properties": {
           "ok": {
@@ -158,6 +243,245 @@
         ],
         "title": "HealthResponse",
         "type": "object"
+      },
+      "LabelConflictDetail": {
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "memory_id": {
+            "format": "uuid",
+            "title": "Memory Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "memory_id",
+          "label"
+        ],
+        "title": "LabelConflictDetail",
+        "type": "object"
+      },
+      "LabelConflictResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "label_conflict": {
+            "$ref": "#/components/schemas/LabelConflictDetail"
+          }
+        },
+        "required": [
+          "label_conflict"
+        ],
+        "title": "LabelConflictResponse",
+        "type": "object"
+      },
+      "MemoryFeatures": {
+        "additionalProperties": false,
+        "properties": {
+          "freq": {
+            "title": "Freq",
+            "type": "number"
+          },
+          "hist": {
+            "title": "Hist",
+            "type": "number"
+          },
+          "kw": {
+            "title": "Kw",
+            "type": "number"
+          },
+          "proj": {
+            "title": "Proj",
+            "type": "number"
+          },
+          "sem": {
+            "title": "Sem",
+            "type": "number"
+          },
+          "time": {
+            "title": "Time",
+            "type": "number"
+          }
+        },
+        "required": [
+          "sem",
+          "kw",
+          "time",
+          "proj",
+          "freq",
+          "hist"
+        ],
+        "title": "MemoryFeatures",
+        "type": "object"
+      },
+      "MemoryListResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MemoryUnit"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "MemoryListResponse",
+        "type": "object"
+      },
+      "MemoryUnit": {
+        "additionalProperties": false,
+        "properties": {
+          "bias": {
+            "title": "Bias",
+            "type": "number"
+          },
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "embedding_model": {
+            "title": "Embedding Model",
+            "type": "string"
+          },
+          "keywords": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Keywords",
+            "type": "array"
+          },
+          "kind": {
+            "enum": [
+              "fact",
+              "preference",
+              "procedure",
+              "project_note",
+              "persona",
+              "pinned"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "memory_id": {
+            "format": "uuid",
+            "title": "Memory Id",
+            "type": "string"
+          },
+          "pin": {
+            "title": "Pin",
+            "type": "boolean"
+          },
+          "principal_id": {
+            "title": "Principal Id",
+            "type": "string"
+          },
+          "project_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Key"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "stats": {
+            "additionalProperties": true,
+            "title": "Stats",
+            "type": "object"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "quarantined",
+              "tombstoned"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "thread_origin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thread Origin"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "memory_id",
+          "principal_id",
+          "label",
+          "body",
+          "kind",
+          "keywords",
+          "project_key",
+          "thread_origin",
+          "pin",
+          "status",
+          "revision",
+          "stats",
+          "bias",
+          "embedding_model",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "MemoryUnit",
+        "type": "object"
+      },
+      "PatchMemoryConflictResponse": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/LabelConflictResponse"
+          },
+          {
+            "$ref": "#/components/schemas/RevisionConflictResponse"
+          }
+        ],
+        "description": "The two exact 409 bodies for a memory patch.",
+        "title": "PatchMemoryConflictResponse"
       },
       "PatchMemoryRequest": {
         "additionalProperties": false,
@@ -225,6 +549,10 @@
             ],
             "title": "Label"
           },
+          "machine_id": {
+            "title": "Machine Id",
+            "type": "string"
+          },
           "pin": {
             "anyOf": [
               {
@@ -260,7 +588,8 @@
         "required": [
           "expected_revision",
           "editor",
-          "reason"
+          "reason",
+          "machine_id"
         ],
         "title": "PatchMemoryRequest",
         "type": "object"
@@ -327,6 +656,48 @@
         "title": "PrepareRequest",
         "type": "object"
       },
+      "PrepareResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "injected": {
+            "items": {
+              "$ref": "#/components/schemas/ScoredMemoryCard"
+            },
+            "title": "Injected",
+            "type": "array"
+          },
+          "injection_id": {
+            "format": "uuid",
+            "title": "Injection Id",
+            "type": "string"
+          },
+          "near_misses": {
+            "items": {
+              "$ref": "#/components/schemas/ScoredMemoryCard"
+            },
+            "title": "Near Misses",
+            "type": "array"
+          },
+          "scorer_version": {
+            "title": "Scorer Version",
+            "type": "string"
+          },
+          "snapshot_ts": {
+            "format": "date-time",
+            "title": "Snapshot Ts",
+            "type": "string"
+          }
+        },
+        "required": [
+          "injection_id",
+          "snapshot_ts",
+          "scorer_version",
+          "injected",
+          "near_misses"
+        ],
+        "title": "PrepareResponse",
+        "type": "object"
+      },
       "RemovedMemory": {
         "additionalProperties": false,
         "properties": {
@@ -350,6 +721,77 @@
           "reason"
         ],
         "title": "RemovedMemory",
+        "type": "object"
+      },
+      "RevisionConflictResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "conflict": {
+            "$ref": "#/components/schemas/MemoryUnit"
+          }
+        },
+        "required": [
+          "conflict"
+        ],
+        "title": "RevisionConflictResponse",
+        "type": "object"
+      },
+      "ScoredMemoryCard": {
+        "additionalProperties": false,
+        "description": "Inject/prepare card, where C.4 requires scoring details.",
+        "properties": {
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "features": {
+            "$ref": "#/components/schemas/MemoryFeatures"
+          },
+          "kind": {
+            "enum": [
+              "fact",
+              "preference",
+              "procedure",
+              "project_note",
+              "persona",
+              "pinned"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "memory_id": {
+            "format": "uuid",
+            "title": "Memory Id",
+            "type": "string"
+          },
+          "pin": {
+            "title": "Pin",
+            "type": "boolean"
+          },
+          "rank": {
+            "title": "Rank",
+            "type": "integer"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          }
+        },
+        "required": [
+          "memory_id",
+          "label",
+          "body",
+          "kind",
+          "pin",
+          "score",
+          "features",
+          "rank"
+        ],
+        "title": "ScoredMemoryCard",
         "type": "object"
       },
       "SearchRequest": {
@@ -385,6 +827,104 @@
           "query"
         ],
         "title": "SearchRequest",
+        "type": "object"
+      },
+      "SearchResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/SimilarityMemoryCard"
+            },
+            "title": "Results",
+            "type": "array"
+          }
+        },
+        "required": [
+          "results"
+        ],
+        "title": "SearchResponse",
+        "type": "object"
+      },
+      "SimilarMemoryResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "created": {
+            "title": "Created",
+            "type": "null"
+          },
+          "similar": {
+            "items": {
+              "$ref": "#/components/schemas/SimilarityMemoryCard"
+            },
+            "title": "Similar",
+            "type": "array"
+          }
+        },
+        "required": [
+          "created",
+          "similar"
+        ],
+        "title": "SimilarMemoryResponse",
+        "type": "object"
+      },
+      "SimilarityMemoryCard": {
+        "additionalProperties": false,
+        "description": "Dedup/search card, where C.4 requires scoring details to be null.",
+        "properties": {
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "features": {
+            "title": "Features",
+            "type": "null"
+          },
+          "kind": {
+            "enum": [
+              "fact",
+              "preference",
+              "procedure",
+              "project_note",
+              "persona",
+              "pinned"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "memory_id": {
+            "format": "uuid",
+            "title": "Memory Id",
+            "type": "string"
+          },
+          "pin": {
+            "title": "Pin",
+            "type": "boolean"
+          },
+          "rank": {
+            "title": "Rank",
+            "type": "null"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          }
+        },
+        "required": [
+          "memory_id",
+          "label",
+          "body",
+          "kind",
+          "pin",
+          "score",
+          "features",
+          "rank"
+        ],
+        "title": "SimilarityMemoryCard",
         "type": "object"
       }
     },
@@ -491,6 +1031,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedbackResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
           "401": {
             "content": {
               "application/problem+json": {
@@ -676,6 +1226,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommitResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
           "401": {
             "content": {
               "application/problem+json": {
@@ -861,6 +1421,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrepareResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
           "401": {
             "content": {
               "application/problem+json": {
@@ -1088,9 +1658,40 @@
               ],
               "title": "Q"
             }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
           }
         ],
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
           "401": {
             "content": {
               "application/problem+json": {
@@ -1274,6 +1875,26 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimilarMemoryResponse"
+                }
+              }
+            },
+            "description": "Similar memories require an explicit force retry"
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedMemoryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
           "401": {
             "content": {
               "application/problem+json": {
@@ -1326,6 +1947,16 @@
               }
             },
             "description": "Bearer token missing or invalid"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateMemoryConflictResponse"
+                }
+              }
+            },
+            "description": "Active-label collision or hard duplicate"
           },
           "422": {
             "content": {
@@ -1471,6 +2102,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryUnit"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
           "401": {
             "content": {
               "application/problem+json": {
@@ -1523,6 +2164,16 @@
               }
             },
             "description": "Bearer token missing or invalid"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatchMemoryConflictResponse"
+                }
+              }
+            },
+            "description": "CAS or active-label conflict"
           },
           "422": {
             "content": {
@@ -1656,6 +2307,16 @@
           "required": true
         },
         "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
           "401": {
             "content": {
               "application/problem+json": {

@@ -54,13 +54,21 @@ STUB_CASES: list[tuple[str, str, str, dict[str, Any] | None]] = [
             "body": "The owner prefers tabs.",
             "kind": "preference",
             "editor": "user",
+            "machine_id": "machine-1",
+            "force": True,
         },
     ),
     (
         "PATCH",
         f"/v1/memories/{MEMORY_ID}",
         "PATCH /v1/memories/{id}",
-        {"expected_revision": 1, "body": "Updated.", "editor": "user", "reason": "fix"},
+        {
+            "expected_revision": 1,
+            "body": "Updated.",
+            "editor": "user",
+            "reason": "fix",
+            "machine_id": "machine-1",
+        },
     ),
     ("GET", "/v1/memories", "GET /v1/memories", None),
     (
@@ -138,6 +146,42 @@ async def test_exact_c4_bodies_reject_extra_fields(app: FastAPI) -> None:
     assert response.json()["errors"][0]["type"] == "extra_forbidden"
 
 
+async def test_v15_machine_id_is_required_on_create_and_patch(app: FastAPI) -> None:
+    headers = {"Authorization": f"Bearer {TOKEN}"}
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        create = await client.post(
+            "/v1/memories",
+            headers=headers,
+            json={
+                "principal_id": "owner",
+                "label": "Editor preference",
+                "body": "The owner prefers tabs.",
+                "kind": "preference",
+                "editor": "user",
+            },
+        )
+        patch = await client.patch(
+            f"/v1/memories/{MEMORY_ID}",
+            headers=headers,
+            json={"expected_revision": 1, "editor": "user", "reason": "fix"},
+        )
+
+    _assert_problem(create, status=422, endpoint="POST /v1/memories")
+    _assert_problem(patch, status=422, endpoint=f"PATCH /v1/memories/{MEMORY_ID}")
+    assert {error["loc"][-1] for error in create.json()["errors"]} == {"machine_id"}
+    assert {error["loc"][-1] for error in patch.json()["errors"]} == {"machine_id"}
+
+
+async def test_v15_list_paging_contract_is_validated(app: FastAPI) -> None:
+    headers = {"Authorization": f"Bearer {TOKEN}"}
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        valid = await client.get("/v1/memories?limit=200&offset=7", headers=headers)
+        excessive = await client.get("/v1/memories?limit=201", headers=headers)
+
+    _assert_problem(valid, status=501, endpoint="GET /v1/memories")
+    _assert_problem(excessive, status=422, endpoint="GET /v1/memories")
+
+
 async def test_http_errors_are_rfc7807(app: FastAPI) -> None:
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get(
@@ -167,3 +211,96 @@ def test_committed_openapi_is_current(app: FastAPI) -> None:
         "type": "http",
     }
     assert committed["components"]["schemas"]["SearchRequest"]["additionalProperties"] is False
+
+    create_operation = committed["paths"]["/v1/memories"]["post"]
+    create_request = committed["components"]["schemas"]["CreateMemoryRequest"]
+    assert {"machine_id", "editor"} <= set(create_request["required"])
+    assert create_request["properties"]["force"]["default"] is False
+    assert {"200", "201", "409", "501"} <= set(create_operation["responses"])
+    assert create_operation["responses"]["201"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/CreatedMemoryResponse"
+    }
+    assert create_operation["responses"]["200"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/SimilarMemoryResponse"
+    }
+    assert create_operation["responses"]["409"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/CreateMemoryConflictResponse"
+    }
+
+    patch_request = committed["components"]["schemas"]["PatchMemoryRequest"]
+    assert "machine_id" in patch_request["required"]
+    patch_operation = committed["paths"]["/v1/memories/{id}"]["patch"]
+    assert patch_operation["responses"]["409"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/PatchMemoryConflictResponse"
+    }
+    commit_response = committed["paths"]["/v1/inject/commit"]["post"]
+    commit_schema = commit_response["responses"]["200"]["content"]["application/json"]["schema"]
+    assert commit_schema == {"$ref": "#/components/schemas/CommitResponse"}
+    assert "wrong_removed" in committed["components"]["schemas"]["CommitResponse"]["required"]
+
+    memory_unit_fields = {
+        "memory_id",
+        "principal_id",
+        "label",
+        "body",
+        "kind",
+        "keywords",
+        "project_key",
+        "thread_origin",
+        "pin",
+        "status",
+        "revision",
+        "stats",
+        "bias",
+        "embedding_model",
+        "created_at",
+        "updated_at",
+    }
+    assert set(committed["components"]["schemas"]["MemoryUnit"]["required"]) == memory_unit_fields
+    assert set(committed["components"]["schemas"]["ScoredMemoryCard"]["required"]) == {
+        "memory_id",
+        "label",
+        "body",
+        "kind",
+        "pin",
+        "score",
+        "features",
+        "rank",
+    }
+    scored_properties = committed["components"]["schemas"]["ScoredMemoryCard"]["properties"]
+    assert scored_properties["features"] == {"$ref": "#/components/schemas/MemoryFeatures"}
+    assert scored_properties["rank"]["type"] == "integer"
+
+    similarity_properties = committed["components"]["schemas"]["SimilarityMemoryCard"]["properties"]
+    assert similarity_properties["features"]["type"] == "null"
+    assert similarity_properties["rank"]["type"] == "null"
+    prepare_items = committed["components"]["schemas"]["PrepareResponse"]["properties"]["injected"][
+        "items"
+    ]
+    duplicate_card = committed["components"]["schemas"]["DuplicateMemoryResponse"]["properties"][
+        "duplicate_of"
+    ]
+    similar_items = committed["components"]["schemas"]["SimilarMemoryResponse"]["properties"][
+        "similar"
+    ]["items"]
+    search_items = committed["components"]["schemas"]["SearchResponse"]["properties"]["results"][
+        "items"
+    ]
+    assert similar_items == {"$ref": "#/components/schemas/SimilarityMemoryCard"}
+    assert search_items == {"$ref": "#/components/schemas/SimilarityMemoryCard"}
+    assert prepare_items == {"$ref": "#/components/schemas/ScoredMemoryCard"}
+    assert duplicate_card == {"$ref": "#/components/schemas/SimilarityMemoryCard"}
+
+    list_parameters = {
+        parameter["name"]: parameter
+        for parameter in committed["paths"]["/v1/memories"]["get"]["parameters"]
+    }
+    assert list_parameters["limit"]["schema"] == {
+        "default": 50,
+        "maximum": 200,
+        "title": "Limit",
+        "type": "integer",
+    }
+    assert list_parameters["offset"]["schema"]["default"] == 0
+    list_schema = committed["components"]["schemas"]["MemoryListResponse"]
+    assert set(list_schema["required"]) == {"items", "total", "limit", "offset"}

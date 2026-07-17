@@ -59,3 +59,23 @@ and reproducible without adding a hook framework.
 **Rejected alternatives.** A dependency-heavy pre-commit framework adds no
 useful P0 capability. Scanning `docs/SPEC.md` or the hook's own pattern list
 would make every run fail on the words that define the prohibition.
+
+## 003 — Typed v1.5 stub contract without premature behavior
+
+**Problem Tree:** P1.1
+
+**Decision.** Hand-mirror the v1.5 C.4 success and alternate response bodies
+as strict Pydantic models and expose them in the committed OpenAPI document,
+while each P0 route continues to return its explicit named RFC 7807 `501`.
+Keep the shared `MemoryCard` and `MemoryUnit` shapes in one contract module so
+the injection and memory routers cannot drift within this repository.
+
+**Motivation.** The human-gate amendment makes the cross-repository wire
+contract exact enough to freeze now. Publishing the success and conflict
+schemas gives Harness a complete artifact to mirror without stealing S1–S4's
+business behavior from their packets.
+
+**Rejected alternatives.** Leaving successful responses absent from OpenAPI
+would preserve the v1.4 ambiguity after the constitution resolved it. Returning
+dummy success values would make P0 appear to implement memory behavior and
+would cross the packet boundary.

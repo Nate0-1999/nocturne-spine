@@ -5,7 +5,12 @@ from uuid import UUID
 
 from fastapi import APIRouter, Request
 
-from spine.contracts import ContractRequest
+from spine.contracts import (
+    CommitResponse,
+    ContractRequest,
+    FeedbackResponse,
+    PrepareResponse,
+)
 from spine.problems import ProblemJSONResponse, not_implemented, problem_openapi
 
 router = APIRouter(tags=["injection"])
@@ -47,8 +52,7 @@ class FeedbackRequest(ContractRequest):
 
 @router.post(
     "/v1/inject/prepare",
-    status_code=501,
-    response_class=ProblemJSONResponse,
+    response_model=PrepareResponse,
     responses=STUB_RESPONSES,
 )
 async def prepare(_: PrepareRequest, request: Request) -> ProblemJSONResponse:
@@ -57,8 +61,7 @@ async def prepare(_: PrepareRequest, request: Request) -> ProblemJSONResponse:
 
 @router.post(
     "/v1/inject/commit",
-    status_code=501,
-    response_class=ProblemJSONResponse,
+    response_model=CommitResponse,
     responses=STUB_RESPONSES,
 )
 async def commit(_: CommitRequest, request: Request) -> ProblemJSONResponse:
@@ -67,8 +70,7 @@ async def commit(_: CommitRequest, request: Request) -> ProblemJSONResponse:
 
 @router.post(
     "/v1/feedback",
-    status_code=501,
-    response_class=ProblemJSONResponse,
+    response_model=FeedbackResponse,
     responses=STUB_RESPONSES,
 )
 async def feedback(_: FeedbackRequest, request: Request) -> ProblemJSONResponse:

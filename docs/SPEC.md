@@ -1,6 +1,6 @@
 # Harness + Memory System — Specification
 
-**Version 1.4** (2026-07-07) — execution protocol complete (judges + Agent Zero) — reorganized from the v0.x iteration transcript;
+**Version 1.5** (2026-07-17) — C.2/C.4 contract gaps closed at the human gate (Garden flags F001–F005) and COMPLETION authority added to 1.4 (D.2 entries 028–029). Prior v1.4 (2026-07-07): execution protocol complete (judges + Agent Zero) — reorganized from the v0.x iteration transcript;
 content-preserving. Audience: implementing agents (via /goal) and the human owner.
 Everything here is binding unless marked OPEN or given a non-accepted status.
 ADR numbers are immutable; superseding requires a new ADR. The chronological
@@ -109,21 +109,37 @@ Everything else in this document elaborates these thirteen laws:
 
 ### 1.4 Normativity: how this spec governs
 
-Two classes of content, deliberately different in force:
+Three classes of content, deliberately different in force:
 
 - **CONTRACTS (normative, follow literally):** the Invariants (1.3), the DDL
   (C.2), API request/response bodies (C.4), the WS envelope (C.7), the
   feature ledger and anti-scope rules (B.4, B.5), and acceptance criteria
   (C.8). These are what modules, milestones, and collaborators agree on;
-  deviation requires human sign-off, full stop.
+  deviation requires human sign-off — the sole exception is a qualifying
+  COMPLETION, below.
+- **COMPLETIONS (self-service contract repair, declared):** where a CONTRACT
+  is SILENT or SELF-INCONSISTENT on a detail a packet needs — a missing
+  field, an undefined response shape, a promise the DDL forgot — the agent
+  does not halt. It enacts the minimal completion that honors the contract's
+  stated intent and declares it as an exact spec diff in
+  `garden/AMENDMENTS.md` (mechanics: Garden PLAN §2). Enacted amendments are
+  law, equal to this spec, for every later agent and the judge; the human
+  audits them between sessions and may veto (veto → a FIXER reverts). A
+  completion QUALIFIES only if it touches no Invariant, no FORBIDDEN ledger
+  row, no auth or data-loss semantics; reverses no ADR; changes nothing an
+  already-DONE packet built; and contradicts no explicit spec sentence — it
+  fills silence, or repairs an internal contradiction in the direction the
+  spec itself points. A genuine design fork — two readings yielding
+  materially different products — does not qualify: FLAG it.
 - **GUIDANCE (motivated, follow the reasoning):** everything else. Decisions
   travel with their motivation and rejected alternatives so implementing
   agents understand *why*. Where an agent sees a way to serve the stated
   motivation better, it may take it — provided no CONTRACT is touched — and
   MUST record the deviation and its reasoning in the repo's `DECISIONS.md`
-  (append-only journal, reviewed by the human). Silence in the spec is
-  resolved the same way: act in the spirit of the Invariants and the Problem
-  Tree (§2), record the choice with its node ID.
+  (append-only journal, reviewed by the human). Silence outside a CONTRACT
+  is resolved the same way: act in the spirit of the Invariants and the
+  Problem Tree (§2), record the choice with its node ID. Silence inside a
+  CONTRACT is a COMPLETION, above.
 
 The intent is cultivation, not transcription: this document should produce
 collaborators who grow the project in its spirit, not contractors who
@@ -849,6 +865,10 @@ CREATE TABLE memory_unit (
 );
 CREATE INDEX ON memory_unit USING hnsw (embedding vector_cosine_ops);
 CREATE INDEX ON memory_unit (principal_id, status, project_key);
+CREATE UNIQUE INDEX memory_unit_active_label ON memory_unit (principal_id, label)
+  WHERE status = 'active';                      -- labels are handles: unique among
+                                                -- ACTIVE units; tombstone/quarantine
+                                                -- frees the label for reuse
 
 CREATE TABLE memory_revision (                  -- append-only "update history" index
   rev_uid     TEXT PRIMARY KEY,                 -- client-mintable ULID (ADR-011)
@@ -948,6 +968,12 @@ POST /v1/inject/prepare
         injected: [MemoryCard], near_misses: [MemoryCard]}
   MemoryCard: {memory_id, label, body, kind, pin, score,
                features: {sem,kw,time,proj,freq,hist}, rank}
+  MemoryUnit (shared shape; the C.2 row minus embedding):
+    {memory_id, principal_id, label, body, kind, keywords, project_key,
+     thread_origin, pin, status, revision, stats, bias, embedding_model,
+     created_at, updated_at}
+  MemoryCard.score/features/rank are populated only by inject/prepare; in
+  dedup and /v1/search responses score = cosine similarity, features/rank null.
 
 POST /v1/inject/commit
   req: {injection_id,
@@ -956,7 +982,10 @@ POST /v1/inject/commit
   beh: set outcomes (kept for the untouched injected set); apply
        removed:never bias/quarantine rule; reason "wrong" additionally returns
        the unit so the UI can open the edit flow.
-  res: {final_block: string}   # the exact rendered block (C.6) the harness injects
+  res: {final_block: string,        # the exact rendered block (C.6) the harness injects
+        wrong_removed: [MemoryUnit]} # current unit for each removed:"wrong" so the
+                                     # UI opens the edit flow with a valid
+                                     # expected_revision; [] when none
 
 POST /v1/feedback            # mid-thread, ad-hoc
   req: {injection_id, memory_id, signal: "mid_thread_removed"|"cited"}
@@ -964,17 +993,32 @@ POST /v1/feedback            # mid-thread, ad-hoc
 
 POST /v1/memories
   req: {principal_id, label, body, kind, keywords?,
-        project_key?, thread_origin?, editor}
-  beh: embed; dedup check vs active units of principal:
-       max cosine ≥ 0.92 → 409 {duplicate_of: MemoryCard};
-       0.80–0.92 → 200 {created: null, similar: [MemoryCard...]} (caller decides,
-         may retry with force=true);
-       else insert (revision 1 + memory_revision row).
-  res: 201 {created: MemoryCard}
+        project_key?, thread_origin?, editor, machine_id,
+        force?: bool = false}
+  beh: label check first: another ACTIVE unit of principal with this label →
+       409 {label_conflict: {memory_id, label}} (force does not override;
+       tombstoned/quarantined labels are reusable — see C.2 partial index);
+       embed; dedup check vs active units of principal:
+       max cosine ≥ 0.92 → 409 {duplicate_of: MemoryCard} (force does NOT
+         override a hard duplicate; the caller's move is editing that unit);
+       0.80–0.92 and force=false → 200 {created: null, similar: [MemoryCard...]}
+         (caller decides, may retry with force=true; force skips ONLY this band);
+       else insert (revision 1 + memory_revision row,
+         origin_machine_id = machine_id).
+  res: 201 {created: MemoryUnit}
 
-PATCH /v1/memories/{id}     req: {expected_revision, body?, label?,
-      keywords?, kind?, pin?, status?, editor, reason} → 200 unit | 409 conflict
-GET  /v1/memories?project_key=&status=&q=        (paged list for the panel)
+PATCH /v1/memories/{id}
+  req: {expected_revision, body?, label?, keywords?, kind?, pin?, status?,
+        editor, reason, machine_id}
+  beh: CAS per C.2 rules; the revision row gets origin_machine_id = machine_id;
+       a label change colliding with another active unit → 409 {label_conflict}
+       as on create.
+  res: 200 MemoryUnit | 409 {conflict: MemoryUnit}   # current unit, per C.2 rules
+
+GET  /v1/memories?project_key=&status=&q=&limit=&offset=
+  beh: panel list; limit default 50 max 200, offset default 0;
+       ordered by updated_at DESC, memory_id ASC (stable paging).
+  res: {items: [MemoryUnit], total, limit, offset}
 POST /v1/search             req: {principal_id, query, k=10, project_key?}
                             res: {results: [MemoryCard]}  (agent tool backend)
 
@@ -1158,7 +1202,9 @@ TASKS
 
 WHERE THE SPEC IS SILENT on scaffolding minutiae (linter, formatter, port
 numbers), decide in the spirit of the Invariants, record in DECISIONS.md
-citing P4. Where a decision would touch a CONTRACT: stop and flag the human.
+citing P4. Where a decision would touch a CONTRACT: if it qualifies as a
+COMPLETION (1.4), enact it via garden/AMENDMENTS.md and proceed; otherwise
+stop and flag the human.
 
 EXIT CRITERIA (self-verify, evidence in verification/bootstrap/):
 - `docker compose up` boots postgres + spine; /healthz 200; migration clean.
@@ -1222,6 +1268,8 @@ into its owning ADR above)
 | 025 | 2026-07-07 | Problem Tree (§2): nested problem→solution lineage with citable node IDs; Blight Protocol (locate deepest node, treat locally, escalate landscaping); feature-attachment corollary | ACCEPTED |
 | 026 | 2026-07-07 | Founding-prompt audit: all original objects verified represented; ADR-002 coupling made explicitly bidirectional; f_sess divergence recorded in D.4 with resurrection condition | ACCEPTED |
 | 027 | 2026-07-07 | Verification doctrine (B.6): experiential + traced + adversarial evidence, judge/builder separation, verdict artifacts, judgeable scope audit; M1 checklist J0–J8 (C.9); Agent Zero verbatim charge (C.10) | ACCEPTED |
+| 028 | 2026-07-17 | v1.5 human-gate amendment resolving Garden F001–F005: active-label partial unique index + label_conflict 409 (F001); force flag on create, similar-band only, never overrides ≥0.92 (F002); machine_id on create/PATCH → origin_machine_id (F003); commit returns wrong_removed: [MemoryUnit] (F004); MemoryUnit shape + limit/offset paging + PATCH 200/409 bodies (F005); create returns MemoryUnit; card score = similarity in dedup/search | ACCEPTED |
+| 029 | 2026-07-17 | Normativity (1.4) gains COMPLETION class: agents self-resolve silent/self-inconsistent contract details by enacting exact-diff entries in garden/AMENDMENTS.md — law for later agents and the judge, human audit-with-veto between sessions (veto → FIXER). Hard FLAG reserved for Invariants, FORBIDDEN rows, auth/data-loss, ADR reversals, changes to DONE-packet behavior, and genuine design forks. Motivated by F001–F005 all being qualifying completions that stopped the line | ACCEPTED |
 
 ## D.3 Resolved-question index (where each folded)
 
