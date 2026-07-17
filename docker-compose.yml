@@ -1,0 +1,37 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: spine
+      POSTGRES_PASSWORD: spine
+      POSTGRES_USER: spine
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U spine -d spine"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+    ports:
+      - "5432:5432"
+    volumes:
+      - spine_postgres:/var/lib/postgresql/data
+
+  spine:
+    build:
+      context: .
+    command:
+      - /bin/sh
+      - -c
+      - >-
+        alembic upgrade head &&
+        exec uvicorn spine.main:create_app --factory --host 0.0.0.0 --port 8000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPINE_DATABASE_URL: postgresql+asyncpg://spine:spine@postgres:5432/spine
+      SPINE_TOKEN: ${SPINE_TOKEN:-local-development-token}
+    ports:
+      - "8000:8000"
+
+volumes:
+  spine_postgres:

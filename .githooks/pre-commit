@@ -1,0 +1,48 @@
+#!/bin/sh
+# M1 scope fence required by garden/PLAN.md §7.
+
+set -eu
+
+mode="${1:-cached}"
+case "$mode" in
+  --all)
+    paths="$(git ls-files)"
+    ;;
+  cached)
+    paths="$(git diff --cached --name-only --diff-filter=ACMR)"
+    ;;
+  *)
+    echo "usage: $0 [--all]" >&2
+    exit 2
+    ;;
+esac
+
+forbidden='online[[:space:]_-]*weight|weights?[[:space:]_-]*(update|learn|train)|(update|learn|train)[[:space:]_-]*weights?|extract(ion|or|[[:space:]_-]*(memory|memories|thread|threads))|end[[:space:]_-]*of[[:space:]_-]*thread[[:space:]_-]*extract|relay[[:space:]_-]*client|maintenance[[:space:]_-]*(agent|job)|DBOS|durable[[:space:]_-]*execution|multi[[:space:]_-]*principal|oauth|oidc|api[[:space:]_-]*key[[:space:]_-]*(auth|header|scheme)|jwt|basic[[:space:]_-]*auth|cookie[[:space:]_-]*auth|session[[:space:]_-]*auth|m(utual)?[[:space:]_-]*tls|saml|rbac'
+failed=0
+
+while IFS= read -r path; do
+  [ -n "$path" ] || continue
+  case "$path" in
+    .githooks/*|docs/*|verification/*|*.md|*.lock|web/package-lock.json)
+      continue
+      ;;
+  esac
+
+  if [ "$mode" = "--all" ]; then
+    if grep -Eiq "$forbidden" "$path"; then
+      echo "M1 scope fence: forbidden-feature pattern in $path" >&2
+      failed=1
+    fi
+  elif git show ":$path" | grep -Eiq "$forbidden"; then
+    echo "M1 scope fence: forbidden-feature pattern in staged file $path" >&2
+    failed=1
+  fi
+done <<EOF
+$paths
+EOF
+
+if [ "$failed" -ne 0 ]; then
+  echo "Blocked by SPEC B.4. Do not build, stub, or prepare FORBIDDEN M1 features; write garden/FLAGS.md instead." >&2
+fi
+
+exit "$failed"
