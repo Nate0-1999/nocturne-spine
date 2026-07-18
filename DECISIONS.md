@@ -79,3 +79,34 @@ business behavior from their packets.
 would preserve the v1.4 ambiguity after the constitution resolved it. Returning
 dummy success values would make P0 appear to implement memory behavior and
 would cross the packet boundary.
+
+## 004 — One CAS writer and a detached conflict boundary
+
+**Problem Tree:** P1.3
+
+**Decision.** Enact Garden A-001 through one allowlisted C.2 write path:
+`cas_update_memory_unit` performs a conditional head update, derives the prior
+cloud-head revision as its parent, and appends the resulting revision inside
+an internal savepoint within the caller-owned transaction, so even a caught
+lineage error cannot commit a head/history split. `tombstone_memory_unit` is
+only a status-specific wrapper over that path. The caller supplies the
+client-mintable `rev_uid`, whose canonical ULID syntax is validated; the helper
+neither generates IDs nor commits. Callers write a given memory at most once
+per outer transaction, keeping a conflict snapshot tied to a committed prior
+head. A stale write raises a typed `MemoryCasConflictError` carrying a detached
+current-head snapshot and explicit 409 semantics; S2 remains responsible for
+translating it at the HTTP boundary.
+
+**Motivation.** A single conditional `UPDATE ... RETURNING` holds the memory
+row through the revision insert, so a loser cannot overwrite a winner and any
+history failure rolls the head change back. Deriving `parent_uid` from the
+expected cloud-head revision prevents ordinary online writes from attaching to
+an arbitrary memory lineage. A detached snapshot remains readable after the
+caller's rollback and is exactly what the later 409 response needs.
+
+**Rejected alternatives.** Committing inside the helper would make the head
+and surrounding service work impossible to compose atomically. A read-then-
+write CAS is race-prone. Accepting arbitrary update dictionaries would expose
+identity, ownership, counters, and timestamps to accidental mutation. Wiring
+PATCH now would steal S2. A server-side ULID generator or new ULID dependency
+would duplicate the client-mintable boundary for no S1 benefit.
