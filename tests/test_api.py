@@ -12,22 +12,8 @@ from httpx import ASGITransport, AsyncClient
 ROOT = Path(__file__).resolve().parents[1]
 MEMORY_ID = "00000000-0000-0000-0000-000000000001"
 INJECTION_ID = "00000000-0000-0000-0000-000000000002"
-THREAD_ID = "00000000-0000-0000-0000-000000000003"
 
 STUB_CASES: list[tuple[str, str, str, dict[str, Any] | None]] = [
-    (
-        "POST",
-        "/v1/inject/prepare",
-        "POST /v1/inject/prepare",
-        {
-            "thread_id": THREAD_ID,
-            "agent_id": "agent-1",
-            "machine_id": "machine-1",
-            "principal_id": "owner",
-            "prompt": "hello",
-            "model_context_tokens": 100_000,
-        },
-    ),
     (
         "POST",
         "/v1/inject/commit",
@@ -232,6 +218,11 @@ def test_committed_openapi_is_current(app: FastAPI) -> None:
         "$ref": "#/components/schemas/PatchMemoryConflictResponse"
     }
     assert "501" not in committed["paths"]["/v1/memories"]["get"]["responses"]
+    prepare_operation = committed["paths"]["/v1/inject/prepare"]["post"]
+    assert "501" not in prepare_operation["responses"]
+    assert {"200", "409", "503"} <= set(prepare_operation["responses"])
+    prepare_request = committed["components"]["schemas"]["PrepareRequest"]
+    assert prepare_request["properties"]["model_context_tokens"]["exclusiveMinimum"] == 0
     commit_response = committed["paths"]["/v1/inject/commit"]["post"]
     commit_schema = commit_response["responses"]["200"]["content"]["application/json"]["schema"]
     assert commit_schema == {"$ref": "#/components/schemas/CommitResponse"}

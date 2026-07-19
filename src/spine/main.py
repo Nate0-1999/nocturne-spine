@@ -19,6 +19,7 @@ from spine.db.engine import make_engine
 from spine.db.session import make_session_factory
 from spine.embeddings import EmbeddingProvider, OpenAIEmbeddingProvider
 from spine.inject.router import router as inject_router
+from spine.inject.service import PrepareService
 from spine.memory.router import router as memory_router
 from spine.memory.service import MemoryService
 from spine.problems import ProblemJSONResponse, problem_openapi, problem_response
@@ -57,7 +58,7 @@ def create_app(
         )
         embedding_provider = owned_provider
 
-    service = MemoryService(
+    memory_service = MemoryService(
         session_factory,
         embedding_provider,
         dedup_dup=resolved.dedup_dup,
@@ -65,6 +66,7 @@ def create_app(
         label_max=resolved.label_max,
         memory_max_tokens=resolved.memory_max_tokens,
     )
+    prepare_service = PrepareService(session_factory, embedding_provider)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -84,7 +86,8 @@ def create_app(
         lifespan=lifespan,
     )
     app.state.settings = resolved
-    app.state.memory_service = service
+    app.state.memory_service = memory_service
+    app.state.prepare_service = prepare_service
     app.add_middleware(
         StaticBearerAuthMiddleware,
         token=resolved.token.get_secret_value(),

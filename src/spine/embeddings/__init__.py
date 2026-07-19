@@ -48,6 +48,38 @@ class EmbeddingResponseError(EmbeddingProviderError):
     """A successful provider response did not satisfy the vector contract."""
 
 
+async def embed_one(
+    provider: EmbeddingProvider,
+    text: str,
+    *,
+    expected_dimensions: int | None = None,
+) -> list[float]:
+    """Embed one text and validate any injected provider's vector response."""
+
+    vectors = await provider.embed([text])
+    if len(vectors) != 1:
+        raise EmbeddingResponseError(
+            f"embedding provider returned {len(vectors)} vectors for one input"
+        )
+    vector = vectors[0]
+    dimensions = provider.dimensions if expected_dimensions is None else expected_dimensions
+    if len(vector) != dimensions:
+        raise EmbeddingResponseError(
+            f"embedding provider returned dimension {len(vector)}; expected {dimensions}"
+        )
+    normalized: list[float] = []
+    for value in vector:
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise EmbeddingResponseError("embedding provider returned a non-numeric value")
+        number = float(value)
+        if not math.isfinite(number):
+            raise EmbeddingResponseError("embedding provider returned a non-finite value")
+        normalized.append(number)
+    if math.fsum(value * value for value in normalized) == 0.0:
+        raise EmbeddingResponseError("embedding provider returned a zero-norm vector")
+    return normalized
+
+
 class OpenAIEmbeddingProvider:
     """Embed text with OpenAI's ``POST /v1/embeddings`` endpoint."""
 
@@ -223,4 +255,5 @@ __all__ = [
     "EmbeddingResponseError",
     "EmbeddingTransportError",
     "OpenAIEmbeddingProvider",
+    "embed_one",
 ]

@@ -16,11 +16,38 @@ from spine.embeddings import (
     EmbeddingResponseError,
     EmbeddingTransportError,
     OpenAIEmbeddingProvider,
+    embed_one,
 )
 
 
 def _client(handler: Callable[[httpx.Request], httpx.Response]) -> httpx.AsyncClient:
     return httpx.AsyncClient(transport=httpx.MockTransport(handler))
+
+
+class _InjectedProvider:
+    model = "injected-test"
+    dimensions = 3
+
+    def __init__(self, vectors: list[list[object]]) -> None:
+        self.vectors = vectors
+
+    async def embed(self, texts: object) -> list[list[object]]:
+        assert texts == ["memory"]
+        return self.vectors
+
+
+async def test_embed_one_normalizes_and_validates_an_injected_provider() -> None:
+    provider = _InjectedProvider([[1, 2.5, 3]])
+
+    assert await embed_one(provider, "memory") == [1.0, 2.5, 3.0]  # type: ignore[arg-type]
+
+    provider.vectors = [[1.0, 2.0]]
+    with pytest.raises(EmbeddingResponseError, match="dimension 2; expected 3"):
+        await embed_one(provider, "memory")  # type: ignore[arg-type]
+
+    provider.vectors = [[1.0, math.nan, 3.0]]
+    with pytest.raises(EmbeddingResponseError, match="non-finite value"):
+        await embed_one(provider, "memory")  # type: ignore[arg-type]
 
 
 async def test_openai_request_and_response_order_follow_the_provider_contract() -> None:

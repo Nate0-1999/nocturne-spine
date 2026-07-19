@@ -161,3 +161,60 @@ in one caller-owned transaction preserves C.2 lineage and rollback semantics.
 table lock would serialize unrelated principals. Relying only on the active-label
 unique index protects labels but not semantic duplicates. Retrying an integrity
 error without rolling back its savepoint would leave the transaction unusable.
+
+## 007 — Pure scorer core with a versioned database boundary
+
+**Problem Tree:** P1.2
+
+**Decision.** Enact Garden A-007 as a pure scorer that accepts detached
+candidates, an immutable typed `scorer_config`, and an explicit snapshot clock,
+then returns scored/ranked selections without database or HTTP access. Load
+exactly one active `scorer_config` row for each prepare and persist that row's
+version on every event. Keep vector-pool ordering in PostgreSQL for production,
+while reapplying the same cosine/UUID boundary in the pure function so its golden
+fixtures independently exercise the complete algorithm. Use `cl100k_base` for
+the body budget through the same lazy tokenizer family as memory validation.
+Order the vector pool by raw cosine and clamp only the semantic feature; quantize
+the aggregate score once to C.2's PostgreSQL `REAL` width before threshold,
+ordering, response, and persistence so no hidden precision changes a decision.
+
+**Motivation.** A side-effect-free function makes all six feature calculations,
+pin bypass, score ordering, inclusive threshold, greedy skipping, budget, and
+near-miss behavior reproducible from hand calculations. Treating the active
+versioned row as one indivisible input keeps event replay tied to the weights and
+parameters that actually produced the score.
+
+**Rejected alternatives.** Computing features inside SQL would make golden
+tests mirror query machinery instead of the contract math. Reading weights from
+the database but selection parameters from environment settings would permit one
+reported scorer version to describe two different algorithms. A process-global
+mutable scorer would weaken replay and make concurrent config activation opaque.
+
+## 008 — One-shot frozen prepare with replayable card events
+
+**Problem Tree:** P1.2, P1.3
+
+**Decision.** Enact Garden A-008 by embedding before the database phase, then
+perform thread stamping, repeatable-read candidate selection, event insertion,
+and injected-only statistic writes in one transaction. Reject a second M1
+prepare for the thread instead of pretending C.2's partial revision rows can
+reconstruct historical vectors. Preserve each returned card's label/body/pin/
+updated-at snapshot under the event feature payload's enacted `_memory` key so
+S4 can render and J6 can replay the original gate after later edits. Route every
+injection counter through S1's CAS helper in UUID order, with bounded whole-
+transaction retry on PostgreSQL serialization conflicts. Share provider-vector
+validation and canonical ULID minting with S2 rather than growing parallel
+helpers.
+
+**Motivation.** The one successful transaction gives `snapshot_ts` observable
+meaning under concurrent writes, and card snapshots close the prepare-to-commit
+gap without adding a sixth persistence table. Atomic CAS events/counters leave
+neither a logged injection without its statistic nor a statistic without its
+decision context.
+
+**Rejected alternatives.** Joining a historical body to the current embedding
+would silently violate snapshot pinning. Long-lived transactions or an in-memory
+thread cache would fail across workers and restarts. A per-thread copy of every
+eligible vector is unnecessary in M1's explicit one-injection-per-thread flow.
+Direct JSON counter updates would avoid revision churn but violate Invariant 5
+and C.2's standing all-writes CAS rule.

@@ -2,16 +2,11 @@
 
 from __future__ import annotations
 
-import math
-import secrets
-import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from functools import cache
 from typing import Any, Final, Literal
 from uuid import UUID
 
-import tiktoken
 from sqlalchemy import func, insert, or_, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -41,12 +36,13 @@ from spine.db.models import MemoryRevision, MemoryUnit
 from spine.embeddings import (
     EmbeddingConfigurationError,
     EmbeddingProvider,
-    EmbeddingResponseError,
+    embed_one,
 )
+from spine.ids import mint_ulid
+from spine.tokens import cl100k_token_count
 
 _EMBEDDING_DIMENSIONS = 1536
 _ACTIVE_LABEL_CONSTRAINT = "memory_unit_active_label"
-_ULID_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 
 
 class UnsetType:
@@ -209,7 +205,11 @@ class MemoryService:
             raise LabelConflictError(conflict["id"], conflict["label"])
 
         self._validate_body(command.body)
-        embedding = await self._embed_one(command.body)
+        embedding = await embed_one(
+            self._embedding_provider,
+            command.body,
+            expected_dimensions=_EMBEDDING_DIMENSIONS,
+        )
 
         async with self._session_factory() as session:
             async with session.begin():
@@ -295,7 +295,11 @@ class MemoryService:
 
         change_values: dict[str, Any] = {}
         if _provided(command.body):
-            embedding = await self._embed_one(command.body)
+            embedding = await embed_one(
+                self._embedding_provider,
+                command.body,
+                expected_dimensions=_EMBEDDING_DIMENSIONS,
+            )
             change_values.update(
                 body=command.body,
                 embedding=embedding,
@@ -320,7 +324,7 @@ class MemoryService:
                         CasUpdate(
                             memory_id=command.memory_id,
                             expected_revision=command.expected_revision,
-                            rev_uid=_mint_ulid(),
+                            rev_uid=mint_ulid(),
                             editor=command.editor,
                             origin_machine_id=command.machine_id,
                             reason=command.reason,
@@ -388,30 +392,6 @@ class MemoryService:
             offset=query.offset,
         )
 
-    async def _embed_one(self, body: str) -> list[float]:
-        vectors = await self._embedding_provider.embed([body])
-        if len(vectors) != 1:
-            raise EmbeddingResponseError(
-                f"embedding provider returned {len(vectors)} vectors for one input"
-            )
-        vector = vectors[0]
-        if len(vector) != _EMBEDDING_DIMENSIONS:
-            raise EmbeddingResponseError(
-                f"embedding provider returned dimension {len(vector)}; "
-                f"expected {_EMBEDDING_DIMENSIONS}"
-            )
-        normalized: list[float] = []
-        for value in vector:
-            if isinstance(value, bool) or not isinstance(value, (int, float)):
-                raise EmbeddingResponseError("embedding provider returned a non-numeric value")
-            number = float(value)
-            if not math.isfinite(number):
-                raise EmbeddingResponseError("embedding provider returned a non-finite value")
-            normalized.append(number)
-        if math.fsum(value * value for value in normalized) == 0.0:
-            raise EmbeddingResponseError("embedding provider returned a zero-norm vector")
-        return normalized
-
     def _validate_label(self, label: str) -> None:
         if len(label) > self._label_max:
             raise MemoryValidationError(
@@ -419,7 +399,7 @@ class MemoryService:
             )
 
     def _validate_body(self, body: str) -> None:
-        tokens = len(_memory_encoding().encode(body, disallowed_special=()))
+        tokens = cl100k_token_count(body)
         if tokens > self._memory_max_tokens:
             raise MemoryValidationError(
                 f"body has {tokens} cl100k_base tokens; maximum is {self._memory_max_tokens}"
@@ -484,7 +464,7 @@ class MemoryService:
         )
         await session.execute(
             insert(MemoryRevision.__table__).values(
-                rev_uid=_mint_ulid(),
+                rev_uid=mint_ulid(),
                 parent_uid=None,
                 memory_id=row["id"],
                 revision=1,
@@ -615,23 +595,6 @@ def _integrity_constraint_name(error: IntegrityError) -> str | None:
             return name
         candidate = getattr(candidate, "__cause__", None)
     return None
-
-
-@cache
-def _memory_encoding() -> tiktoken.Encoding:
-    return tiktoken.get_encoding("cl100k_base")
-
-
-def _mint_ulid() -> str:
-    """Mint a canonical 26-character ULID from 48 time and 80 random bits."""
-
-    timestamp_ms = int(time.time() * 1000) & ((1 << 48) - 1)
-    value = (timestamp_ms << 80) | secrets.randbits(80)
-    encoded = ["0"] * 26
-    for index in range(25, -1, -1):
-        encoded[index] = _ULID_ALPHABET[value & 0x1F]
-        value >>= 5
-    return "".join(encoded)
 
 
 __all__ = [
