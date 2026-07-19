@@ -1,6 +1,8 @@
 """Spine configuration and the authoritative M1 defaults from SPEC C.5."""
 
-from pydantic import Field, SecretStr
+from typing import Literal
+
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,6 +17,7 @@ class Settings(BaseSettings):
 
     database_url: str
     token: SecretStr
+    openai_api_key: SecretStr | None = None
     version: str = "0.1.0"
 
     tau: float = Field(default=0.55, ge=0.0, le=1.0)
@@ -30,7 +33,15 @@ class Settings(BaseSettings):
     quarantine_kills: int = Field(default=3, gt=0)
     candidate_pool: int = Field(default=50, gt=0)
     embed_model: str = "text-embedding-3-small"
-    embed_dim: int = Field(default=1536, gt=0)
+    embed_dim: Literal[1536] = 1536
     memory_max_tokens: int = Field(default=128, gt=0)
     label_max: int = Field(default=64, gt=0)
     chat_model: str = "anthropic:claude-sonnet-4-6"
+
+    @model_validator(mode="after")
+    def validate_dedup_bands(self) -> "Settings":
+        """Keep the similar band strictly below the hard-duplicate band."""
+
+        if self.dedup_sim >= self.dedup_dup:
+            raise ValueError("dedup_sim must be less than dedup_dup")
+        return self

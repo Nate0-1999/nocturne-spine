@@ -16,6 +16,7 @@ dependencies = [
   "pydantic>=2,<3",
   "pydantic-settings>=2,<3",
   "sqlalchemy[asyncio]>=2,<3",
+  "tiktoken>=0.9,<1",
   "uvicorn[standard]>=0.30,<1",
 ]
 

@@ -1,30 +1,64 @@
-"""P0 stubs for the memory endpoints in SPEC C.4."""
+"""HTTP boundary for the SPEC C.4 memory endpoints."""
 
 from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Query, Request
+from fastapi.responses import JSONResponse
 
 from spine.contracts import (
     ContractRequest,
     CreatedMemoryResponse,
     CreateMemoryConflictResponse,
+    DuplicateMemoryResponse,
+    LabelConflictDetail,
+    LabelConflictResponse,
     MemoryKind,
     MemoryListResponse,
     MemoryStatus,
     MemoryUnit,
     PatchMemoryConflictResponse,
+    RevisionConflictResponse,
     SearchResponse,
     SimilarMemoryResponse,
 )
-from spine.problems import ProblemJSONResponse, not_implemented, problem_openapi
+from spine.embeddings import EmbeddingProviderError
+from spine.memory.service import (
+    CreateMemoryCommand,
+    DuplicateMemoryError,
+    EmptyPatchError,
+    InvalidListQueryError,
+    LabelConflictError,
+    ListMemoriesQuery,
+    MemoryCreated,
+    MemoryNotFoundError,
+    MemoryService,
+    MemoryValidationError,
+    PatchMemoryCommand,
+    RevisionConflictError,
+    SimilarMemories,
+)
+from spine.problems import (
+    ProblemJSONResponse,
+    not_implemented,
+    problem_openapi,
+    problem_response,
+)
 
 router = APIRouter(tags=["memory"])
 
-STUB_RESPONSES = {
+ERROR_RESPONSES = {
     401: problem_openapi("Bearer token missing or invalid"),
     422: problem_openapi("Request does not match the endpoint contract"),
+    500: problem_openapi("Unexpected service failure"),
+}
+
+STUB_RESPONSES = ERROR_RESPONSES | {
     501: problem_openapi("Agent Zero contract stub"),
+}
+
+EMBEDDING_RESPONSES = ERROR_RESPONSES | {
+    503: problem_openapi("Embedding provider unavailable"),
 }
 
 
@@ -65,7 +99,7 @@ class SearchRequest(ContractRequest):
     "/v1/memories",
     status_code=201,
     response_model=CreatedMemoryResponse,
-    responses=STUB_RESPONSES
+    responses=EMBEDDING_RESPONSES
     | {
         200: {
             "description": "Similar memories require an explicit force retry",
@@ -77,45 +111,129 @@ class SearchRequest(ContractRequest):
         },
     },
 )
-async def create_memory(_: CreateMemoryRequest, request: Request) -> ProblemJSONResponse:
-    return not_implemented("POST /v1/memories", request.url.path)
+async def create_memory(
+    body: CreateMemoryRequest,
+    request: Request,
+) -> CreatedMemoryResponse | JSONResponse:
+    service = _memory_service(request)
+    try:
+        outcome = await service.create(
+            CreateMemoryCommand(
+                principal_id=body.principal_id,
+                label=body.label,
+                body=body.body,
+                kind=body.kind,
+                keywords=body.keywords or (),
+                project_key=body.project_key,
+                thread_origin=body.thread_origin,
+                editor=body.editor,
+                machine_id=body.machine_id,
+                force=body.force,
+            )
+        )
+    except LabelConflictError as error:
+        return _label_conflict(error)
+    except DuplicateMemoryError as error:
+        conflict = DuplicateMemoryResponse(duplicate_of=error.duplicate_of)
+        return JSONResponse(status_code=409, content=conflict.model_dump(mode="json"))
+    except MemoryValidationError as error:
+        return _unprocessable(request, str(error))
+    except EmbeddingProviderError:
+        return _provider_unavailable(request)
+
+    if isinstance(outcome, SimilarMemories):
+        response = SimilarMemoryResponse(created=None, similar=list(outcome.similar))
+        return JSONResponse(status_code=200, content=response.model_dump(mode="json"))
+    if not isinstance(outcome, MemoryCreated):  # pragma: no cover - closed service union
+        raise TypeError(f"unexpected create outcome: {type(outcome).__name__}")
+    return CreatedMemoryResponse(created=outcome.memory)
 
 
 @router.patch(
     "/v1/memories/{id}",
     response_model=MemoryUnit,
-    responses=STUB_RESPONSES
+    responses=EMBEDDING_RESPONSES
     | {
+        404: problem_openapi("Memory does not exist"),
         409: {
             "description": "CAS or active-label conflict",
             "model": PatchMemoryConflictResponse,
-        }
+        },
     },
 )
 async def patch_memory(
     id: UUID,
-    _: PatchMemoryRequest,
+    body: PatchMemoryRequest,
     request: Request,
-) -> ProblemJSONResponse:
-    del id
-    return not_implemented("PATCH /v1/memories/{id}", request.url.path)
+) -> MemoryUnit | JSONResponse | ProblemJSONResponse:
+    mutable = {
+        field: getattr(body, field)
+        for field in ("body", "label", "keywords", "kind", "pin", "status")
+        if field in body.model_fields_set and getattr(body, field) is not None
+    }
+    try:
+        return await _memory_service(request).patch(
+            PatchMemoryCommand(
+                memory_id=id,
+                expected_revision=body.expected_revision,
+                editor=body.editor,
+                reason=body.reason,
+                machine_id=body.machine_id,
+                **mutable,
+            )
+        )
+    except LabelConflictError as error:
+        return _label_conflict(error)
+    except RevisionConflictError as error:
+        conflict = RevisionConflictResponse(conflict=error.current)
+        return JSONResponse(status_code=409, content=conflict.model_dump(mode="json"))
+    except MemoryNotFoundError:
+        return problem_response(
+            status=404,
+            title="Not Found",
+            detail=f"Memory {id} does not exist.",
+            instance=request.url.path,
+            endpoint=f"{request.method} {request.url.path}",
+        )
+    except EmptyPatchError:
+        return _unprocessable(request, "PATCH requires at least one non-null mutable property.")
+    except MemoryValidationError as error:
+        return _unprocessable(request, str(error))
+    except EmbeddingProviderError:
+        return _provider_unavailable(request)
 
 
 @router.get(
     "/v1/memories",
     response_model=MemoryListResponse,
-    responses=STUB_RESPONSES,
+    responses=ERROR_RESPONSES,
 )
 async def list_memories(
     request: Request,
     project_key: str | None = None,
     status: MemoryStatus | None = None,
     q: str | None = None,
-    limit: Annotated[int, Query(le=200)] = 50,
-    offset: int = 0,
-) -> ProblemJSONResponse:
-    del project_key, status, q, limit, offset
-    return not_implemented("GET /v1/memories", request.url.path)
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> MemoryListResponse | ProblemJSONResponse:
+    try:
+        return await _memory_service(request).list(
+            ListMemoriesQuery(
+                project_key=project_key,
+                status=status,
+                q=q,
+                limit=limit,
+                offset=offset,
+            )
+        )
+    except InvalidListQueryError as error:  # defensive for non-HTTP callers
+        return problem_response(
+            status=422,
+            title="Unprocessable Content",
+            detail=str(error),
+            instance=request.url.path,
+            endpoint=f"{request.method} {request.url.path}",
+        )
 
 
 @router.post(
@@ -125,3 +243,34 @@ async def list_memories(
 )
 async def search(_: SearchRequest, request: Request) -> ProblemJSONResponse:
     return not_implemented("POST /v1/search", request.url.path)
+
+
+def _memory_service(request: Request) -> MemoryService:
+    return request.app.state.memory_service
+
+
+def _label_conflict(error: LabelConflictError) -> JSONResponse:
+    conflict = LabelConflictResponse(
+        label_conflict=LabelConflictDetail(memory_id=error.memory_id, label=error.label)
+    )
+    return JSONResponse(status_code=409, content=conflict.model_dump(mode="json"))
+
+
+def _provider_unavailable(request: Request) -> ProblemJSONResponse:
+    return problem_response(
+        status=503,
+        title="Service Unavailable",
+        detail="The embedding provider could not complete the request.",
+        instance=request.url.path,
+        endpoint=f"{request.method} {request.url.path}",
+    )
+
+
+def _unprocessable(request: Request, detail: str) -> ProblemJSONResponse:
+    return problem_response(
+        status=422,
+        title="Unprocessable Content",
+        detail=detail,
+        instance=request.url.path,
+        endpoint=f"{request.method} {request.url.path}",
+    )

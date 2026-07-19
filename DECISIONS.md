@@ -110,3 +110,54 @@ write CAS is race-prone. Accepting arbitrary update dictionaries would expose
 identity, ownership, counters, and timestamps to accidental mutation. Wiring
 PATCH now would steal S2. A server-side ULID generator or new ULID dependency
 would duplicate the client-mintable boundary for no S1 benefit.
+
+## 005 — One injected embedding boundary, with a real production adapter
+
+**Problem Tree:** P1.1
+
+**Decision.** Implement C.1's embedding seam as an async provider protocol with
+an OpenAI HTTP adapter and explicit model/dimension metadata. The production app
+uses `text-embedding-3-small` at the authoritative 1536 dimensions, obtains its
+key from `SPINE_OPENAI_API_KEY`, and returns a service-availability problem when
+the provider cannot run; deterministic vectors exist only as injected tests.
+The adapter validates response cardinality, index order, finite non-zero-norm
+numeric values, and exact vector width before any database write. App
+construction accepts the provider and SQLAlchemy session factory explicitly so
+tests exercise the real HTTP/service/database stack without global monkeypatches.
+
+**Motivation.** Provider validation keeps malformed or cross-model vectors out
+of the fixed `vector(1536)` column. Injection satisfies the provider-pluggable
+contract while retaining a real runtime path and deterministic verification.
+
+**Rejected alternatives.** A deterministic fake as the runtime fallback would
+make successful-looking writes semantically false. Adding the OpenAI SDK would
+duplicate the already-required `httpx` boundary for one stable endpoint. Making
+the fixed storage dimension environment-variable-dependent would let config and
+the authoritative DDL disagree.
+
+## 006 — Serializable create dedup and one memory service transaction boundary
+
+**Problem Tree:** P1.4, P1.1
+
+**Decision.** Enact Garden A-002 through A-006 in one memory service. Creation
+does the required active-label preflight before embedding, then takes a
+transaction-scoped PostgreSQL advisory lock derived from the principal and
+rechecks label/dedup before atomically inserting the head and its root revision.
+This serializes competing creates for one principal without blocking unrelated
+principals. The server mints canonical ULIDs because C.4 exposes no revision ID
+field; PATCH still routes through S1's sole CAS writer. Partial-index races are
+translated by constraint name into the exact label-conflict body, while provider
+and generic failures remain RFC7807 problems. Use the maintained `tiktoken`
+implementation of A-006's `cl100k_base` rule instead of a word-count
+approximation; load it only when a mutation needs body validation so health and
+read-only routes do not depend on tokenizer setup.
+
+**Motivation.** Without a principal-scoped transaction lock, concurrent requests
+with different labels but duplicate bodies can both pass the cosine check and
+create the hard duplicate that C.4 forbids. Keeping each head/history mutation
+in one caller-owned transaction preserves C.2 lineage and rollback semantics.
+
+**Rejected alternatives.** A process-local lock would fail across workers. A
+table lock would serialize unrelated principals. Relying only on the active-label
+unique index protects labels but not semantic duplicates. Retrying an integrity
+error without rolling back its savepoint would leave the transaction unusable.

@@ -1,4 +1,4 @@
-"""P0 health, auth, validation, and seven-route stub contract tests."""
+"""Health, auth, validation, and remaining route-stub contract tests."""
 
 import json
 from pathlib import Path
@@ -46,38 +46,21 @@ STUB_CASES: list[tuple[str, str, str, dict[str, Any] | None]] = [
     ),
     (
         "POST",
-        "/v1/memories",
-        "POST /v1/memories",
-        {
-            "principal_id": "owner",
-            "label": "Editor preference",
-            "body": "The owner prefers tabs.",
-            "kind": "preference",
-            "editor": "user",
-            "machine_id": "machine-1",
-            "force": True,
-        },
-    ),
-    (
-        "PATCH",
-        f"/v1/memories/{MEMORY_ID}",
-        "PATCH /v1/memories/{id}",
-        {
-            "expected_revision": 1,
-            "body": "Updated.",
-            "editor": "user",
-            "reason": "fix",
-            "machine_id": "machine-1",
-        },
-    ),
-    ("GET", "/v1/memories", "GET /v1/memories", None),
-    (
-        "POST",
         "/v1/search",
         "POST /v1/search",
         {"principal_id": "owner", "query": "editor"},
     ),
 ]
+
+C4_ROUTES = {
+    ("POST", "/v1/inject/prepare"),
+    ("POST", "/v1/inject/commit"),
+    ("POST", "/v1/feedback"),
+    ("POST", "/v1/memories"),
+    ("PATCH", "/v1/memories/{id}"),
+    ("GET", "/v1/memories"),
+    ("POST", "/v1/search"),
+}
 
 
 def _assert_problem(response: Any, *, status: int, endpoint: str) -> None:
@@ -104,7 +87,7 @@ async def test_healthz_and_auth_are_live(app: FastAPI) -> None:
 
 
 @pytest.mark.parametrize(("method", "path", "endpoint", "body"), STUB_CASES)
-async def test_c4_routes_are_named_rfc7807_stubs(
+async def test_unimplemented_c4_routes_are_named_rfc7807_stubs(
     app: FastAPI,
     method: str,
     path: str,
@@ -175,11 +158,13 @@ async def test_v15_machine_id_is_required_on_create_and_patch(app: FastAPI) -> N
 async def test_v15_list_paging_contract_is_validated(app: FastAPI) -> None:
     headers = {"Authorization": f"Bearer {TOKEN}"}
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        valid = await client.get("/v1/memories?limit=200&offset=7", headers=headers)
         excessive = await client.get("/v1/memories?limit=201", headers=headers)
+        empty = await client.get("/v1/memories?limit=0", headers=headers)
+        negative = await client.get("/v1/memories?offset=-1", headers=headers)
 
-    _assert_problem(valid, status=501, endpoint="GET /v1/memories")
     _assert_problem(excessive, status=422, endpoint="GET /v1/memories")
+    _assert_problem(empty, status=422, endpoint="GET /v1/memories")
+    _assert_problem(negative, status=422, endpoint="GET /v1/memories")
 
 
 async def test_http_errors_are_rfc7807(app: FastAPI) -> None:
@@ -192,15 +177,26 @@ async def test_http_errors_are_rfc7807(app: FastAPI) -> None:
     _assert_problem(response, status=404, endpoint="GET /not-a-route")
 
 
-def test_exactly_seven_c4_stubs_are_registered(app: FastAPI) -> None:
+async def test_unexpected_service_errors_are_sanitized_rfc7807(app: FastAPI) -> None:
+    transport = ASGITransport(app=app, raise_app_exceptions=False)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get(
+            "/v1/memories",
+            headers={"Authorization": f"Bearer {TOKEN}"},
+        )
+
+    _assert_problem(response, status=500, endpoint="GET /v1/memories")
+    assert response.json()["detail"] == "The request could not be completed."
+
+
+def test_exactly_seven_c4_routes_are_registered(app: FastAPI) -> None:
     actual = {
         (method.upper(), path)
         for path, operations in app.openapi()["paths"].items()
         if path.startswith("/v1/")
         for method in operations
     }
-    expected = {(method, path.replace(MEMORY_ID, "{id}")) for method, path, _, _ in STUB_CASES}
-    assert actual == expected
+    assert actual == C4_ROUTES
 
 
 def test_committed_openapi_is_current(app: FastAPI) -> None:
@@ -216,7 +212,8 @@ def test_committed_openapi_is_current(app: FastAPI) -> None:
     create_request = committed["components"]["schemas"]["CreateMemoryRequest"]
     assert {"machine_id", "editor"} <= set(create_request["required"])
     assert create_request["properties"]["force"]["default"] is False
-    assert {"200", "201", "409", "501"} <= set(create_operation["responses"])
+    assert {"200", "201", "409"} <= set(create_operation["responses"])
+    assert "501" not in create_operation["responses"]
     assert create_operation["responses"]["201"]["content"]["application/json"]["schema"] == {
         "$ref": "#/components/schemas/CreatedMemoryResponse"
     }
@@ -230,9 +227,11 @@ def test_committed_openapi_is_current(app: FastAPI) -> None:
     patch_request = committed["components"]["schemas"]["PatchMemoryRequest"]
     assert "machine_id" in patch_request["required"]
     patch_operation = committed["paths"]["/v1/memories/{id}"]["patch"]
+    assert "501" not in patch_operation["responses"]
     assert patch_operation["responses"]["409"]["content"]["application/json"]["schema"] == {
         "$ref": "#/components/schemas/PatchMemoryConflictResponse"
     }
+    assert "501" not in committed["paths"]["/v1/memories"]["get"]["responses"]
     commit_response = committed["paths"]["/v1/inject/commit"]["post"]
     commit_schema = commit_response["responses"]["200"]["content"]["application/json"]["schema"]
     assert commit_schema == {"$ref": "#/components/schemas/CommitResponse"}
@@ -298,9 +297,11 @@ def test_committed_openapi_is_current(app: FastAPI) -> None:
     assert list_parameters["limit"]["schema"] == {
         "default": 50,
         "maximum": 200,
+        "minimum": 1,
         "title": "Limit",
         "type": "integer",
     }
     assert list_parameters["offset"]["schema"]["default"] == 0
+    assert list_parameters["offset"]["schema"]["minimum"] == 0
     list_schema = committed["components"]["schemas"]["MemoryListResponse"]
     assert set(list_schema["required"]) == {"items", "total", "limit", "offset"}
