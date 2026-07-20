@@ -1,6 +1,6 @@
 # Harness + Memory System — Specification
 
-**Version 1.8** (2026-07-19) — config: dev/test chat default minimax-m3 via OpenRouter; D1 cloud footprint recorded; /v1/search assigned to S6 (D.2 entry 033). Prior v1.7 (2026-07-19): ADR-012 work protocol: spec → loop → judge as the default grammar of all project work (D.2 entry 032). Prior v1.6 (2026-07-19): memory location law (origin_path, f_loc, movement/refresh) + flashcard-deck interface (D.2 entries 030–031). Prior v1.5 (2026-07-17): C.2/C.4 contract gaps closed at the human gate (Garden flags F001–F005) and COMPLETION authority added to 1.4 (D.2 entries 028–029). Prior v1.4 (2026-07-07): execution protocol complete (judges + Agent Zero) — reorganized from the v0.x iteration transcript;
+**Version 1.9** (2026-07-19) — ADR-013 framework seam: own the interface, adapt pydantic-ai's implementations (D.2 entry 034). Prior v1.8 (2026-07-19): config: dev/test chat default minimax-m3 via OpenRouter; D1 cloud footprint recorded; /v1/search assigned to S6 (D.2 entry 033). Prior v1.7 (2026-07-19): ADR-012 work protocol: spec → loop → judge as the default grammar of all project work (D.2 entry 032). Prior v1.6 (2026-07-19): memory location law (origin_path, f_loc, movement/refresh) + flashcard-deck interface (D.2 entries 030–031). Prior v1.5 (2026-07-17): C.2/C.4 contract gaps closed at the human gate (Garden flags F001–F005) and COMPLETION authority added to 1.4 (D.2 entries 028–029). Prior v1.4 (2026-07-07): execution protocol complete (judges + Agent Zero) — reorganized from the v0.x iteration transcript;
 content-preserving. Audience: implementing agents (via /goal) and the human owner.
 Everything here is binding unless marked OPEN or given a non-accepted status.
 ADR numbers are immutable; superseding requires a new ADR. The chronological
@@ -676,6 +676,50 @@ attention-pushes are solo-run only.
 exceptions — the spec simply scales down); human-picked winners among
 parallel attempts (reopens human attention mid-protocol; the judge exists
 precisely so that attention is spent once, at the end).
+
+### ADR-013 — Framework seam: own the interface, adapt the implementation
+
+**Status: ACCEPTED (2026-07-19; D.2 034).** CONTRACT for all harness-side
+feature construction from H3 onward. Motivation: pydantic-ai v2 +
+pydantic-ai-harness now cover real harness territory (capabilities,
+history processors, provider compaction, CodeMode, fs/shell batteries,
+cost tracking) — we want their institutional implementations without ever
+waiting on them, and our differentiators must never be trapped inside
+their API.
+
+**The two-module law:**
+1. Every harness feature is written against OUR minimal internal
+   capability protocol (typed pydantic models: instructions, tools,
+   lifecycle hooks, history transforms, event-stream taps) — defined in
+   the harness repo, owned by us, versioned by us.
+2. Exactly ONE adapter module translates our protocol ↔ pydantic-ai's
+   capability machinery, in BOTH directions. Outbound: our features ship
+   as standard pydantic-ai v2 `Capability` subclasses (MemoryCapability
+   first), mountable by any vanilla pydantic-ai user — honoring ADR-002's
+   bidirectional coupling. Inbound: upstream batteries are adopted
+   individually, version-pinned, and wrapped behind the same protocol, so
+   consumers cannot tell home-grown from adopted.
+3. **Import fence (greppable):** nothing outside the adapter module
+   imports pydantic-ai capability machinery. Swapping an implementation —
+   ours for theirs when upstream matures, theirs for ours when 0.x churn
+   breaks or stalls — touches only the adapter, never consumers.
+4. **Wrap on first use** — no speculative wrapping of upstream's catalog
+   (the "no speculative Rust" principle applied to adapters).
+
+**Known adoption targets (through the seam, at their milestone):**
+- `defer_loading=True` per capability when toolsets widen (M3) — opt-in,
+  NOT automatic; collapses unused bundles to one-line catalog entries.
+- CodeMode for fs/shell-heavy work (M3): one sandboxed program replaces
+  per-call round-trips (~11 calls → ~2 on a 10-item fan-out). Adoption
+  MUST preserve ADR-010's movement law: refresh-on-move fires at the tool
+  boundary inside code-mode execution too.
+- Provider compaction capabilities + ProcessHistory as the chassis for
+  D.4's plan-mode compaction (M3).
+- Cost-tracking battery (pairs with the D2 billing breaker).
+
+**Rejected:** wholesale dependence on pydantic-ai-harness (0.x, breaking
+minor releases); bypassing the seam for expedience; rebuilding commodity
+batteries ourselves when upstream's are adoptable through the seam.
 
 ### ADR-006 — Presence
 
@@ -1371,6 +1415,7 @@ into its owning ADR above)
 | 031 | 2026-07-19 | Command center primary interaction = flashcard deck: one card per top-level agent in its fleet color (shared across all visualizers), completion-time FIFO, respond-to-advance, manual deck cycling; card expands to thread view with a line-per-human-input scrubber; gallery mode (≤4 multiplexer tiles) secondary; sub-agents card-less, visualizer-only | ACCEPTED |
 | 032 | 2026-07-19 | v1.7 ADR-012 work protocol: ALL project work = spec alignment → agent loop (system-sized N parallel worktree attempts ≤ max_parallel_project_agents) → independent judge (COMPLETE → deck card; else continuation agent; picks swarm winner, may graft) → human. Judge triages blockers; interjection solo-run only, watching always; no size exceptions — the spec scales down instead | ACCEPTED |
 | 033 | 2026-07-19 | v1.8 config: dev/test chat default openrouter:minimax/minimax-m3 (live-verified; sonnet remains flagship); D1 executed — GCP project n8-memory-palace (us-central1), Cloud SQL Postgres 16 + pgvector (db-f1-micro), Cloud Run spine, $100/mo budget with 50/90/100% alerts; /v1/search (only remaining 501) assigned to new packet S6 | ACCEPTED |
+| 034 | 2026-07-19 | v1.9 ADR-013 framework seam: internal capability protocol + single bidirectional adapter to pydantic-ai v2; import fence outside the adapter; wrap-on-first-use; outbound features ship as standard Capability subclasses (MemoryCapability first at H3); adoption targets — defer_loading (opt-in), CodeMode (must preserve movement-law refresh), ProcessHistory compaction chassis, cost tracking. Never blocked on upstream; 0.x churn contained in the adapter | ACCEPTED |
 
 ## D.3 Resolved-question index (where each folded)
 
@@ -1385,7 +1430,9 @@ ADR-008 · OQ-16 providers/models → C.5
 - **Plan-mode compaction** (original proposal sheet): on compaction, save
   context → strongest available model summarizes → summarizer asks the user
   1–4 clarifying questions before the thread continues. Interesting,
-  unproven; revisit when compaction (M3) has real usage.
+  unproven; revisit when compaction (M3) has real usage. Implementation
+  chassis when it comes: the ADR-013 seam over pydantic-ai ProcessHistory
+  (+ harness summarization batteries).
 - **Memory Graph lasso/bulk actions:** revisit with M3 maintenance workflows.
 - **Gate near-miss count/e-greedy exploration:** deliberately not designed;
   the near-miss mechanism already provides mild exploration.
