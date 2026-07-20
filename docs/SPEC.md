@@ -1,6 +1,6 @@
 # Harness + Memory System — Specification
 
-**Version 1.12** (2026-07-20) — loop & interfacing: C.7 envelope v1.12 (cancel/queue/snapshot/usage + reserved M3 types) and ADR-014 prime loop with three-level send gesture (D.2 entry 037). Prior v1.11 (2026-07-19): deconflict pass: OQ-14 resolved (repo names fixed, "rename allowed" removed), vision/Invariant-1 aligned to the vernacular (D.2 entry 036). Prior v1.10 (2026-07-19): Vernacular fixed (1.0): Memory Palace / spine / Harness / Garden / relay defined once (D.2 entry 035). Prior v1.9 (2026-07-19): ADR-013 framework seam: own the interface, adapt pydantic-ai's implementations (D.2 entry 034). Prior v1.8 (2026-07-19): config: dev/test chat default minimax-m3 via OpenRouter; D1 cloud footprint recorded; /v1/search assigned to S6 (D.2 entry 033). Prior v1.7 (2026-07-19): ADR-012 work protocol: spec → loop → judge as the default grammar of all project work (D.2 entry 032). Prior v1.6 (2026-07-19): memory location law (origin_path, f_loc, movement/refresh) + flashcard-deck interface (D.2 entries 030–031). Prior v1.5 (2026-07-17): C.2/C.4 contract gaps closed at the human gate (Garden flags F001–F005) and COMPLETION authority added to 1.4 (D.2 entries 028–029). Prior v1.4 (2026-07-07): execution protocol complete (judges + Agent Zero) — reorganized from the v0.x iteration transcript;
+**Version 1.13** (2026-07-20) — Invariant 14 "least attention" codified as core law (D.2 entry 038). Prior v1.12 (2026-07-20): loop & interfacing: C.7 envelope v1.12 (cancel/queue/snapshot/usage + reserved M3 types) and ADR-014 prime loop with three-level send gesture (D.2 entry 037). Prior v1.11 (2026-07-19): deconflict pass: OQ-14 resolved (repo names fixed, "rename allowed" removed), vision/Invariant-1 aligned to the vernacular (D.2 entry 036). Prior v1.10 (2026-07-19): Vernacular fixed (1.0): Memory Palace / spine / Harness / Garden / relay defined once (D.2 entry 035). Prior v1.9 (2026-07-19): ADR-013 framework seam: own the interface, adapt pydantic-ai's implementations (D.2 entry 034). Prior v1.8 (2026-07-19): config: dev/test chat default minimax-m3 via OpenRouter; D1 cloud footprint recorded; /v1/search assigned to S6 (D.2 entry 033). Prior v1.7 (2026-07-19): ADR-012 work protocol: spec → loop → judge as the default grammar of all project work (D.2 entry 032). Prior v1.6 (2026-07-19): memory location law (origin_path, f_loc, movement/refresh) + flashcard-deck interface (D.2 entries 030–031). Prior v1.5 (2026-07-17): C.2/C.4 contract gaps closed at the human gate (Garden flags F001–F005) and COMPLETION authority added to 1.4 (D.2 entries 028–029). Prior v1.4 (2026-07-07): execution protocol complete (judges + Agent Zero) — reorganized from the v0.x iteration transcript;
 content-preserving. Audience: implementing agents (via /goal) and the human owner.
 Everything here is binding unless marked OPEN or given a non-accepted status.
 ADR numbers are immutable; superseding requires a new ADR. The chronological
@@ -108,7 +108,7 @@ Both are model/token agnostic.
 
 ### 1.3 The Invariants
 
-Everything else in this document elaborates these thirteen laws:
+Everything else in this document elaborates these fourteen laws:
 
 1. **The heart is singular and cloud; bodies run where the work is.** Memory
    (the Palace, carried by the spine) is the one always-on component; agent
@@ -136,6 +136,13 @@ Everything else in this document elaborates these thirteen laws:
 12. **The scope ledger overrides enthusiasm.** FORBIDDEN means stop and flag.
 13. **Model/token/provider agnostic throughout**; embedding spaces are tagged
     and re-derivable.
+14. **Least attention.** Human attention is the system's scarcest resource;
+    the architecture — never habit, never fatigue — decides when it is
+    spent. Safety comes from walls (sandboxes, boundaries), not questions:
+    per-action approvals inside the walls are forbidden theater. Attention
+    is pulled only at genuine boundary crossings and judge-released
+    returns — once, at the moment of highest leverage. Everything is
+    always watchable; almost nothing may demand.
 
 
 ### 1.4 Normativity: how this spec governs
@@ -1513,6 +1520,7 @@ into its owning ADR above)
 | 035 | 2026-07-19 | v1.10 vernacular (1.0): Memory Palace = memory product (db + curation algorithms + M3 curator; the spine's memory module, extractable); spine = always-on backbone housing the Palace + connective modules; Harness = local product; Garden = governance; relay = methodology (vs spine's relay module); heart = description not name; local dir names load-bearing, remote names labels | ACCEPTED |
 | 036 | 2026-07-19 | v1.11 deconflict pass: OQ-14 resolved — repo names fixed by 1.0, C.1's "cosmetic rename allowed" removed (do NOT rename); vision §0 and Invariant 1 aligned to Palace/spine wording. Full-term audit found no other conflicts: "heart" reads as description throughout, relay methodology/module disambiguated by 1.0. No semantic change | ACCEPTED |
 | 037 | 2026-07-20 | v1.12 after 3-agent harness-field survey: C.7 gains run.started/run.cancel (confirmed)/prompt.queued/thread.snapshot/run.usage/gate.dismiss, stop_reason on run.done, typed run.delta, gate.open kind field, reserved M3 names (run.steer, plan.update, checkpoint.*, presence.update); ADR-014 prime loop — interruption preserves work, three-level send gesture (queue M1 / steer / interrupt M3), budgets as loop inputs with distinct terminal status (C.5: run_request_limit=40, run_total_tokens_limit=500k); H7 packet implements the M1 subset before H4. Permissions + sessions ADRs deferred pending human discussion | ACCEPTED |
+| 038 | 2026-07-20 | v1.13 Invariant 14 LEAST ATTENTION codified as core philosophy: attention is the scarcest resource and the architecture decides when it is spent; walls not questions (per-action approvals inside the sandbox are forbidden theater); pulls only at boundary crossings + judge releases, once, at highest leverage; all watchable, almost nothing demands. Ground-rules template gains rule 9 so every relay agent boots into it | ACCEPTED |
 
 ## D.3 Resolved-question index (where each folded)
 

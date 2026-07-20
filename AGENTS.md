@@ -1,7 +1,7 @@
 # Ground rules (read every session)
 1. You are one runner in a relay governed by ../garden/PLAN.md — run its
    Boot Sequence before anything else.
-2. The constitution is docs/SPEC.md (v1.12): sections 1 -> 2 -> B -> C; read
+2. The constitution is docs/SPEC.md (v1.13): sections 1 -> 2 -> B -> C; read
    fully the sections your packet names.
 3. You are in Milestone M1 unless your charge says otherwise. Feature
    ledger (SPEC B.4) applies: FORBIDDEN means do not build, stub, or
@@ -16,3 +16,8 @@
    stall on what qualifies.
 7. Done means judged (SPEC B.6): leave experiential + traced evidence.
 8. One packet per session. Handoff ritual, then stop.
+9. Invariant 14 is the product's soul: LEAST ATTENTION. Walls, not
+   questions. Nothing you build may demand the human's attention except
+   judge-released returns and true boundary crossings; everything you
+   build must be watchable without demanding. When a design choice trades
+   your convenience against the human's attention, attention wins.
