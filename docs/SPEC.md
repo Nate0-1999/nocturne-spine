@@ -1,6 +1,6 @@
 # Harness + Memory System — Specification
 
-**Version 1.7** (2026-07-19) — ADR-012 work protocol: spec → loop → judge as the default grammar of all project work (D.2 entry 032). Prior v1.6 (2026-07-19): memory location law (origin_path, f_loc, movement/refresh) + flashcard-deck interface (D.2 entries 030–031). Prior v1.5 (2026-07-17): C.2/C.4 contract gaps closed at the human gate (Garden flags F001–F005) and COMPLETION authority added to 1.4 (D.2 entries 028–029). Prior v1.4 (2026-07-07): execution protocol complete (judges + Agent Zero) — reorganized from the v0.x iteration transcript;
+**Version 1.8** (2026-07-19) — config: dev/test chat default minimax-m3 via OpenRouter; D1 cloud footprint recorded; /v1/search assigned to S6 (D.2 entry 033). Prior v1.7 (2026-07-19): ADR-012 work protocol: spec → loop → judge as the default grammar of all project work (D.2 entry 032). Prior v1.6 (2026-07-19): memory location law (origin_path, f_loc, movement/refresh) + flashcard-deck interface (D.2 entries 030–031). Prior v1.5 (2026-07-17): C.2/C.4 contract gaps closed at the human gate (Garden flags F001–F005) and COMPLETION authority added to 1.4 (D.2 entries 028–029). Prior v1.4 (2026-07-07): execution protocol complete (judges + Agent Zero) — reorganized from the v0.x iteration transcript;
 content-preserving. Audience: implementing agents (via /goal) and the human owner.
 Everything here is binding unless marked OPEN or given a non-accepted status.
 ADR numbers are immutable; superseding requires a new ADR. The chronological
@@ -1123,9 +1123,12 @@ half_life_time_days=14, half_life_hist_days=7, dedup_dup=0.92, dedup_sim=0.80,
 never_bias_step=-0.15, quarantine_kills=3, candidate_pool=50,
 embed_model="text-embedding-3-small" (dim 1536, provider-pluggable),
 memory_max_tokens=128, label_max=64.
-Chat model default: `anthropic:claude-sonnet-4-6`; OpenRouter configured as
-the any-model escape hatch; keys (Anthropic, OpenAI, OpenRouter) in harness
-config; model selectable per thread.
+Chat model defaults: development/testing `openrouter:minimax/minimax-m3`
+(verified live 2026-07-19; ≈$0.30/M in, $1.20/M out); flagship
+`anthropic:claude-sonnet-4-6` for real use; OpenRouter configured as the
+any-model escape hatch; keys (Anthropic, OpenAI, OpenRouter) live in
+harness/.env (untracked; .env.example is the shape); model selectable per
+thread.
 
 ## C.6 MemoryCapability (harness) — exact flow
 
@@ -1367,6 +1370,7 @@ into its owning ADR above)
 | 030 | 2026-07-19 | v1.6 location law: origin_path on memory_unit + C.4 surfaces (M1 inert metadata; S5 packet); f_loc = 2^(−hops/h_loc) directory distance with weight renormalization when location is null (no-penalty CONTRACT); movement law — agents must cd to a file's directory to work on it, every move refreshes injected memories (CONTRACT from the M3 fs milestone) | ACCEPTED |
 | 031 | 2026-07-19 | Command center primary interaction = flashcard deck: one card per top-level agent in its fleet color (shared across all visualizers), completion-time FIFO, respond-to-advance, manual deck cycling; card expands to thread view with a line-per-human-input scrubber; gallery mode (≤4 multiplexer tiles) secondary; sub-agents card-less, visualizer-only | ACCEPTED |
 | 032 | 2026-07-19 | v1.7 ADR-012 work protocol: ALL project work = spec alignment → agent loop (system-sized N parallel worktree attempts ≤ max_parallel_project_agents) → independent judge (COMPLETE → deck card; else continuation agent; picks swarm winner, may graft) → human. Judge triages blockers; interjection solo-run only, watching always; no size exceptions — the spec scales down instead | ACCEPTED |
+| 033 | 2026-07-19 | v1.8 config: dev/test chat default openrouter:minimax/minimax-m3 (live-verified; sonnet remains flagship); D1 executed — GCP project n8-memory-palace (us-central1), Cloud SQL Postgres 16 + pgvector (db-f1-micro), Cloud Run spine, $100/mo budget with 50/90/100% alerts; /v1/search (only remaining 501) assigned to new packet S6 | ACCEPTED |
 
 ## D.3 Resolved-question index (where each folded)
 
