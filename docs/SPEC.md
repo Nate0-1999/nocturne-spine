@@ -1,6 +1,6 @@
 # Harness + Memory System — Specification
 
-**Version 1.9** (2026-07-19) — ADR-013 framework seam: own the interface, adapt pydantic-ai's implementations (D.2 entry 034). Prior v1.8 (2026-07-19): config: dev/test chat default minimax-m3 via OpenRouter; D1 cloud footprint recorded; /v1/search assigned to S6 (D.2 entry 033). Prior v1.7 (2026-07-19): ADR-012 work protocol: spec → loop → judge as the default grammar of all project work (D.2 entry 032). Prior v1.6 (2026-07-19): memory location law (origin_path, f_loc, movement/refresh) + flashcard-deck interface (D.2 entries 030–031). Prior v1.5 (2026-07-17): C.2/C.4 contract gaps closed at the human gate (Garden flags F001–F005) and COMPLETION authority added to 1.4 (D.2 entries 028–029). Prior v1.4 (2026-07-07): execution protocol complete (judges + Agent Zero) — reorganized from the v0.x iteration transcript;
+**Version 1.10** (2026-07-19) — Vernacular fixed (1.0): Memory Palace / spine / Harness / Garden / relay defined once (D.2 entry 035). Prior v1.9 (2026-07-19): ADR-013 framework seam: own the interface, adapt pydantic-ai's implementations (D.2 entry 034). Prior v1.8 (2026-07-19): config: dev/test chat default minimax-m3 via OpenRouter; D1 cloud footprint recorded; /v1/search assigned to S6 (D.2 entry 033). Prior v1.7 (2026-07-19): ADR-012 work protocol: spec → loop → judge as the default grammar of all project work (D.2 entry 032). Prior v1.6 (2026-07-19): memory location law (origin_path, f_loc, movement/refresh) + flashcard-deck interface (D.2 entries 030–031). Prior v1.5 (2026-07-17): C.2/C.4 contract gaps closed at the human gate (Garden flags F001–F005) and COMPLETION authority added to 1.4 (D.2 entries 028–029). Prior v1.4 (2026-07-07): execution protocol complete (judges + Agent Zero) — reorganized from the v0.x iteration transcript;
 content-preserving. Audience: implementing agents (via /goal) and the human owner.
 Everything here is binding unless marked OPEN or given a non-accepted status.
 ADR numbers are immutable; superseding requires a new ADR. The chronological
@@ -42,6 +42,36 @@ Both are model/token agnostic.
 ---
 
 ## 1. The System on One Page
+
+### 1.0 Vernacular (the words of this project, used consistently hereafter)
+
+- **The Memory Palace** — the memory product: the database, the algorithms
+  that curate it (scoring, dedup bands, the learning loop), and — from M3 —
+  the curator (maintenance) agent. In M1 it is the spine deployable's
+  memory module (ADR-008) and remains extractable.
+- **The spine** — the always-on cloud backbone: the single deployable that
+  houses the Palace plus the connective modules (auth/API plumbing,
+  presence, relay/control) that local daemons and browsers connect
+  through. "The heart" is a description of this always-on center, not a
+  second name.
+- **The Harness** (capitalized) — our local product: the per-machine
+  daemon, the agent runtime, and the web command center. Lowercase
+  pydantic-ai-harness is the upstream library behind the ADR-013 seam.
+- **The Garden** — where this system is grown: the governance repo
+  (PLAN/BOARD/FLAGS/AMENDMENTS/reports) and its culture — gardeners =
+  builder agents, groundskeeper = Agent Zero, blight = defects.
+- **The relay** — the Garden's execution methodology: runners, packets,
+  baton handoffs, judges; ADR-012 promotes it into the product's own work
+  protocol. Distinct from the spine's relay/control MODULE, which forwards
+  messages between browser and daemons (M3).
+- **Deck, gallery, Ant Farm, fleet color** — interface vocabulary
+  (ADR-008/009): the flashcard deck is the primary interaction, the
+  gallery the multiplexer view, the Ant Farm the agent visualizer; each
+  top-level agent wears one fleet color everywhere.
+- **Repo mapping:** local `spine/` (remote `memory-palace` — named for its
+  principal resident), `harness/` (remote `harness`), `garden/` (remote
+  `garden`). Local directory names are load-bearing law; remote names are
+  labels.
 
 ### 1.1 Topology
 
@@ -1416,6 +1446,7 @@ into its owning ADR above)
 | 032 | 2026-07-19 | v1.7 ADR-012 work protocol: ALL project work = spec alignment → agent loop (system-sized N parallel worktree attempts ≤ max_parallel_project_agents) → independent judge (COMPLETE → deck card; else continuation agent; picks swarm winner, may graft) → human. Judge triages blockers; interjection solo-run only, watching always; no size exceptions — the spec scales down instead | ACCEPTED |
 | 033 | 2026-07-19 | v1.8 config: dev/test chat default openrouter:minimax/minimax-m3 (live-verified; sonnet remains flagship); D1 executed — GCP project n8-memory-palace (us-central1), Cloud SQL Postgres 16 + pgvector (db-f1-micro), Cloud Run spine, $100/mo budget with 50/90/100% alerts; /v1/search (only remaining 501) assigned to new packet S6 | ACCEPTED |
 | 034 | 2026-07-19 | v1.9 ADR-013 framework seam: internal capability protocol + single bidirectional adapter to pydantic-ai v2; import fence outside the adapter; wrap-on-first-use; outbound features ship as standard Capability subclasses (MemoryCapability first at H3); adoption targets — defer_loading (opt-in), CodeMode (must preserve movement-law refresh), ProcessHistory compaction chassis, cost tracking. Never blocked on upstream; 0.x churn contained in the adapter | ACCEPTED |
+| 035 | 2026-07-19 | v1.10 vernacular (1.0): Memory Palace = memory product (db + curation algorithms + M3 curator; the spine's memory module, extractable); spine = always-on backbone housing the Palace + connective modules; Harness = local product; Garden = governance; relay = methodology (vs spine's relay module); heart = description not name; local dir names load-bearing, remote names labels | ACCEPTED |
 
 ## D.3 Resolved-question index (where each folded)
 
