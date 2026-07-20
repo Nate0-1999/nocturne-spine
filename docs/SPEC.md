@@ -1,6 +1,6 @@
 # Harness + Memory System — Specification
 
-**Version 1.6** (2026-07-19) — memory location law (origin_path, f_loc, movement/refresh) + flashcard-deck interface (D.2 entries 030–031). Prior v1.5 (2026-07-17): C.2/C.4 contract gaps closed at the human gate (Garden flags F001–F005) and COMPLETION authority added to 1.4 (D.2 entries 028–029). Prior v1.4 (2026-07-07): execution protocol complete (judges + Agent Zero) — reorganized from the v0.x iteration transcript;
+**Version 1.7** (2026-07-19) — ADR-012 work protocol: spec → loop → judge as the default grammar of all project work (D.2 entry 032). Prior v1.6 (2026-07-19): memory location law (origin_path, f_loc, movement/refresh) + flashcard-deck interface (D.2 entries 030–031). Prior v1.5 (2026-07-17): C.2/C.4 contract gaps closed at the human gate (Garden flags F001–F005) and COMPLETION authority added to 1.4 (D.2 entries 028–029). Prior v1.4 (2026-07-07): execution protocol complete (judges + Agent Zero) — reorganized from the v0.x iteration transcript;
 content-preserving. Audience: implementing agents (via /goal) and the human owner.
 Everything here is binding unless marked OPEN or given a non-accepted status.
 ADR numbers are immutable; superseding requires a new ADR. The chronological
@@ -631,6 +631,51 @@ human, if at all, through their top-level agent's card.
   the full tuple.
 - OPEN (OQ-12): minimal localhost fallback page for offline prompt entry —
   which milestone.
+
+### ADR-012 — The work protocol: spec → loop → judge (default grammar of work)
+
+**Status: ACCEPTED (2026-07-19; D.2 032).** CONTRACT from the milestone the
+multi-agent harness ships (M3); M1/M2's single-thread chat is its degenerate
+predecessor. This is the Garden relay methodology that built this very
+system, promoted to product behavior.
+
+**The protocol — every unit of project work, no exceptions:**
+1. **Spec alignment.** Work begins as a conversation that produces a spec
+   artifact the human ratifies. The spec scales with the task — one
+   ratified sentence for a rename, a document for a feature — but it always
+   exists: it is the judge's rubric, and work without a rubric cannot be
+   judged.
+2. **Agent loop.** The orchestrator dispatches the work: one agent, or N
+   parallel attempts at the same spec in isolated git worktrees. The system
+   sizes N from the task, capped by the `max_parallel_project_agents`
+   setting (harness config; the knob ships with this milestone). Agents
+   follow the movement law (ADR-010) as they work.
+3. **Judge.** Judging inherits B.6 doctrine: fresh context, different model
+   preferred, sees only the spec and the artifacts, never the builders'
+   reasoning. Verdicts: COMPLETE → release to the human; INCOMPLETE or
+   defective → dispatch a continuation/fix agent charged with the verdict
+   (loop back to 2). For parallel attempts the judge picks the winner
+   against the spec and may charge a graft agent with folding the losers'
+   best pieces into it.
+4. **Return.** Only judge-released items enter the flashcard deck
+   (ADR-008). The system never pulls human attention otherwise.
+
+**Blockers (judge-triaged):** an agent that hits a genuine blocker (missing
+credential, spec ambiguity) routes its question to the judge, not the
+human. If the answer is derivable from the spec, the judge sends the agent
+back with it; only questions the spec truly cannot answer are released as
+cards. Agents cannot "block" their way to human attention.
+
+**Interjection rule:** the human may always watch (gallery, deck cycling).
+Interjection is allowed while ONE agent holds the work; when N>1 parallel
+attempts run, the run is watch-only — an interjection mid-swarm would fork
+the attempts' common ground. Attention-pulls are judge-gated always;
+attention-pushes are solo-run only.
+
+**Rejected:** direct-mode escapes for "small" tasks (the human chose no
+exceptions — the spec simply scales down); human-picked winners among
+parallel attempts (reopens human attention mid-protocol; the judge exists
+precisely so that attention is spent once, at the end).
 
 ### ADR-006 — Presence
 
@@ -1321,6 +1366,7 @@ into its owning ADR above)
 | 029 | 2026-07-17 | Normativity (1.4) gains COMPLETION class: agents self-resolve silent/self-inconsistent contract details by enacting exact-diff entries in garden/AMENDMENTS.md — law for later agents and the judge, human audit-with-veto between sessions (veto → FIXER). Hard FLAG reserved for Invariants, FORBIDDEN rows, auth/data-loss, ADR reversals, changes to DONE-packet behavior, and genuine design forks. Motivated by F001–F005 all being qualifying completions that stopped the line | ACCEPTED |
 | 030 | 2026-07-19 | v1.6 location law: origin_path on memory_unit + C.4 surfaces (M1 inert metadata; S5 packet); f_loc = 2^(−hops/h_loc) directory distance with weight renormalization when location is null (no-penalty CONTRACT); movement law — agents must cd to a file's directory to work on it, every move refreshes injected memories (CONTRACT from the M3 fs milestone) | ACCEPTED |
 | 031 | 2026-07-19 | Command center primary interaction = flashcard deck: one card per top-level agent in its fleet color (shared across all visualizers), completion-time FIFO, respond-to-advance, manual deck cycling; card expands to thread view with a line-per-human-input scrubber; gallery mode (≤4 multiplexer tiles) secondary; sub-agents card-less, visualizer-only | ACCEPTED |
+| 032 | 2026-07-19 | v1.7 ADR-012 work protocol: ALL project work = spec alignment → agent loop (system-sized N parallel worktree attempts ≤ max_parallel_project_agents) → independent judge (COMPLETE → deck card; else continuation agent; picks swarm winner, may graft) → human. Judge triages blockers; interjection solo-run only, watching always; no size exceptions — the spec scales down instead | ACCEPTED |
 
 ## D.3 Resolved-question index (where each folded)
 
