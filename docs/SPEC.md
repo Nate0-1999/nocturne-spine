@@ -1,6 +1,6 @@
 # Harness + Memory System — Specification
 
-**Version 1.10** (2026-07-19) — Vernacular fixed (1.0): Memory Palace / spine / Harness / Garden / relay defined once (D.2 entry 035). Prior v1.9 (2026-07-19): ADR-013 framework seam: own the interface, adapt pydantic-ai's implementations (D.2 entry 034). Prior v1.8 (2026-07-19): config: dev/test chat default minimax-m3 via OpenRouter; D1 cloud footprint recorded; /v1/search assigned to S6 (D.2 entry 033). Prior v1.7 (2026-07-19): ADR-012 work protocol: spec → loop → judge as the default grammar of all project work (D.2 entry 032). Prior v1.6 (2026-07-19): memory location law (origin_path, f_loc, movement/refresh) + flashcard-deck interface (D.2 entries 030–031). Prior v1.5 (2026-07-17): C.2/C.4 contract gaps closed at the human gate (Garden flags F001–F005) and COMPLETION authority added to 1.4 (D.2 entries 028–029). Prior v1.4 (2026-07-07): execution protocol complete (judges + Agent Zero) — reorganized from the v0.x iteration transcript;
+**Version 1.11** (2026-07-19) — deconflict pass: OQ-14 resolved (repo names fixed, "rename allowed" removed), vision/Invariant-1 aligned to the vernacular (D.2 entry 036). Prior v1.10 (2026-07-19): Vernacular fixed (1.0): Memory Palace / spine / Harness / Garden / relay defined once (D.2 entry 035). Prior v1.9 (2026-07-19): ADR-013 framework seam: own the interface, adapt pydantic-ai's implementations (D.2 entry 034). Prior v1.8 (2026-07-19): config: dev/test chat default minimax-m3 via OpenRouter; D1 cloud footprint recorded; /v1/search assigned to S6 (D.2 entry 033). Prior v1.7 (2026-07-19): ADR-012 work protocol: spec → loop → judge as the default grammar of all project work (D.2 entry 032). Prior v1.6 (2026-07-19): memory location law (origin_path, f_loc, movement/refresh) + flashcard-deck interface (D.2 entries 030–031). Prior v1.5 (2026-07-17): C.2/C.4 contract gaps closed at the human gate (Garden flags F001–F005) and COMPLETION authority added to 1.4 (D.2 entries 028–029). Prior v1.4 (2026-07-07): execution protocol complete (judges + Agent Zero) — reorganized from the v0.x iteration transcript;
 content-preserving. Audience: implementing agents (via /goal) and the human owner.
 Everything here is binding unless marked OPEN or given a non-accepted status.
 ADR numbers are immutable; superseding requires a new ADR. The chronological
@@ -29,7 +29,7 @@ Two loosely coupled modules, designed together, usable apart:
    - Live **agent location visualization**: agents move through the filesystem
      of the machine(s) they inhabit; the UI shows where every agent is, across
      machines.
-2. **Memory system** — the persistent "heart" of the agent:
+2. **Memory system (the Memory Palace)** — the persistent "heart" of the agent:
    - Cloud-resident (GCP), identical behavior across machines and subagent
      instances.
    - Intercepts every prompt submission and injects scored memories into
@@ -111,7 +111,8 @@ Both are model/token agnostic.
 Everything else in this document elaborates these thirteen laws:
 
 1. **The heart is singular and cloud; bodies run where the work is.** Memory
-   is the one always-on component; agent loops are workspace-anchored.
+   (the Palace, carried by the spine) is the one always-on component; agent
+   loops are workspace-anchored.
 2. **Every module boundary is a wire** (HTTP, WS envelope, spawned process).
    Languages earn their place per component, after interfaces stabilize.
 3. **Memories are atomic**: one fact, ≤128 tokens; a human can always read
@@ -966,7 +967,8 @@ flagged back to the human, not improvised.
 
 ## C.1 Repositories
 
-**Repo 1: `spine`** (working name; cosmetic rename allowed — OQ-14)
+**Repo 1: `spine`** (name FIXED by the 1.0 vernacular; OQ-14 resolved — do
+NOT rename; the GitHub remote's `memory-palace` label is cosmetic only)
 ```
 spine/
   pyproject.toml            # python 3.12; fastapi, sqlalchemy[asyncio] 2.x,
@@ -1402,7 +1404,6 @@ into its owning ADR above)
   [M2]
 - **OQ-12:** Localhost fallback page for offline prompt entry — which
   milestone. [M3 planning]
-- **OQ-14:** Repo/product names (cosmetic; placeholders `spine`, `harness`).
 - **OQ-15:** Per-prompt re-scoring within a thread (gate-less, panel-only)
   vs once per thread. M1 deliberately ships once-per-thread. [M2 decision]
 
@@ -1447,6 +1448,7 @@ into its owning ADR above)
 | 033 | 2026-07-19 | v1.8 config: dev/test chat default openrouter:minimax/minimax-m3 (live-verified; sonnet remains flagship); D1 executed — GCP project n8-memory-palace (us-central1), Cloud SQL Postgres 16 + pgvector (db-f1-micro), Cloud Run spine, $100/mo budget with 50/90/100% alerts; /v1/search (only remaining 501) assigned to new packet S6 | ACCEPTED |
 | 034 | 2026-07-19 | v1.9 ADR-013 framework seam: internal capability protocol + single bidirectional adapter to pydantic-ai v2; import fence outside the adapter; wrap-on-first-use; outbound features ship as standard Capability subclasses (MemoryCapability first at H3); adoption targets — defer_loading (opt-in), CodeMode (must preserve movement-law refresh), ProcessHistory compaction chassis, cost tracking. Never blocked on upstream; 0.x churn contained in the adapter | ACCEPTED |
 | 035 | 2026-07-19 | v1.10 vernacular (1.0): Memory Palace = memory product (db + curation algorithms + M3 curator; the spine's memory module, extractable); spine = always-on backbone housing the Palace + connective modules; Harness = local product; Garden = governance; relay = methodology (vs spine's relay module); heart = description not name; local dir names load-bearing, remote names labels | ACCEPTED |
+| 036 | 2026-07-19 | v1.11 deconflict pass: OQ-14 resolved — repo names fixed by 1.0, C.1's "cosmetic rename allowed" removed (do NOT rename); vision §0 and Invariant 1 aligned to Palace/spine wording. Full-term audit found no other conflicts: "heart" reads as description throughout, relay methodology/module disambiguated by 1.0. No semantic change | ACCEPTED |
 
 ## D.3 Resolved-question index (where each folded)
 
@@ -1454,7 +1456,8 @@ OQ-1 block placement → ADR-002 · OQ-2 offline mode → ADR-003 · OQ-3 mid-th
 live reads → ADR-004 · OQ-6 presence transport → ADR-006 · OQ-7 durable
 execution → ADR-001 · OQ-8 framework → ADR-001 · OQ-9 web command center →
 ADR-008 · OQ-10 M1 slice → B.3 · OQ-11 identity → ADR-008 · OQ-13 pure relay →
-ADR-008 · OQ-16 providers/models → C.5
+ADR-008 · OQ-16 providers/models → C.5 · OQ-14 repo/product names → 1.0
+vernacular (v1.10)
 
 ## D.4 Parked ideas (not scope; preserved thinking)
 
