@@ -63,6 +63,7 @@ class MemoryUnit(ContractModel):
     keywords: list[str]
     project_key: str | None
     thread_origin: str | None
+    origin_path: str | None
     pin: bool
     status: MemoryStatus
     revision: int

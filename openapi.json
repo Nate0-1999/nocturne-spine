@@ -117,6 +117,17 @@
             "title": "Machine Id",
             "type": "string"
           },
+          "origin_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin Path"
+          },
           "principal_id": {
             "title": "Principal Id",
             "type": "string"
@@ -396,6 +407,17 @@
             "title": "Memory Id",
             "type": "string"
           },
+          "origin_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin Path"
+          },
           "pin": {
             "title": "Pin",
             "type": "boolean"
@@ -459,6 +481,7 @@
           "keywords",
           "project_key",
           "thread_origin",
+          "origin_path",
           "pin",
           "status",
           "revision",
@@ -552,6 +575,17 @@
           "machine_id": {
             "title": "Machine Id",
             "type": "string"
+          },
+          "origin_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin Path"
           },
           "pin": {
             "anyOf": [

@@ -44,6 +44,20 @@ async def test_c2_migration_and_v0_seed(migrated_database_url: str) -> None:
                     "WHERE c.relname = 'memory_unit' AND a.attname = 'embedding'"
                 )
             )
+            origin_path = (
+                (
+                    await connection.execute(
+                        text(
+                            "SELECT data_type, is_nullable, column_default "
+                            "FROM information_schema.columns "
+                            "WHERE table_schema = 'public' "
+                            "AND table_name = 'memory_unit' AND column_name = 'origin_path'"
+                        )
+                    )
+                )
+                .mappings()
+                .one()
+            )
             active_label_index = await connection.scalar(
                 text(
                     "SELECT indexdef FROM pg_indexes "
@@ -52,7 +66,7 @@ async def test_c2_migration_and_v0_seed(migrated_database_url: str) -> None:
                 )
             )
 
-        assert revision == "0001"
+        assert revision == "0002"
         expected_tables = {
             "memory_unit",
             "memory_revision",
@@ -63,6 +77,11 @@ async def test_c2_migration_and_v0_seed(migrated_database_url: str) -> None:
         assert expected_tables <= tables
         assert extension == "vector"
         assert embedding_type == "vector(1536)"
+        assert origin_path == {
+            "data_type": "text",
+            "is_nullable": "YES",
+            "column_default": None,
+        }
         assert active_label_index is not None
         assert "UNIQUE INDEX memory_unit_active_label" in active_label_index
         assert "(principal_id, label)" in active_label_index

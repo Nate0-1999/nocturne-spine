@@ -198,6 +198,13 @@ def test_committed_openapi_is_current(app: FastAPI) -> None:
     create_request = committed["components"]["schemas"]["CreateMemoryRequest"]
     assert {"machine_id", "editor"} <= set(create_request["required"])
     assert create_request["properties"]["force"]["default"] is False
+    assert "origin_path" not in create_request["required"]
+    assert {
+        option.get("type") for option in create_request["properties"]["origin_path"]["anyOf"]
+    } == {
+        "string",
+        "null",
+    }
     assert {"200", "201", "409"} <= set(create_operation["responses"])
     assert "501" not in create_operation["responses"]
     assert create_operation["responses"]["201"]["content"]["application/json"]["schema"] == {
@@ -212,6 +219,13 @@ def test_committed_openapi_is_current(app: FastAPI) -> None:
 
     patch_request = committed["components"]["schemas"]["PatchMemoryRequest"]
     assert "machine_id" in patch_request["required"]
+    assert "origin_path" not in patch_request["required"]
+    assert {
+        option.get("type") for option in patch_request["properties"]["origin_path"]["anyOf"]
+    } == {
+        "string",
+        "null",
+    }
     patch_operation = committed["paths"]["/v1/memories/{id}"]["patch"]
     assert "501" not in patch_operation["responses"]
     assert patch_operation["responses"]["409"]["content"]["application/json"]["schema"] == {
@@ -237,6 +251,7 @@ def test_committed_openapi_is_current(app: FastAPI) -> None:
         "keywords",
         "project_key",
         "thread_origin",
+        "origin_path",
         "pin",
         "status",
         "revision",
@@ -247,6 +262,16 @@ def test_committed_openapi_is_current(app: FastAPI) -> None:
         "updated_at",
     }
     assert set(committed["components"]["schemas"]["MemoryUnit"]["required"]) == memory_unit_fields
+    assert {
+        option.get("type")
+        for option in committed["components"]["schemas"]["MemoryUnit"]["properties"]["origin_path"][
+            "anyOf"
+        ]
+    } == {
+        "string",
+        "null",
+    }
+    assert "origin_path" not in committed["components"]["schemas"]["MemoryFeatures"]["properties"]
     assert set(committed["components"]["schemas"]["ScoredMemoryCard"]["required"]) == {
         "memory_id",
         "label",

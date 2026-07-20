@@ -146,6 +146,7 @@ async def test_models_match_authoritative_c2_schema(
             "embedding_model",
             "project_key",
             "thread_origin",
+            "origin_path",
             "pin",
             "status",
             "revision",
@@ -207,7 +208,7 @@ async def test_models_match_authoritative_c2_schema(
         for name, table in Base.metadata.tables.items()
     }
     assert nullable == {
-        "memory_unit": {"project_key", "thread_origin"},
+        "memory_unit": {"project_key", "thread_origin", "origin_path"},
         "memory_revision": {"parent_uid", "revision"},
         "thread": {"project_key", "snapshot_ts"},
         "injection_event": {"project_key", "outcome"},
@@ -243,6 +244,7 @@ async def test_models_match_authoritative_c2_schema(
         "memory_unit.embedding_model": "TEXT",
         "memory_unit.project_key": "TEXT",
         "memory_unit.thread_origin": "TEXT",
+        "memory_unit.origin_path": "TEXT",
         "memory_unit.pin": "BOOLEAN",
         "memory_unit.status": "TEXT",
         "memory_unit.revision": "INTEGER",
@@ -400,7 +402,10 @@ async def test_cas_updates_form_cloud_head_lineage(
                 editor="agent:writer",
                 origin_machine_id="machine-child",
                 reason="body correction",
-                changes=MemoryUnitChanges(body="child body"),
+                changes=MemoryUnitChanges(
+                    body="child body",
+                    origin_path="src/spine/db",
+                ),
             ),
         )
     async with sessions.begin() as session:
@@ -420,9 +425,11 @@ async def test_cas_updates_form_cloud_head_lineage(
     assert child.revision == 2
     assert child.body == "child body"
     assert child.label == "original label"
+    assert child.origin_path == "src/spine/db"
     assert grandchild.revision == 3
     assert grandchild.body == "child body"
     assert grandchild.label == "renamed label"
+    assert grandchild.origin_path == "src/spine/db"
     assert grandchild.updated_at > child.updated_at > child.created_at
 
     async with sessions() as session:

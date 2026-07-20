@@ -218,3 +218,28 @@ thread cache would fail across workers and restarts. A per-thread copy of every
 eligible vector is unnecessary in M1's explicit one-injection-per-thread flow.
 Direct JSON counter updates would avoid revision churn but violate Invariant 5
 and C.2's standing all-writes CAS rule.
+
+## 009 — Additive, inert origin metadata on the existing CAS surface
+
+**Problem Tree:** P1.3
+
+**Decision.** Add `memory_unit.origin_path` through migration `0002` as plain
+nullable `TEXT`, leaving the historical `0001` migration and append-only
+`memory_revision` shape unchanged. Carry the supplied string literally through
+create, the existing PATCH CAS allowlist, current-head snapshots, and the shared
+`MemoryUnit` wire shape. Keep Garden A-004's PATCH semantics: JSON null is an
+omission, so a non-null path can replace stored metadata while null alone is a
+422 no-op. Leave scorer v0, its six features and weights, candidate inputs,
+cards, and frozen event payloads unchanged.
+
+**Motivation.** S5 is a schema-and-contract propagation packet. Reusing the sole
+head mutation path preserves revision/conflict behavior, while an additive
+migration upgrades deployed databases without rewriting their baseline. Exact
+six-feature and OpenAPI fences make the metadata's M1 inertness observable.
+
+**Rejected alternatives.** Editing `0001` would strand existing databases.
+Adding path normalization, traversal checks, indexes, a default, or filesystem
+existence validation would invent law absent from C.2/C.4. Treating PATCH null
+as a clear operation would contradict A-004. Adding `f_loc`, `w_loc`, or
+`origin_path` to scorer/event/card inputs would pull M3 behavior into M1 and
+disturb S3's frozen prepare contract.

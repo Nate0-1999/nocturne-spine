@@ -82,6 +82,7 @@ async def test_create_writes_root_attribution_and_checks_label_before_embedding(
             keywords=["editor", "style"],
             project_key="alpha",
             thread_origin="thread-1",
+            origin_path="src/spine/memory",
         ),
     )
     created = _assert_json(created_response, 201)["created"]
@@ -95,6 +96,7 @@ async def test_create_writes_root_attribution_and_checks_label_before_embedding(
         "keywords",
         "project_key",
         "thread_origin",
+        "origin_path",
         "pin",
         "status",
         "revision",
@@ -109,6 +111,7 @@ async def test_create_writes_root_attribution_and_checks_label_before_embedding(
     assert created["keywords"] == ["editor", "style"]
     assert created["project_key"] == "alpha"
     assert created["thread_origin"] == "thread-1"
+    assert created["origin_path"] == "src/spine/memory"
     assert created["status"] == "active"
     assert created["pin"] is False
     assert created["revision"] == 1
@@ -172,6 +175,7 @@ async def test_create_hard_duplicate_is_forced_but_scoped_to_principal(
         ),
         201,
     )["created"]
+    assert source["origin_path"] is None
     other_owner = await memory_client.post(
         "/v1/memories",
         json=_create_body(
@@ -386,6 +390,79 @@ async def test_patch_cas_reembeds_and_returns_exact_stale_conflict(
     assert embedding_provider.calls == [("Before",), ("After",), ("Stale body",)]
 
 
+async def test_origin_path_patch_is_cas_metadata_and_null_is_omitted(
+    memory_client: AsyncClient,
+    embedding_provider: ScriptedEmbeddingProvider,
+    memory_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    embedding_provider.set("Located body", basis_vector(0))
+    original = _assert_json(
+        await memory_client.post(
+            "/v1/memories",
+            json=_create_body(
+                label="Located",
+                body="Located body",
+                origin_path="packages/old",
+            ),
+        ),
+        201,
+    )["created"]
+    memory_id = original["memory_id"]
+    calls_after_create = list(embedding_provider.calls)
+
+    patched = _assert_json(
+        await memory_client.patch(
+            f"/v1/memories/{memory_id}",
+            json=_patch_body(1, origin_path="src/spine"),
+        ),
+        200,
+    )
+    assert (patched["origin_path"], patched["revision"]) == ("src/spine", 2)
+    assert embedding_provider.calls == calls_after_create
+
+    stale = _assert_json(
+        await memory_client.patch(
+            f"/v1/memories/{memory_id}",
+            json=_patch_body(1, origin_path="stale/path"),
+        ),
+        409,
+    )
+    assert stale == {"conflict": patched}
+
+    null_only = await memory_client.patch(
+        f"/v1/memories/{memory_id}",
+        json=_patch_body(2, origin_path=None),
+    )
+    _assert_problem(null_only, 422, f"PATCH /v1/memories/{memory_id}")
+
+    renamed = _assert_json(
+        await memory_client.patch(
+            f"/v1/memories/{memory_id}",
+            json=_patch_body(2, label="Located renamed", origin_path=None),
+        ),
+        200,
+    )
+    assert (renamed["label"], renamed["origin_path"], renamed["revision"]) == (
+        "Located renamed",
+        "src/spine",
+        3,
+    )
+    listed = _assert_json(await memory_client.get("/v1/memories"), 200)
+    assert listed["items"] == [renamed]
+
+    async with memory_session_factory() as session:
+        stored = await session.get(MemoryUnit, UUID(memory_id))
+        revision_count = await session.scalar(
+            select(func.count())
+            .select_from(MemoryRevision)
+            .where(MemoryRevision.memory_id == UUID(memory_id))
+        )
+    assert stored is not None
+    assert stored.origin_path == "src/spine"
+    assert revision_count == 3
+    assert embedding_provider.calls == calls_after_create
+
+
 async def test_patch_not_found_and_noop_are_problem_json(
     memory_client: AsyncClient,
     embedding_provider: ScriptedEmbeddingProvider,
@@ -407,6 +484,7 @@ async def test_patch_not_found_and_noop_are_problem_json(
             label=None,
             keywords=None,
             kind=None,
+            origin_path=None,
             pin=None,
             status=None,
         ),

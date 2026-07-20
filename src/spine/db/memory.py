@@ -36,6 +36,7 @@ class MemoryUnitChanges:
     embedding_model: str | _Unset = _UNSET
     project_key: str | None | _Unset = _UNSET
     thread_origin: str | None | _Unset = _UNSET
+    origin_path: str | None | _Unset = _UNSET
     pin: bool | _Unset = _UNSET
     status: MemoryStatus | _Unset = _UNSET
     stats: Mapping[str, Any] | _Unset = _UNSET
@@ -54,6 +55,7 @@ class MemoryUnitChanges:
             "embedding_model",
             "project_key",
             "thread_origin",
+            "origin_path",
             "pin",
             "status",
             "stats",
@@ -101,6 +103,7 @@ class MemoryUnitSnapshot:
     embedding_model: str
     project_key: str | None
     thread_origin: str | None
+    origin_path: str | None
     pin: bool
     status: str
     revision: int
@@ -124,6 +127,7 @@ class MemoryUnitSnapshot:
             embedding_model=row["embedding_model"],
             project_key=row["project_key"],
             thread_origin=row["thread_origin"],
+            origin_path=row["origin_path"],
             pin=row["pin"],
             status=row["status"],
             revision=row["revision"],

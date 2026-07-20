@@ -70,6 +70,7 @@ class CreateMemoryRequest(ContractRequest):
     keywords: list[str] | None = None
     project_key: str | None = None
     thread_origin: str | None = None
+    origin_path: str | None = None
     editor: str
     machine_id: str
     force: bool = False
@@ -81,6 +82,7 @@ class PatchMemoryRequest(ContractRequest):
     label: str | None = None
     keywords: list[str] | None = None
     kind: MemoryKind | None = None
+    origin_path: str | None = None
     pin: bool | None = None
     status: MemoryStatus | None = None
     editor: str
@@ -126,6 +128,7 @@ async def create_memory(
                 keywords=body.keywords or (),
                 project_key=body.project_key,
                 thread_origin=body.thread_origin,
+                origin_path=body.origin_path,
                 editor=body.editor,
                 machine_id=body.machine_id,
                 force=body.force,
@@ -168,7 +171,7 @@ async def patch_memory(
 ) -> MemoryUnit | JSONResponse | ProblemJSONResponse:
     mutable = {
         field: getattr(body, field)
-        for field in ("body", "label", "keywords", "kind", "pin", "status")
+        for field in ("body", "label", "keywords", "kind", "origin_path", "pin", "status")
         if field in body.model_fields_set and getattr(body, field) is not None
     }
     try:

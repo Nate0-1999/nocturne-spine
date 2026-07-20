@@ -79,6 +79,7 @@ class MemoryUnit(Base):
     embedding_model: Mapped[str] = mapped_column(Text, nullable=False)
     project_key: Mapped[str | None] = mapped_column(Text)
     thread_origin: Mapped[str | None] = mapped_column(Text)
+    origin_path: Mapped[str | None] = mapped_column(Text)
     pin: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
     status: Mapped[str] = mapped_column(
         Text,

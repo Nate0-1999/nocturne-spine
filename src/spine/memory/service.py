@@ -68,6 +68,7 @@ class CreateMemoryCommand:
     keywords: Sequence[str] = ()
     project_key: str | None = None
     thread_origin: str | None = None
+    origin_path: str | None = None
     force: bool = False
 
 
@@ -82,6 +83,7 @@ class PatchMemoryCommand:
     label: str | None | UnsetType = UNSET
     keywords: Sequence[str] | None | UnsetType = UNSET
     kind: MemoryKind | None | UnsetType = UNSET
+    origin_path: str | None | UnsetType = UNSET
     pin: bool | None | UnsetType = UNSET
     status: MemoryStatus | None | UnsetType = UNSET
 
@@ -273,6 +275,7 @@ class MemoryService:
                 command.label,
                 command.keywords,
                 command.kind,
+                command.origin_path,
                 command.pin,
                 command.status,
             )
@@ -311,6 +314,8 @@ class MemoryService:
             change_values["keywords"] = tuple(command.keywords)
         if _provided(command.kind):
             change_values["kind"] = command.kind
+        if _provided(command.origin_path):
+            change_values["origin_path"] = command.origin_path
         if _provided(command.pin):
             change_values["pin"] = command.pin
         if _provided(command.status):
@@ -452,6 +457,7 @@ class MemoryService:
                         embedding_model=self._embedding_provider.model,
                         project_key=command.project_key,
                         thread_origin=command.thread_origin,
+                        origin_path=command.origin_path,
                         pin=False,
                         status="active",
                         revision=1,
@@ -538,6 +544,7 @@ def _contract_memory_from_snapshot(snapshot: MemoryUnitSnapshot) -> ContractMemo
         keywords=list(snapshot.keywords),
         project_key=snapshot.project_key,
         thread_origin=snapshot.thread_origin,
+        origin_path=snapshot.origin_path,
         pin=snapshot.pin,
         status=snapshot.status,
         revision=snapshot.revision,
