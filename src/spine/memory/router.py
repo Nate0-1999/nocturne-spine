@@ -5,6 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
+from pydantic import Field
 
 from spine.contracts import (
     ContractRequest,
@@ -28,6 +29,7 @@ from spine.memory.service import (
     DuplicateMemoryError,
     EmptyPatchError,
     InvalidListQueryError,
+    InvalidSearchQueryError,
     LabelConflictError,
     ListMemoriesQuery,
     MemoryCreated,
@@ -36,11 +38,11 @@ from spine.memory.service import (
     MemoryValidationError,
     PatchMemoryCommand,
     RevisionConflictError,
+    SearchMemoriesQuery,
     SimilarMemories,
 )
 from spine.problems import (
     ProblemJSONResponse,
-    not_implemented,
     problem_openapi,
     problem_response,
 )
@@ -51,10 +53,6 @@ ERROR_RESPONSES = {
     401: problem_openapi("Bearer token missing or invalid"),
     422: problem_openapi("Request does not match the endpoint contract"),
     500: problem_openapi("Unexpected service failure"),
-}
-
-STUB_RESPONSES = ERROR_RESPONSES | {
-    501: problem_openapi("Agent Zero contract stub"),
 }
 
 EMBEDDING_RESPONSES = ERROR_RESPONSES | {
@@ -93,7 +91,7 @@ class PatchMemoryRequest(ContractRequest):
 class SearchRequest(ContractRequest):
     principal_id: str
     query: str
-    k: int = 10
+    k: Annotated[int, Field(strict=True, ge=1, le=50)] = 10
     project_key: str | None = None
 
 
@@ -242,10 +240,25 @@ async def list_memories(
 @router.post(
     "/v1/search",
     response_model=SearchResponse,
-    responses=STUB_RESPONSES,
+    responses=EMBEDDING_RESPONSES,
 )
-async def search(_: SearchRequest, request: Request) -> ProblemJSONResponse:
-    return not_implemented("POST /v1/search", request.url.path)
+async def search(
+    body: SearchRequest,
+    request: Request,
+) -> SearchResponse | ProblemJSONResponse:
+    try:
+        return await _memory_service(request).search(
+            SearchMemoriesQuery(
+                principal_id=body.principal_id,
+                query=body.query,
+                k=body.k,
+                project_key=body.project_key,
+            )
+        )
+    except InvalidSearchQueryError as error:  # defensive for non-HTTP callers
+        return _unprocessable(request, str(error))
+    except EmbeddingProviderError:
+        return _provider_unavailable(request)
 
 
 def _memory_service(request: Request) -> MemoryService:

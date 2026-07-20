@@ -1,10 +1,9 @@
-"""Health, auth, validation, and remaining route-stub contract tests."""
+"""Health, auth, validation, and committed API contract tests."""
 
 import json
 from pathlib import Path
 from typing import Any
 
-import pytest
 from conftest import TOKEN
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
@@ -12,15 +11,6 @@ from httpx import ASGITransport, AsyncClient
 ROOT = Path(__file__).resolve().parents[1]
 MEMORY_ID = "00000000-0000-0000-0000-000000000001"
 INJECTION_ID = "00000000-0000-0000-0000-000000000002"
-
-STUB_CASES: list[tuple[str, str, str, dict[str, Any] | None]] = [
-    (
-        "POST",
-        "/v1/search",
-        "POST /v1/search",
-        {"principal_id": "owner", "query": "editor"},
-    ),
-]
 
 C4_ROUTES = {
     ("POST", "/v1/inject/prepare"),
@@ -54,25 +44,6 @@ async def test_healthz_and_auth_are_live(app: FastAPI) -> None:
     assert unauthorized.headers["www-authenticate"] == "Bearer"
     assert healthy.status_code == 200
     assert healthy.json() == {"ok": True, "version": "0.1.0"}
-
-
-@pytest.mark.parametrize(("method", "path", "endpoint", "body"), STUB_CASES)
-async def test_unimplemented_c4_routes_are_named_rfc7807_stubs(
-    app: FastAPI,
-    method: str,
-    path: str,
-    endpoint: str,
-    body: dict[str, Any] | None,
-) -> None:
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.request(
-            method,
-            path,
-            headers={"Authorization": f"Bearer {TOKEN}"},
-            json=body,
-        )
-
-    _assert_problem(response, status=501, endpoint=endpoint)
 
 
 async def test_validation_errors_are_rfc7807(app: FastAPI) -> None:
@@ -230,6 +201,17 @@ def test_committed_openapi_is_current(app: FastAPI) -> None:
     feedback_response = committed["paths"]["/v1/feedback"]["post"]
     assert "501" not in feedback_response["responses"]
     assert {"200", "404", "409", "422"} <= set(feedback_response["responses"])
+    search_operation = committed["paths"]["/v1/search"]["post"]
+    assert "501" not in search_operation["responses"]
+    assert {"200", "401", "422", "500", "503"} <= set(search_operation["responses"])
+    search_k = committed["components"]["schemas"]["SearchRequest"]["properties"]["k"]
+    assert search_k == {
+        "default": 10,
+        "maximum": 50,
+        "minimum": 1,
+        "title": "K",
+        "type": "integer",
+    }
 
     memory_unit_fields = {
         "memory_id",

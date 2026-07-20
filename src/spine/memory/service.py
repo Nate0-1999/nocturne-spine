@@ -15,6 +15,7 @@ from spine.contracts import (
     MemoryKind,
     MemoryListResponse,
     MemoryStatus,
+    SearchResponse,
     SimilarityMemoryCard,
 )
 from spine.contracts import (
@@ -98,6 +99,14 @@ class ListMemoriesQuery:
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
+class SearchMemoriesQuery:
+    principal_id: str
+    query: str
+    k: int = 10
+    project_key: str | None = None
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
 class MemoryCreated:
     memory: ContractMemoryUnit
 
@@ -152,6 +161,10 @@ class EmptyPatchError(MemoryServiceError):
 
 class InvalidListQueryError(MemoryServiceError):
     """List paging values fall outside the C.4 bounds."""
+
+
+class InvalidSearchQueryError(MemoryServiceError):
+    """Search result count falls outside the enacted C.4 bounds."""
 
 
 class MemoryValidationError(MemoryServiceError):
@@ -397,6 +410,48 @@ class MemoryService:
             offset=query.offset,
         )
 
+    async def search(self, query: SearchMemoriesQuery) -> SearchResponse:
+        """Return current ACTIVE heads ordered by raw cosine similarity."""
+
+        if isinstance(query.k, bool) or not isinstance(query.k, int) or not 1 <= query.k <= 50:
+            raise InvalidSearchQueryError("k must satisfy 1 <= k <= 50")
+
+        embedding = await embed_one(
+            self._embedding_provider,
+            query.query,
+            expected_dimensions=_EMBEDDING_DIMENSIONS,
+        )
+        unit = MemoryUnit.__table__
+        distance = unit.c.embedding.cosine_distance(list(embedding))
+        cosine_score = (1.0 - distance).label("score")
+        filters = [
+            unit.c.principal_id == query.principal_id,
+            unit.c.status == "active",
+        ]
+        if query.project_key is not None:
+            filters.append(
+                or_(
+                    unit.c.project_key.is_(None),
+                    unit.c.project_key == query.project_key,
+                )
+            )
+
+        async with self._session_factory() as session:
+            rows = (
+                (
+                    await session.execute(
+                        select(*unit.c, cosine_score)
+                        .where(*filters)
+                        .order_by(distance.asc(), unit.c.id.asc())
+                        .limit(query.k)
+                    )
+                )
+                .mappings()
+                .all()
+            )
+
+        return SearchResponse(results=[_similarity_card_from_row(row) for row in rows])
+
     def _validate_label(self, label: str) -> None:
         if len(label) > self._label_max:
             raise MemoryValidationError(
@@ -611,6 +666,7 @@ __all__ = [
     "DuplicateMemoryError",
     "EmptyPatchError",
     "InvalidListQueryError",
+    "InvalidSearchQueryError",
     "LabelConflictError",
     "ListMemoriesQuery",
     "MemoryCreated",
@@ -620,6 +676,7 @@ __all__ = [
     "MemoryValidationError",
     "PatchMemoryCommand",
     "RevisionConflictError",
+    "SearchMemoriesQuery",
     "SimilarMemories",
     "UNSET",
     "UnsetType",

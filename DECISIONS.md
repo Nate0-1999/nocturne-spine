@@ -292,3 +292,28 @@ and make edits between prepare and commit leak into the prompt. A general XML
 serializer would add declaration, whitespace, or escaping choices beyond the
 fixed C.6 wire contract. Maintaining a second empty-block constant in the
 service would invite drift.
+
+## 012 — Current-head vector search without scorer coupling
+
+**Problem Tree:** P1.1
+
+**Decision.** Enact Garden A-012 inside the existing memory service: validate
+the bounded result count before provider work, embed the query through the same
+validated C.1 boundary as memory CRUD, and issue one read-only pgvector query
+over current ACTIVE heads. Order by cosine distance ASC then memory UUID ASC;
+the pgvector cosine-distance operator remains the primary ordering expression.
+Expose `1 - distance` unchanged through the shared similarity-card converter.
+Apply the global-or-exact project predicate only for a non-null context. Remove
+the last 501 route and its now-unused scaffold helper.
+
+**Motivation.** Search is the agent tool's direct semantic lookup, not a second
+gate scorer. Keeping it on the current-head memory service reuses provider and
+wire validation while one MVCC SELECT gives the complete read boundary without
+locks, revisions, events, or statistics.
+
+**Rejected alternatives.** Reusing scorer v0 would introduce weights,
+thresholds, bias, pin priority, feature calculation, and snapshot/event side
+effects that C.4 does not request. Reusing the dedup query would incorrectly
+drop low and negative similarities at its configured threshold. A new module,
+table, or search index duplicates boundaries already owned by memory_unit and
+its HNSW cosine index.

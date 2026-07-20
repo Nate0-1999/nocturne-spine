@@ -67,15 +67,3 @@ def problem_response(
         media_type="application/problem+json",
         headers=headers,
     )
-
-
-def not_implemented(endpoint: str, instance: str) -> ProblemJSONResponse:
-    """Return the uniform P0 stub response and name the contract endpoint."""
-
-    return problem_response(
-        status=501,
-        title="Not Implemented",
-        detail=f"{endpoint} is not implemented in the Agent Zero scaffold.",
-        instance=instance,
-        endpoint=endpoint,
-    )

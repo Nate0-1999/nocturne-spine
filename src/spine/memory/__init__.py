@@ -1,1 +1,1 @@
-"""Memory CRUD services and API contracts."""
+"""Memory CRUD, semantic search, and API contracts."""

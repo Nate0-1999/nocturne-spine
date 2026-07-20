@@ -834,6 +834,8 @@
         "properties": {
           "k": {
             "default": 10,
+            "maximum": 50.0,
+            "minimum": 1.0,
             "title": "K",
             "type": "integer"
           },
@@ -2990,7 +2992,7 @@
             },
             "description": "Unexpected service failure"
           },
-          "501": {
+          "503": {
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -3041,7 +3043,7 @@
                 }
               }
             },
-            "description": "Agent Zero contract stub"
+            "description": "Embedding provider unavailable"
           }
         },
         "security": [
