@@ -1,6 +1,6 @@
 # Harness + Memory System — Specification
 
-**Version 1.5** (2026-07-17) — C.2/C.4 contract gaps closed at the human gate (Garden flags F001–F005) and COMPLETION authority added to 1.4 (D.2 entries 028–029). Prior v1.4 (2026-07-07): execution protocol complete (judges + Agent Zero) — reorganized from the v0.x iteration transcript;
+**Version 1.6** (2026-07-19) — memory location law (origin_path, f_loc, movement/refresh) + flashcard-deck interface (D.2 entries 030–031). Prior v1.5 (2026-07-17): C.2/C.4 contract gaps closed at the human gate (Garden flags F001–F005) and COMPLETION authority added to 1.4 (D.2 entries 028–029). Prior v1.4 (2026-07-07): execution protocol complete (judges + Agent Zero) — reorganized from the v0.x iteration transcript;
 content-preserving. Audience: implementing agents (via /goal) and the human owner.
 Everything here is binding unless marked OPEN or given a non-accepted status.
 ADR numbers are immutable; superseding requires a new ADR. The chronological
@@ -314,6 +314,17 @@ of magnitude per thread; differentiator #1 (agents moving through a machine's
 file structure) requires workspace locality; future local models put the model
 on user hardware, which a cloud-anchored loop would invert absurdly.
 
+**Movement law (ACCEPTED 2026-07-19; CONTRACT from the milestone agents
+hold fs tools — M3; D.2 030):** agents and their sub-agents are both
+permitted and *instructed* to move through the repository as they work. To
+work on a file, an agent MUST first move to that file's directory —
+location is a statement of attention, not an implementation detail. Every
+directory change triggers a memory refresh: the injection layer re-prepares
+against the new location and the procedurally injected set is re-rendered.
+(Movement-triggered refresh is a distinct trigger from OQ-15's per-prompt
+re-scoring question; refresh events log full location context like any
+injection.)
+
 **Fleet model:** "machine" is an abstraction over ownership. A daemon on a
 personal desktop and a daemon on a provisioned cloud VM register identically
 with the spine, appear identically in the command center/Ant Farm, and share
@@ -412,7 +423,7 @@ tokens, no summary field — decision 015)
 **Unit model (authoritative DDL: C.2):** a memory unit is an ATOMIC fact —
 label (short handle), description, body (≤128 tokens), kind (fact |
 preference | procedure | project_note | persona | pinned), agent-chosen
-keywords, embedding (+model tag), optional project/thread stamps, pin flag,
+keywords, embedding (+model tag), optional project/thread/path stamps, pin flag,
 status (active | quarantined | tombstoned), stats (injections, removals,
 citations, never_kills, last_injected_at), per-memory bias b_m.
 
@@ -486,6 +497,23 @@ M3 = **hierarchical per-project offsets**, zero-initialized, partial-pooling:
 context whose removals fight the global trend. Rejected: fully per-context
 scorers (signal starvation for a single user).
 
+**Location relevance (ACCEPTED 2026-07-19; D.2 030):** every memory carries
+`origin_path` — the workspace-relative directory context where it was
+learned (NULL when there is none; M1 writes it as inert metadata only, like
+thread_origin). From the milestone where agents hold filesystem tools (M3),
+scorer versions add f_loc:
+- d = hop distance between the agent's current working directory and
+  origin_path in the workspace directory tree (each step up or down one
+  level = 1 hop; same directory d=0); a memory from a different
+  workspace/repo takes f_loc = 0 (cross-repo affinity stays f_proj's job).
+- f_loc = 2^(−d / h_loc), h_loc default 2 hops (config).
+- **Null rule (CONTRACT):** when either side lacks a location (origin_path
+  NULL, or the agent has no working directory), the location term is
+  OMITTED and the score renormalizes over the remaining weights —
+  score = (Σ_{i≠loc} w_i·f_i) / (1 − w_loc) + b_m — so a location-less
+  memory is NEVER penalized relative to a location-aware one. Scorer v0
+  (no w_loc) is unaffected.
+
 **Gate UX (ACCEPTED in review):** first prompt of thread = hard pause, no
 timeout (config: auto-continue T or non-blocking per agent/project);
 candidates pre-fetched on typing debounce so the gate renders instantly. Rows
@@ -558,6 +586,25 @@ TUI maintenance"); stack details PROPOSED.
 **Decision:** Prompt entry, memory gate, queuing/interjection, and all
 visualizations live in a single **web command center**. No interactive TUI is
 built or maintained.
+
+**Primary interaction: the flashcard deck (ACCEPTED 2026-07-19; D.2 031;
+built when the multi-agent era opens — M1/M2's single-thread chat pane is
+unchanged):** the command center's main mode is a deck of flashcards, one
+per top-level agent, each card wearing its agent's fleet color — the same
+color that agent has in the Ant Farm and every other visualizer (one color
+per agent, everywhere). Exactly one card is on top: that agent's latest
+response, awaiting the human. Queue order is purely time-based — whichever
+agent finishes next takes the next slot; responding advances the deck. The
+human may also manually cycle through the deck to watch running agents
+without dequeuing them. Expanding a card opens the full thread view, whose
+scrollbar is a scrubber of one line per HUMAN input — click a line to jump
+the transcript to that exchange (navigation indexed by what the human
+remembers saying). Secondary mode — the gallery: on demand, or when the
+queue is empty, live conversations tile like a terminal multiplexer, at
+most 4 tiles visible at once, panning to reach the rest. Sub-agents never
+surface cards and never address the human directly; they are visible only
+through the visualizers (Ant Farm et al.), and their work reaches the
+human, if at all, through their top-level agent's card.
 
 - **Frontend:** React + TypeScript + Vite SPA; SVG/canvas visualizations (no
   heavy chart deps); WebSocket (control/streams) + SSE (memory/presence).
@@ -854,6 +901,8 @@ CREATE TABLE memory_unit (
   embedding_model TEXT NOT NULL,
   project_key   TEXT,                           -- NULL = global
   thread_origin TEXT,
+  origin_path   TEXT,                           -- workspace-relative directory context at creation;
+                                                -- NULL = no location. M1: inert metadata (D.2 030)
   pin           BOOLEAN NOT NULL DEFAULT FALSE,
   status        TEXT NOT NULL DEFAULT 'active' CHECK (status IN
                 ('active','quarantined','tombstoned')),
@@ -970,8 +1019,8 @@ POST /v1/inject/prepare
                features: {sem,kw,time,proj,freq,hist}, rank}
   MemoryUnit (shared shape; the C.2 row minus embedding):
     {memory_id, principal_id, label, body, kind, keywords, project_key,
-     thread_origin, pin, status, revision, stats, bias, embedding_model,
-     created_at, updated_at}
+     thread_origin, origin_path, pin, status, revision, stats, bias,
+     embedding_model, created_at, updated_at}
   MemoryCard.score/features/rank are populated only by inject/prepare; in
   dedup and /v1/search responses score = cosine similarity, features/rank null.
 
@@ -993,7 +1042,7 @@ POST /v1/feedback            # mid-thread, ad-hoc
 
 POST /v1/memories
   req: {principal_id, label, body, kind, keywords?,
-        project_key?, thread_origin?, editor, machine_id,
+        project_key?, thread_origin?, origin_path?, editor, machine_id,
         force?: bool = false}
   beh: label check first: another ACTIVE unit of principal with this label →
        409 {label_conflict: {memory_id, label}} (force does not override;
@@ -1009,7 +1058,7 @@ POST /v1/memories
 
 PATCH /v1/memories/{id}
   req: {expected_revision, body?, label?, keywords?, kind?, pin?, status?,
-        editor, reason, machine_id}
+        origin_path?, editor, reason, machine_id}
   beh: CAS per C.2 rules; the revision row gets origin_machine_id = machine_id;
        a label change colliding with another active unit → 409 {label_conflict}
        as on create.
@@ -1270,6 +1319,8 @@ into its owning ADR above)
 | 027 | 2026-07-07 | Verification doctrine (B.6): experiential + traced + adversarial evidence, judge/builder separation, verdict artifacts, judgeable scope audit; M1 checklist J0–J8 (C.9); Agent Zero verbatim charge (C.10) | ACCEPTED |
 | 028 | 2026-07-17 | v1.5 human-gate amendment resolving Garden F001–F005: active-label partial unique index + label_conflict 409 (F001); force flag on create, similar-band only, never overrides ≥0.92 (F002); machine_id on create/PATCH → origin_machine_id (F003); commit returns wrong_removed: [MemoryUnit] (F004); MemoryUnit shape + limit/offset paging + PATCH 200/409 bodies (F005); create returns MemoryUnit; card score = similarity in dedup/search | ACCEPTED |
 | 029 | 2026-07-17 | Normativity (1.4) gains COMPLETION class: agents self-resolve silent/self-inconsistent contract details by enacting exact-diff entries in garden/AMENDMENTS.md — law for later agents and the judge, human audit-with-veto between sessions (veto → FIXER). Hard FLAG reserved for Invariants, FORBIDDEN rows, auth/data-loss, ADR reversals, changes to DONE-packet behavior, and genuine design forks. Motivated by F001–F005 all being qualifying completions that stopped the line | ACCEPTED |
+| 030 | 2026-07-19 | v1.6 location law: origin_path on memory_unit + C.4 surfaces (M1 inert metadata; S5 packet); f_loc = 2^(−hops/h_loc) directory distance with weight renormalization when location is null (no-penalty CONTRACT); movement law — agents must cd to a file's directory to work on it, every move refreshes injected memories (CONTRACT from the M3 fs milestone) | ACCEPTED |
+| 031 | 2026-07-19 | Command center primary interaction = flashcard deck: one card per top-level agent in its fleet color (shared across all visualizers), completion-time FIFO, respond-to-advance, manual deck cycling; card expands to thread view with a line-per-human-input scrubber; gallery mode (≤4 multiplexer tiles) secondary; sub-agents card-less, visualizer-only | ACCEPTED |
 
 ## D.3 Resolved-question index (where each folded)
 
