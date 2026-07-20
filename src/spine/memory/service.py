@@ -263,7 +263,7 @@ class MemoryService:
                         raise LabelConflictError(conflict["id"], conflict["label"]) from None
                     raise
 
-                return MemoryCreated(memory=_contract_memory_from_row(row))
+                return MemoryCreated(memory=contract_memory_from_row(row))
 
     async def patch(self, command: PatchMemoryCommand) -> ContractMemoryUnit:
         """CAS-update a head and append its resulting cloud revision."""
@@ -339,7 +339,7 @@ class MemoryService:
                 except DatabaseMemoryNotFoundError as error:
                     raise MemoryNotFoundError(error.memory_id) from None
                 except DatabaseCasConflictError as error:
-                    current = _contract_memory_from_snapshot(error.current)
+                    current = contract_memory_from_snapshot(error.current)
                     raise RevisionConflictError(current) from None
                 except IntegrityError as error:
                     if _integrity_constraint_name(error) != _ACTIVE_LABEL_CONSTRAINT:
@@ -349,7 +349,7 @@ class MemoryService:
                         raise LabelConflictError(conflict["id"], conflict["label"]) from None
                     raise
 
-                return _contract_memory_from_snapshot(snapshot)
+                return contract_memory_from_snapshot(snapshot)
 
     async def list(self, query: ListMemoriesQuery) -> MemoryListResponse:
         """List heads with literal filters, stable ordering, and filtered count."""
@@ -391,7 +391,7 @@ class MemoryService:
             )
 
         return MemoryListResponse(
-            items=[_contract_memory_from_row(row) for row in rows],
+            items=[contract_memory_from_row(row) for row in rows],
             total=int(total or 0),
             limit=query.limit,
             offset=query.offset,
@@ -534,7 +534,7 @@ async def _patch_label_conflict(
     )
 
 
-def _contract_memory_from_snapshot(snapshot: MemoryUnitSnapshot) -> ContractMemoryUnit:
+def contract_memory_from_snapshot(snapshot: MemoryUnitSnapshot) -> ContractMemoryUnit:
     return ContractMemoryUnit(
         memory_id=snapshot.id,
         principal_id=snapshot.principal_id,
@@ -556,8 +556,8 @@ def _contract_memory_from_snapshot(snapshot: MemoryUnitSnapshot) -> ContractMemo
     )
 
 
-def _contract_memory_from_row(row: Mapping[str, Any]) -> ContractMemoryUnit:
-    return _contract_memory_from_snapshot(MemoryUnitSnapshot.from_row(row))
+def contract_memory_from_row(row: Mapping[str, Any]) -> ContractMemoryUnit:
+    return contract_memory_from_snapshot(MemoryUnitSnapshot.from_row(row))
 
 
 def _similarity_card_from_row(row: Mapping[str, Any]) -> SimilarityMemoryCard:
@@ -606,6 +606,8 @@ def _integrity_constraint_name(error: IntegrityError) -> str | None:
 
 __all__ = [
     "CreateMemoryCommand",
+    "contract_memory_from_row",
+    "contract_memory_from_snapshot",
     "DuplicateMemoryError",
     "EmptyPatchError",
     "InvalidListQueryError",

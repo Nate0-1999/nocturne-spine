@@ -18,6 +18,7 @@ from spine.config import Settings
 from spine.db.engine import make_engine
 from spine.db.session import make_session_factory
 from spine.embeddings import EmbeddingProvider, OpenAIEmbeddingProvider
+from spine.inject.decisions import DecisionService
 from spine.inject.router import router as inject_router
 from spine.inject.service import PrepareService
 from spine.memory.router import router as memory_router
@@ -67,6 +68,7 @@ def create_app(
         memory_max_tokens=resolved.memory_max_tokens,
     )
     prepare_service = PrepareService(session_factory, embedding_provider)
+    decision_service = DecisionService(session_factory)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -88,6 +90,7 @@ def create_app(
     app.state.settings = resolved
     app.state.memory_service = memory_service
     app.state.prepare_service = prepare_service
+    app.state.decision_service = decision_service
     app.add_middleware(
         StaticBearerAuthMiddleware,
         token=resolved.token.get_secret_value(),

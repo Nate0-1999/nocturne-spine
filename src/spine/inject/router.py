@@ -13,6 +13,15 @@ from spine.contracts import (
     PrepareResponse,
 )
 from spine.embeddings import EmbeddingProviderError
+from spine.inject.decisions import (
+    CommitCommand,
+    DecisionService,
+    FeedbackCommand,
+    InjectionNotFoundError,
+    InvalidCommitChoicesError,
+    OutcomeConflictError,
+    RemovedDecision,
+)
 from spine.inject.service import (
     PrepareCommand,
     PrepareConflictError,
@@ -22,7 +31,6 @@ from spine.inject.service import (
 )
 from spine.problems import (
     ProblemJSONResponse,
-    not_implemented,
     problem_openapi,
     problem_response,
 )
@@ -35,13 +43,14 @@ ERROR_RESPONSES = {
     500: problem_openapi("Unexpected service failure"),
 }
 
-STUB_RESPONSES = ERROR_RESPONSES | {
-    501: problem_openapi("Agent Zero contract stub"),
-}
-
 PREPARE_RESPONSES = ERROR_RESPONSES | {
     409: problem_openapi("Thread identity or snapshot conflict"),
     503: problem_openapi("Embedding provider unavailable"),
+}
+
+DECISION_RESPONSES = ERROR_RESPONSES | {
+    404: problem_openapi("Injection event membership does not exist"),
+    409: problem_openapi("Injection outcome conflicts with the request"),
 }
 
 
@@ -123,29 +132,81 @@ async def prepare(
 @router.post(
     "/v1/inject/commit",
     response_model=CommitResponse,
-    responses=STUB_RESPONSES,
+    responses=DECISION_RESPONSES,
 )
-async def commit(_: CommitRequest, request: Request) -> ProblemJSONResponse:
-    return not_implemented("POST /v1/inject/commit", request.url.path)
+async def commit(
+    body: CommitRequest,
+    request: Request,
+) -> CommitResponse | ProblemJSONResponse:
+    try:
+        return await _decision_service(request).commit(
+            CommitCommand(
+                injection_id=body.injection_id,
+                removed=tuple(
+                    RemovedDecision(memory_id=item.memory_id, reason=item.reason)
+                    for item in body.removed
+                ),
+                added_back=tuple(body.added_back),
+            )
+        )
+    except InjectionNotFoundError as error:
+        return _decision_problem(request, 404, "Not Found", str(error))
+    except InvalidCommitChoicesError as error:
+        return _decision_problem(request, 422, "Unprocessable Content", str(error))
+    except OutcomeConflictError as error:
+        return _decision_problem(request, 409, "Conflict", str(error))
 
 
 @router.post(
     "/v1/feedback",
     response_model=FeedbackResponse,
-    responses=STUB_RESPONSES,
+    responses=DECISION_RESPONSES,
 )
-async def feedback(_: FeedbackRequest, request: Request) -> ProblemJSONResponse:
-    return not_implemented("POST /v1/feedback", request.url.path)
+async def feedback(
+    body: FeedbackRequest,
+    request: Request,
+) -> FeedbackResponse | ProblemJSONResponse:
+    try:
+        return await _decision_service(request).feedback(
+            FeedbackCommand(
+                injection_id=body.injection_id,
+                memory_id=body.memory_id,
+                signal=body.signal,
+            )
+        )
+    except InjectionNotFoundError as error:
+        return _decision_problem(request, 404, "Not Found", str(error))
+    except OutcomeConflictError as error:
+        return _decision_problem(request, 409, "Conflict", str(error))
 
 
 def _prepare_service(request: Request) -> PrepareService:
     return request.app.state.prepare_service
 
 
+def _decision_service(request: Request) -> DecisionService:
+    return request.app.state.decision_service
+
+
 def _conflict(request: Request, detail: str) -> ProblemJSONResponse:
     return problem_response(
         status=409,
         title="Conflict",
+        detail=detail,
+        instance=request.url.path,
+        endpoint=f"{request.method} {request.url.path}",
+    )
+
+
+def _decision_problem(
+    request: Request,
+    status: int,
+    title: str,
+    detail: str,
+) -> ProblemJSONResponse:
+    return problem_response(
+        status=status,
+        title=title,
         detail=detail,
         instance=request.url.path,
         endpoint=f"{request.method} {request.url.path}",

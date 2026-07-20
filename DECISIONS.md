@@ -243,3 +243,52 @@ existence validation would invent law absent from C.2/C.4. Treating PATCH null
 as a clear operation would contradict A-004. Adding `f_loc`, `w_loc`, or
 `origin_path` to scorer/event/card inputs would pull M3 behavior into M1 and
 disturb S3's frozen prepare contract.
+
+## 010 — Serialized event state machines over the existing log and CAS writer
+
+**Problem Tree:** P1.2.1a, P1.2.1b, P1.2.1d
+
+**Decision.** Enact Garden A-009 and A-010 in one decision service with a
+transaction-scoped PostgreSQL advisory lock per injection, locked event rows,
+and affected memory heads locked in UUID order. Validate the complete request
+before effects, conditionally write event outcomes from their expected state,
+and route every counter, bias, and status change through the existing C.2 CAS
+writer in the same outer transaction. Sample the add-back database clock only
+after head locks are held so concurrent injection IDs cannot make
+`last_injected_at` regress. Load never behavior from each event's recorded
+scorer version. Reuse the shared current-head MemoryUnit converter for
+`wrong_removed`; cited feedback remains event-only.
+
+**Motivation.** The event row is the durable gate membership already frozen by
+S3, while the advisory lock makes a batch-level retry and feedback transition
+serialize without adding schema. Ordered head locks preserve independent-event
+statistics without deadlocks or lost updates, and the conditional writes make
+same requests idempotent while rejecting different terminal choices.
+
+**Rejected alternatives.** A new injection-batch table would rewrite completed
+S3 and exists only to distinguish an eventless prepare from an unknown empty
+UUID. Direct JSON updates would split head/history and violate C.2. Process-local
+locks would fail across workers. Treating cited as a head statistic would turn
+on C.3's explicitly inert M1 citation feature.
+
+## 011 — One canonical renderer over frozen event cards
+
+**Problem Tree:** P1.2.1c
+
+**Decision.** Enact Garden A-011 as a pure renderer that sorts final event
+members by rank and memory UUID, reads only `features._memory` plus the event's
+`memory_kind`, applies the exact attribute/body escaping rules, and joins the
+fixed structural lines with LF. Malformed or absent frozen card data fails the
+transaction instead of falling back to a current memory head. The zero-member
+case uses the same renderer and therefore has one canonical four-line result.
+
+**Motivation.** Rendering from the logged card makes commit output replayable
+after later edits and keeps byte-level formatting independently testable. A
+fail-closed boundary exposes corrupt historical data rather than silently
+changing what the gate showed.
+
+**Rejected alternatives.** Joining current heads would violate snapshot replay
+and make edits between prepare and commit leak into the prompt. A general XML
+serializer would add declaration, whitespace, or escaping choices beyond the
+fixed C.6 wire contract. Maintaining a second empty-block constant in the
+service would invite drift.

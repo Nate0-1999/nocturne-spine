@@ -1,1 +1,1 @@
-"""Memory API package; P0 contains contract-only 501 stubs."""
+"""Memory CRUD services and API contracts."""

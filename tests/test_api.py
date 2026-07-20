@@ -16,22 +16,6 @@ INJECTION_ID = "00000000-0000-0000-0000-000000000002"
 STUB_CASES: list[tuple[str, str, str, dict[str, Any] | None]] = [
     (
         "POST",
-        "/v1/inject/commit",
-        "POST /v1/inject/commit",
-        {"injection_id": INJECTION_ID, "removed": [], "added_back": []},
-    ),
-    (
-        "POST",
-        "/v1/feedback",
-        "POST /v1/feedback",
-        {
-            "injection_id": INJECTION_ID,
-            "memory_id": MEMORY_ID,
-            "signal": "cited",
-        },
-    ),
-    (
-        "POST",
         "/v1/search",
         "POST /v1/search",
         {"principal_id": "owner", "query": "editor"},
@@ -241,6 +225,11 @@ def test_committed_openapi_is_current(app: FastAPI) -> None:
     commit_schema = commit_response["responses"]["200"]["content"]["application/json"]["schema"]
     assert commit_schema == {"$ref": "#/components/schemas/CommitResponse"}
     assert "wrong_removed" in committed["components"]["schemas"]["CommitResponse"]["required"]
+    assert "501" not in commit_response["responses"]
+    assert {"200", "404", "409", "422"} <= set(commit_response["responses"])
+    feedback_response = committed["paths"]["/v1/feedback"]["post"]
+    assert "501" not in feedback_response["responses"]
+    assert {"200", "404", "409", "422"} <= set(feedback_response["responses"])
 
     memory_unit_fields = {
         "memory_id",
