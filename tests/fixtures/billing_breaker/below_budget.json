@@ -1,0 +1,8 @@
+{
+  "budgetDisplayName": "Memory Palace $100 budget",
+  "costAmount": 99.99,
+  "costIntervalStart": "2026-07-01T00:00:00Z",
+  "budgetAmount": 100.00,
+  "budgetAmountType": "SPECIFIED_AMOUNT",
+  "currencyCode": "USD"
+}

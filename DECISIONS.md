@@ -317,3 +317,66 @@ effects that C.4 does not request. Reusing the dedup query would incorrectly
 drop low and negative similarities at its configured threshold. A new module,
 table, or search index duplicates boundaries already owned by memory_unit and
 its HNSW cosine index.
+
+## 013 — One-way, identity-pinned billing detach
+
+**Problem Tree:** P4
+
+**Decision.** Implement D2 as an isolated Python 3.12 Cloud Run function with a
+stdlib-only decision core and a thin Cloud Billing adapter. Pin the target to
+`projects/n8-memory-palace`, require the configured billing-account ID, budget
+ID, and Pub/Sub schema on every message, compare amounts as exact decimals, and
+request an empty billing account at equality or overage. Treat malformed or
+foreign messages as logged acknowledgements; log before and after the detach,
+and surface Cloud Billing failures. Repeated requests set the same empty-account
+state, so idempotency does not require a status read. Deploy through a
+default-inert, first-deploy-only human script that validates the explicitly
+named, billing-account-owned monthly whole-project $100 budget and requires
+fresh infrastructure.
+Reject ambient gcloud credential overrides and inspect the current permissions
+of every directly bound project and billing-account role instead of maintaining
+a drifting role denylist. Only the active human may directly update the budget
+or billing-account IAM; allow other dangerous project permissions only to that
+human, the armed runtime role, and exact project-number identities at a fixed
+allowlist of Google-owned service-agent domains. Account ownership also keeps
+project-level resource-budget writers read-only. Require the
+named Project Billing Manager role to be absent before arming and exactly bound
+to runtime afterward.
+Separate runtime, trigger, and build identities: only runtime receives Project
+Billing Manager on this project, only trigger receives service-scoped Invoker,
+and the build identity loses its temporary documented roles before arming. Wire
+the budget last, after exact topology validation. Require one target-project
+Eventarc subscription exactly named by the healthy function-owned trigger's
+output-only transport, with no direct subscription IAM or topic/subscription
+message transforms, since transforms can rewrite both trusted data and
+attributes. Use automatic detach-role rollback on later errors and fail-closed
+policy readback.
+
+**Motivation.** Pub/Sub is at-least-once and budget data is delayed, while the
+operation deliberately kills its own project. Identity checks keep an unrelated
+budget message from authorizing that outage; a fixed source target prevents
+ambient configuration or payload data from redirecting it. The empty desired
+state is naturally safe under duplicates. Platform retries are disabled because
+a permanent failure could preserve an old destructive event through recovery;
+Cloud Billing publishes a fresh status several times per day. Avoiding
+`getProjectBillingInfo` keeps the runtime on the project-scoped detach permission
+promised by D2 rather than adding a read or billing-account role.
+
+**Rejected alternatives.** Discovering a budget by its display name or amount
+could silently wire the wrong $100 budget. A simulation flag could leave the
+supposed breaker permanently inert. A datastore latch, automatic reattach,
+account-level runtime Billing Administrator, a long-lived privileged build
+identity, and a separate FinOps project add state, privilege, or scope D2 does
+not need. Reusing partial resources is rejected because it makes unknown keys,
+policies, and queued deliveries part of the destructive boundary. The newer
+two-step `gcloud run deploy --function` plus manually managed Eventarc trigger
+adds drift without changing the deployed Cloud Run function; the supported
+second-generation functions command owns that pairing in one operation. A live
+at-limit synthetic drill is
+rejected because its successful outcome is an intentional outage; fake-client
+tests prove that branch while the runbook's live drill stays below threshold.
+Treating topic deletion as queue deletion is also rejected: recovery captures
+every subscription attached to the dedicated topic through its topic-side
+index before teardown, including cross-project and orphaned Eventarc queues,
+then deletes or irreversibly detaches each and proves the topic-side index empty
+because Pub/Sub retains subscriptions and backlog after topic deletion.

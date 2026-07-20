@@ -1,0 +1,9 @@
+.gcloudignore
+.git
+.gitignore
+README.md
+deploy.sh
+deployment_checks.py
+tests/
+__pycache__/
+*.pyc
