@@ -1,0 +1,82 @@
+{
+  "status": "returned_todo",
+  "observed_at_utc": "2026-07-20T21:52:04Z",
+  "project": "n8-memory-palace",
+  "region": "us-central1",
+  "spine_sha": "3b4b80314bb2376a961168d56a2114287546ad90",
+  "cloud_sql": {
+    "instance": "n8-memory-palace-db",
+    "connection_name": "n8-memory-palace:us-central1:n8-memory-palace-db",
+    "state": "RUNNABLE",
+    "database_version": "POSTGRES_16",
+    "database": "spine",
+    "user": "spine",
+    "backups_enabled": true,
+    "backup_location": "us-central1",
+    "retained_backups": 7,
+    "pitr_enabled": true,
+    "transaction_log_retention_days": 7,
+    "deletion_protection": true,
+    "alembic_current": "0002 (head)"
+  },
+  "secret_manager": {
+    "replica_location": "us-central1",
+    "secrets": [
+      "spine-database-url:1",
+      "spine-token:1",
+      "spine-openrouter-api-key:1"
+    ]
+  },
+  "runtime_iam": {
+    "service_account": "spine-runtime@n8-memory-palace.iam.gserviceaccount.com",
+    "project_roles": [
+      "roles/cloudsql.client"
+    ],
+    "per_secret_roles": [
+      "roles/secretmanager.secretAccessor"
+    ],
+    "default_compute_attached": false
+  },
+  "artifact": {
+    "repository": "spine",
+    "format": "DOCKER",
+    "immutable_tags": true,
+    "image": "us-central1-docker.pkg.dev/n8-memory-palace/spine/spine:3b4b80314bb2376a961168d56a2114287546ad90",
+    "amd64_index_digest": "sha256:86d28c235854a68e0bcf40085f690df9d6c77cc27bfc9ac8b505712364f15a7b",
+    "deployed_platform_digest": "sha256:a86789f5d99ddcdb463939f66a34dbc8e391dc1c70d2e195578c705ed7de55c7"
+  },
+  "cloud_run": {
+    "service": "n8-memory-palace-spine",
+    "revision": "n8-memory-palace-spine-00002-2bs",
+    "ready": true,
+    "routes_ready": true,
+    "traffic_percent": 100,
+    "execution_environment": "gen2",
+    "port": 8000,
+    "max_scale": 1,
+    "ingress": "all",
+    "public_invoker": true,
+    "urls": [
+      "https://n8-memory-palace-spine-713925718873.us-central1.run.app",
+      "https://n8-memory-palace-spine-7wq3wmgcoq-uc.a.run.app"
+    ],
+    "non_secret_env": {
+      "SPINE_EMBED_BASE_URL": "https://openrouter.ai/api/v1",
+      "SPINE_EMBED_MODEL": "openai/text-embedding-3-small"
+    },
+    "secret_env_names": [
+      "SPINE_DATABASE_URL",
+      "SPINE_TOKEN",
+      "SPINE_OPENAI_API_KEY"
+    ]
+  },
+  "remote_verification": {
+    "status": "blocked_before_application",
+    "unauthenticated_health_status": 404,
+    "app_bearer_health_status": 404,
+    "response_media_type": "text/html",
+    "container_request_log_entries": 0,
+    "api_round_trip_run": false,
+    "harness_remote_smoke_run": false
+  }
+}

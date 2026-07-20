@@ -405,3 +405,35 @@ the existing wire protocol. Inferring the model name from the URL would couple
 independent settings and make custom compatible endpoints ambiguous. Renaming
 the established key slot would add secret migration work without changing the
 bearer protocol.
+
+## 015 — One regional, least-privilege D1 deployment path
+
+**Problem Tree:** P4
+
+**Decision.** Keep every D1 resource in `n8-memory-palace` and `us-central1`.
+Store the database URL, static Spine token, and OpenRouter key in region-pinned
+Secret Manager replicas, and attach Cloud Run only to the dedicated
+`spine-runtime` identity. Give that identity one project role
+(`roles/cloudsql.client`) and one resource-scoped accessor grant on each of the
+three secrets. Build the pushed commit directly on the operator's local Buildx
+amd64 worker, enforce immutable Artifact Registry tags, and avoid Cloud Build,
+GCS staging, and build identities. Run Alembic separately through the Cloud SQL
+Auth Proxy, using a short-lived token from the already-active gcloud deployer
+when local Application Default Credentials are absent; never migrate at
+container startup. Keep Cloud Run transport public while retaining Spine's
+static bearer as application authentication.
+
+**Motivation.** D1 needs one reproducible production path without turning the
+default compute identity, a build service, or project-wide secret access into
+ambient authority. Region-pinned secret replicas and immutable commit tags make
+the deployed topology and artifact auditable, while an operator migration keeps
+schema changes out of autoscaling and restart behavior.
+
+**Rejected alternatives.** The default compute service account already carries
+broad inherited authority and is not a runtime boundary. Cloud Build would add
+an identity and GCS/logging behavior outside D1's mutation fence. Project-wide
+Secret Accessor is broader than three resource grants. Installing ADC or
+starting an interactive login merely to run the proxy would create credential
+state when the active deployer's short-lived token is sufficient. Container
+boot migrations would race across revisions and mix deployment with schema
+ownership.
