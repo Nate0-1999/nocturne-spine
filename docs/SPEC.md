@@ -1,6 +1,6 @@
 # Harness + Memory System — Specification
 
-**Version 2.0** (2026-07-20) — EDITOR PASS: content-preserving consolidation of the v1.5–v1.15 organic growth. New/amended law: ADR-012 mode scale, ADR-015 walls, ADR-016 tree, ADR-017 Symphony, ADR-018 Cube+plugins+stack, ADR-007→index, ADR-008 stack resolved; enacted amendments A-001–A-017 folded into Part C (AMENDMENTS.md remains the historical record); D.1 refreshed. Full version lineage: Appendix D.2. Prior v1.4 (2026-07-07) was reorganized from the v0.x iteration transcript;
+**Version 2.1** (2026-07-20) — ADR-018 procedural law (D.2 042). Prior v2.0: EDITOR PASS: content-preserving consolidation of the v1.5–v1.15 organic growth. New/amended law: ADR-012 mode scale, ADR-015 walls, ADR-016 tree, ADR-017 Symphony, ADR-018 Cube+plugins+stack, ADR-007→index, ADR-008 stack resolved; enacted amendments A-001–A-017 folded into Part C (AMENDMENTS.md remains the historical record); D.1 refreshed. Full version lineage: Appendix D.2. Prior v1.4 (2026-07-07) was reorganized from the v0.x iteration transcript;
 content-preserving. Audience: implementing agents (via /goal) and the human owner.
 Everything here is binding unless marked OPEN or given a non-accepted status.
 ADR numbers are immutable; superseding requires a new ADR. The chronological
@@ -1006,15 +1006,37 @@ user rearranges, not furniture).
    through M4. Fleet palette machine-validated on final grounds
    (dataviz six checks) — revalidate on any ground change.
 
+6. PROCEDURAL LAW (amended 2026-07-20; D.2 042). All stage geometry is
+   PROCEDURAL: generated at runtime as a DETERMINISTIC function of work
+   metadata, seeded by stable ids — no hand-authored scene assets, ever.
+   The visuals are model-like — real 3D parts with materials and lighting
+   (the CAD/SolidWorks feel), built by generators, not drawn: roots are
+   GROWN from search metadata (thickness = spend, meander seeded by
+   branch id, length = depth, junctions = fork/graft events, desiccation
+   = prune state); colonies are GROWN from the live directory tree
+   (chambers from directories, cell counts from files, tunnels from
+   hierarchy); Palace architecture and curators derive from memory-unit
+   populations and curator events. Same data → same geometry, which is
+   what makes the ADR-016 rollback bar work on the scene: scrubbing
+   re-runs generation at that `as_of`. Generators live behind the face
+   schema — plugins parameterize them with data and never emit meshes.
+   Mechanism: parametric/instanced mesh generation with TSL/compute for
+   growth animation (clause 5's stack).
+
 **Rejected:** literal always-3D rendering (readability loses to
 spectacle); per-visualizer data plumbing (the three surfaces are the
 whole API); plugin notify capability (would re-open the attention wall);
 Safari/Firefox support before M4 (single-user product; compat tax steals
-packets).
+packets); hand-modeled or imported scene assets (cannot time-scrub,
+cannot track live projects, and would let art drift from truth — the
+organism must be GROWN from its data or it is a picture of an organism).
 *Verification:* per B.6 rule 7 throughout — plus: a hostile test plugin
 must be unable to notify, write, or escape its rectangle; selection made
 on any face must appear on all faces and the trace drawer within one
-event cycle; the palette validator must pass on the shipped grounds.
+event cycle; the palette validator must pass on the shipped grounds;
+and procedural determinism is judged directly — render the same `as_of`
+twice and diff the geometry (must be identical), change one metadata
+input and verify exactly the corresponding visual property moves.
 
 ### ADR-006 — Presence
 
@@ -2032,6 +2054,7 @@ into its owning ADR above)
 | 039 | 2026-07-20 | v1.14 B.6 rule 7: UI/visualizer packets verify by EMULATED HUMAN USE from the first packet — browser automation drives the real rendered interface, screenshots at every acceptance state are first-class builder evidence (verification/<packet>/), assertions on rendered outcomes never internals. Motivated by mock iteration: cascade collisions and encoding drift are invisible to unit tests; the screenshot is the test. Applies to H4/H5/H6 and every viz packet after | ACCEPTED |
 | 040 | 2026-07-20 | v1.15 garden/NATES_VISION.md codified (GUIDANCE per 1.4): concatenated owner intent from the 2026-07-19/20 human-gate sessions — Invariant-14 soul, founding differentiators, organism/time thesis, modes-as-music with movable judge seat, ADR-012 protocol + conductor drafts, Symphony search (4 operators, portfolio budgets, MEASURED/JUDGED, lessons to Palace), the Cube (faces, selection, memory-trace sanctity, Ableton rack, aesthetics: black/white/orange chrome-seraph), stack (R3F/WebGPU hybrid, Chromium-only ≤M4), quality (B.6 r7), anti-vision. UI-surface packets read it at Boot STEP 5; full ADR-015/016/017 codification still pending human blessing | ACCEPTED |
 | 041 | 2026-07-20 | v2.0 EDITOR PASS (content-preserving, mirroring 022's v0.x→v1.0 consolidation): ADR-012 gains the mode scale (Solo/Duet/Ensemble/Symphony, movable judge seat); ADR-015 walls & boundaries, ADR-016 two-ledgers/one-tree, ADR-017 Symphony search, ADR-018 Cube + plugin rack + resolved stack (R3F/WebGPU, Chromium-only ≤M4) authored from the gate sessions with Verification clauses per B.6; ADR-007 converted to a parity index; amendments A-001–A-017 folded verbatim into Part C (AMENDMENTS.md preserved as historical record; future completions still enact there first); header lineage compressed; D.1 gains OQ-17/18. No semantic change to built behavior | ACCEPTED |
+| 042 | 2026-07-20 | v2.1 ADR-018 clause 6 PROCEDURAL LAW: all stage geometry is a deterministic function of work metadata, seeded by stable ids — model-like 3D parts GROWN by generators (roots from search metadata, colonies from the live directory tree, Palace from memory populations), never hand-authored; same data → same geometry, so as_of scrubbing re-runs generation; plugins parameterize generators, never emit meshes; determinism is directly judgeable (double-render diff) | ACCEPTED |
 
 ## D.3 Resolved-question index (where each folded)
 
