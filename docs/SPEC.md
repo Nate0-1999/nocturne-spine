@@ -1,6 +1,6 @@
 # Harness + Memory System — Specification
 
-**Version 2.2** (2026-07-20) — ADR-018 themes: NEO-NOIR default, swappable style configurations (D.2 043). Prior v2.1: procedural law (D.2 042). Prior v2.0: EDITOR PASS: content-preserving consolidation of the v1.5–v1.15 organic growth. New/amended law: ADR-012 mode scale, ADR-015 walls, ADR-016 tree, ADR-017 Symphony, ADR-018 Cube+plugins+stack, ADR-007→index, ADR-008 stack resolved; enacted amendments A-001–A-017 folded into Part C (AMENDMENTS.md remains the historical record); D.1 refreshed. Full version lineage: Appendix D.2. Prior v1.4 (2026-07-07) was reorganized from the v0.x iteration transcript;
+**Version 2.3** (2026-07-20) — broker-routed embeddings: one token broker for chat AND embeddings, OpenAI dependency deleted (D.2 044). Prior v2.2: themes (D.2 043). Prior v2.1: procedural law (D.2 042). Prior v2.0: EDITOR PASS: content-preserving consolidation of the v1.5–v1.15 organic growth. New/amended law: ADR-012 mode scale, ADR-015 walls, ADR-016 tree, ADR-017 Symphony, ADR-018 Cube+plugins+stack, ADR-007→index, ADR-008 stack resolved; enacted amendments A-001–A-017 folded into Part C (AMENDMENTS.md remains the historical record); D.1 refreshed. Full version lineage: Appendix D.2. Prior v1.4 (2026-07-07) was reorganized from the v0.x iteration transcript;
 content-preserving. Audience: implementing agents (via /goal) and the human owner.
 Everything here is binding unless marked OPEN or given a non-accepted status.
 ADR numbers are immutable; superseding requires a new ADR. The chronological
@@ -1654,7 +1654,12 @@ POST /v1/search             req: {principal_id, query, k=10, project_key?}
 tau=0.55, top_k=8, near_miss_k=3, budget_tokens=3000, budget_pct=0.05,
 half_life_time_days=14, half_life_hist_days=7, dedup_dup=0.92, dedup_sim=0.80,
 never_bias_step=-0.15, quarantine_kills=3, candidate_pool=50,
-embed_model="text-embedding-3-small" (dim 1536, provider-pluggable),
+embed_base_url="https://openrouter.ai/api/v1" (v2.3 — D.2 044: embeddings
+route through the token broker by default, same as chat; verified live
+2026-07-20 with openai/text-embedding-3-small returning 1536-dim vectors;
+direct-provider URLs remain a config override; the bearer-key slot accepts
+any OpenAI-compatible key — OpenRouter primary),
+embed_model="openai/text-embedding-3-small" (dim 1536, provider-pluggable),
 memory_max_tokens=128, label_max=64.
 run_request_limit=40, run_total_tokens_limit=500000 (harness; ADR-014).
 Chat model defaults: development/testing `openrouter:minimax/minimax-m3`
@@ -2068,6 +2073,7 @@ into its owning ADR above)
 | 041 | 2026-07-20 | v2.0 EDITOR PASS (content-preserving, mirroring 022's v0.x→v1.0 consolidation): ADR-012 gains the mode scale (Solo/Duet/Ensemble/Symphony, movable judge seat); ADR-015 walls & boundaries, ADR-016 two-ledgers/one-tree, ADR-017 Symphony search, ADR-018 Cube + plugin rack + resolved stack (R3F/WebGPU, Chromium-only ≤M4) authored from the gate sessions with Verification clauses per B.6; ADR-007 converted to a parity index; amendments A-001–A-017 folded verbatim into Part C (AMENDMENTS.md preserved as historical record; future completions still enact there first); header lineage compressed; D.1 gains OQ-17/18. No semantic change to built behavior | ACCEPTED |
 | 042 | 2026-07-20 | v2.1 ADR-018 clause 6 PROCEDURAL LAW: all stage geometry is a deterministic function of work metadata, seeded by stable ids — model-like 3D parts GROWN by generators (roots from search metadata, colonies from the live directory tree, Palace from memory populations), never hand-authored; same data → same geometry, so as_of scrubbing re-runs generation; plugins parameterize generators, never emit meshes; determinism is directly judgeable (double-render diff) | ACCEPTED |
 | 043 | 2026-07-20 | v2.2 ADR-018 clause 7 THEMES: aesthetics are swappable style configurations on the rack (tokens/motifs/materials, user-authorable, plugin-distributed, never code). Default = NEO-NOIR (Syd Mead tech-noir: neon on dark urban, street-level composition, holographic displays, rain-slicked materials, volumetric light — owner's vocabulary preserved verbatim in NATES_VISION §8); alternate = COBALT-SERAPH (the mock's current skin). Themes style meaning, never re-encode it; per-theme palette validation mandatory; Invariant 14 is not a style | ACCEPTED |
+| 044 | 2026-07-20 | v2.3 broker-routed embeddings (owner's token-broker thesis; Invariant 13 completed): C.5 gains embed_base_url defaulting to OpenRouter, embed_model becomes the namespaced openai/text-embedding-3-small; the key slot accepts any OpenAI-compatible bearer. Verified live against OpenRouter's /embeddings before enactment. Chat AND embeddings now flow through one third-party broker by default; direct providers are overrides. New packet S7 wires config→adapter; D1 no longer requires OpenAI credits | ACCEPTED |
 
 ## D.3 Resolved-question index (where each folded)
 
