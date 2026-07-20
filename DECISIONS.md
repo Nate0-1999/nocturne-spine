@@ -380,3 +380,28 @@ every subscription attached to the dedicated topic through its topic-side
 index before teardown, including cross-project and orphaned Eventarc queues,
 then deletes or irreversibly detaches each and proves the topic-side index empty
 because Pub/Sub retains subscriptions and backlog after topic deletion.
+
+## 014 — Broker routing at the existing provider seam
+
+**Problem Tree:** P1.1
+
+**Decision.** Enact SPEC v2.3 C.5 by making the runtime embedding URL an
+environment-backed setting, defaulting it to OpenRouter, and passing it to the
+existing OpenAI-compatible HTTP adapter. Use the broker-namespaced model by
+default while retaining both URL and model overrides for direct providers.
+Keep the generic bearer-key slot and fixed 1536-dimensional validation
+unchanged. Local Compose forwards both routing settings; for credentials, let
+an explicit generic key win, then the default broker key, then the legacy
+direct-provider key. Exercise both routes by replacing only the adapter
+constructor with a deterministic provider in configuration tests; production
+has no fake fallback.
+
+**Motivation.** Routing belongs at composition, not in a second adapter. One
+OpenAI-compatible boundary keeps provider choice deploy-time configurable and
+preserves all validation before persistence.
+
+**Rejected alternatives.** A broker-specific SDK or adapter would duplicate
+the existing wire protocol. Inferring the model name from the URL would couple
+independent settings and make custom compatible endpoints ambiguous. Renaming
+the established key slot would add secret migration work without changing the
+bearer protocol.

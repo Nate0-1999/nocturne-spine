@@ -32,7 +32,8 @@ class Settings(BaseSettings):
     never_bias_step: float = -0.15
     quarantine_kills: int = Field(default=3, gt=0)
     candidate_pool: int = Field(default=50, gt=0)
-    embed_model: str = "text-embedding-3-small"
+    embed_base_url: str = "https://openrouter.ai/api/v1"
+    embed_model: str = "openai/text-embedding-3-small"
     embed_dim: Literal[1536] = 1536
     memory_max_tokens: int = Field(default=128, gt=0)
     label_max: int = Field(default=64, gt=0)

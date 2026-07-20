@@ -56,6 +56,7 @@ def create_app(
             api_key=configured_key or None,
             model=resolved.embed_model,
             dimensions=resolved.embed_dim,
+            base_url=resolved.embed_base_url,
         )
         embedding_provider = owned_provider
 

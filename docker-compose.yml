@@ -29,7 +29,9 @@ services:
         condition: service_healthy
     environment:
       SPINE_DATABASE_URL: postgresql+asyncpg://spine:spine@postgres:5432/spine
-      SPINE_OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      SPINE_EMBED_BASE_URL: ${SPINE_EMBED_BASE_URL:-https://openrouter.ai/api/v1}
+      SPINE_EMBED_MODEL: ${SPINE_EMBED_MODEL:-openai/text-embedding-3-small}
+      SPINE_OPENAI_API_KEY: ${SPINE_OPENAI_API_KEY:-${OPENROUTER_API_KEY:-${OPENAI_API_KEY:-}}}
       SPINE_TOKEN: ${SPINE_TOKEN:-local-development-token}
     ports:
       - "8000:8000"
