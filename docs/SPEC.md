@@ -1,6 +1,6 @@
 # Harness + Memory System — Specification
 
-**Version 1.11** (2026-07-19) — deconflict pass: OQ-14 resolved (repo names fixed, "rename allowed" removed), vision/Invariant-1 aligned to the vernacular (D.2 entry 036). Prior v1.10 (2026-07-19): Vernacular fixed (1.0): Memory Palace / spine / Harness / Garden / relay defined once (D.2 entry 035). Prior v1.9 (2026-07-19): ADR-013 framework seam: own the interface, adapt pydantic-ai's implementations (D.2 entry 034). Prior v1.8 (2026-07-19): config: dev/test chat default minimax-m3 via OpenRouter; D1 cloud footprint recorded; /v1/search assigned to S6 (D.2 entry 033). Prior v1.7 (2026-07-19): ADR-012 work protocol: spec → loop → judge as the default grammar of all project work (D.2 entry 032). Prior v1.6 (2026-07-19): memory location law (origin_path, f_loc, movement/refresh) + flashcard-deck interface (D.2 entries 030–031). Prior v1.5 (2026-07-17): C.2/C.4 contract gaps closed at the human gate (Garden flags F001–F005) and COMPLETION authority added to 1.4 (D.2 entries 028–029). Prior v1.4 (2026-07-07): execution protocol complete (judges + Agent Zero) — reorganized from the v0.x iteration transcript;
+**Version 1.12** (2026-07-20) — loop & interfacing: C.7 envelope v1.12 (cancel/queue/snapshot/usage + reserved M3 types) and ADR-014 prime loop with three-level send gesture (D.2 entry 037). Prior v1.11 (2026-07-19): deconflict pass: OQ-14 resolved (repo names fixed, "rename allowed" removed), vision/Invariant-1 aligned to the vernacular (D.2 entry 036). Prior v1.10 (2026-07-19): Vernacular fixed (1.0): Memory Palace / spine / Harness / Garden / relay defined once (D.2 entry 035). Prior v1.9 (2026-07-19): ADR-013 framework seam: own the interface, adapt pydantic-ai's implementations (D.2 entry 034). Prior v1.8 (2026-07-19): config: dev/test chat default minimax-m3 via OpenRouter; D1 cloud footprint recorded; /v1/search assigned to S6 (D.2 entry 033). Prior v1.7 (2026-07-19): ADR-012 work protocol: spec → loop → judge as the default grammar of all project work (D.2 entry 032). Prior v1.6 (2026-07-19): memory location law (origin_path, f_loc, movement/refresh) + flashcard-deck interface (D.2 entries 030–031). Prior v1.5 (2026-07-17): C.2/C.4 contract gaps closed at the human gate (Garden flags F001–F005) and COMPLETION authority added to 1.4 (D.2 entries 028–029). Prior v1.4 (2026-07-07): execution protocol complete (judges + Agent Zero) — reorganized from the v0.x iteration transcript;
 content-preserving. Audience: implementing agents (via /goal) and the human owner.
 Everything here is binding unless marked OPEN or given a non-accepted status.
 ADR numbers are immutable; superseding requires a new ADR. The chronological
@@ -752,6 +752,43 @@ their API.
 minor releases); bypassing the seam for expedience; rebuilding commodity
 batteries ourselves when upstream's are adoptable through the seam.
 
+### ADR-014 — The prime loop: turn lifecycle, interruption & budgets
+
+**Status: ACCEPTED (2026-07-19; D.2 037).** M1 implements the subset wired
+by C.7 v1.12 (cancel, queue, snapshot, usage); the full law is CONTRACT for
+the M3 harness buildout. This designs what ADR-007's draft list only named.
+
+**Turn lifecycle.** A turn: context assembly (memory injection per C.6;
+M3+ adds skills/files) → model call → tool execution → repeat until the
+model yields or a limit trips → verify/report. Every turn is correlated by
+run_id; every state change is an envelope event — the UI renders the loop
+exclusively from the event stream, no side channels.
+
+**Interruption (work preserved).** Cancel aborts the in-flight model call
+and tool batch, keeps everything already produced, marks aborted tool
+calls with a terminal cancelled state (history stays well-formed), and
+returns control with stop_reason:"cancelled". Cancellation is always
+confirmed by run.done — never fire-and-forget.
+
+**The three-level send gesture (M3).** While a run is live the composer
+stays active; sending escalates:
+1. QUEUE — deliver after the run completes, as a new turn (M1 ships this).
+2. STEER — inject into the running turn at the next tool boundary,
+   cancelling the remainder of the current tool batch (run.steer).
+3. INTERRUPT — stop now (run.cancel), keep partial work, redirect.
+A visible queue with per-message edit/delete is part of the composer.
+
+**Failure & retry.** Provider 429/5xx: bounded exponential backoff,
+retries surfaced as events, never silent. A turn that dies on a terminal
+provider error ends run.done{stop_reason:"error"} with partial output
+preserved and labeled partial — the loop never fabricates completeness.
+
+**Budgets are loop inputs.** Each run accepts request and token ceilings
+(defaults in C.5: run_request_limit=40, run_total_tokens_limit=500000,
+harness config); consumption streams via run.usage; breach is a DISTINCT
+terminal status (stop_reason:"budget_exceeded"), rendered differently from
+error. Enforcement seat: pydantic-ai UsageLimits through the ADR-013 seam.
+
 ### ADR-006 — Presence
 
 **Status: PROPOSED**
@@ -1199,6 +1236,7 @@ half_life_time_days=14, half_life_hist_days=7, dedup_dup=0.92, dedup_sim=0.80,
 never_bias_step=-0.15, quarantine_kills=3, candidate_pool=50,
 embed_model="text-embedding-3-small" (dim 1536, provider-pluggable),
 memory_max_tokens=128, label_max=64.
+run_request_limit=40, run_total_tokens_limit=500000 (harness; ADR-014).
 Chat model defaults: development/testing `openrouter:minimax/minimax-m3`
 (verified live 2026-07-19; ≈$0.30/M in, $1.20/M out); flagship
 `anthropic:claude-sonnet-4-6` for real use; OpenRouter configured as the
@@ -1257,10 +1295,35 @@ All daemon↔browser messages:
 ```
 {v:1, id: ulid, ts, machine_id, agent_id?, thread_id?, type, payload}
 ```
-M1 types: thread.create, prompt.submit, gate.open, gate.commit, run.delta
-(streamed AG-UI events pass through as payload), run.done, memory.panel.update,
-error. The relay in M3 forwards these unchanged; nothing in the UI may assume
-localhost.
+M1 types (as amended v1.12 — D.2 037):
+- thread.create, prompt.submit, gate.open, gate.commit, run.delta, run.done,
+  memory.panel.update, error — as before, plus the field requirements below.
+- run.started (D→C): acks prompt.submit; payload {run_id}. Every subsequent
+  run.* / gate.* payload carries that run_id.
+- run.cancel (C→D): request clean abort. The daemon aborts model work,
+  dismisses any open gate, and ALWAYS answers with
+  run.done{stop_reason:"cancelled"} — cancellation is confirmed, never
+  fire-and-forget.
+- prompt.submit received mid-run is NOT an error: the daemon acks with
+  prompt.queued (D→C) and delivers the prompt as a fresh turn when the
+  current run ends (M1 queues to the turn boundary; mid-turn steering is
+  reserved for M3 — ADR-014).
+- thread.snapshot (D→C): authoritative full resync — message history, open
+  gate, active-run state — sent on WS (re)connect for the active thread and
+  on request; the UI hydrates from snapshots, never from replayed deltas.
+- run.usage (D→C): incremental {requests, input_tokens, output_tokens}
+  during a run.
+- gate.dismiss (D→C): the daemon withdraws an open gate (e.g. its run was
+  cancelled); the UI must close the modal.
+Field requirements: run.done carries stop_reason ∈ end_turn | cancelled |
+error | budget_exceeded. run.delta payload is a discriminated union
+{kind: text | thinking | event, ...} (AG-UI events pass through under
+kind:"event"). gate.open carries kind (M1: always "memory_gate") so the
+gate generalizes to tool approval / elicitation / plan review in M3.
+RESERVED M3 type names (relay and clients MUST forward/ignore unknown
+types unchanged): run.steer, plan.update, checkpoint.created,
+checkpoint.restore, presence.update. The relay in M3 forwards all types
+unchanged; nothing in the UI may assume localhost.
 
 ## C.8 M1 acceptance criteria
 
@@ -1449,6 +1512,7 @@ into its owning ADR above)
 | 034 | 2026-07-19 | v1.9 ADR-013 framework seam: internal capability protocol + single bidirectional adapter to pydantic-ai v2; import fence outside the adapter; wrap-on-first-use; outbound features ship as standard Capability subclasses (MemoryCapability first at H3); adoption targets — defer_loading (opt-in), CodeMode (must preserve movement-law refresh), ProcessHistory compaction chassis, cost tracking. Never blocked on upstream; 0.x churn contained in the adapter | ACCEPTED |
 | 035 | 2026-07-19 | v1.10 vernacular (1.0): Memory Palace = memory product (db + curation algorithms + M3 curator; the spine's memory module, extractable); spine = always-on backbone housing the Palace + connective modules; Harness = local product; Garden = governance; relay = methodology (vs spine's relay module); heart = description not name; local dir names load-bearing, remote names labels | ACCEPTED |
 | 036 | 2026-07-19 | v1.11 deconflict pass: OQ-14 resolved — repo names fixed by 1.0, C.1's "cosmetic rename allowed" removed (do NOT rename); vision §0 and Invariant 1 aligned to Palace/spine wording. Full-term audit found no other conflicts: "heart" reads as description throughout, relay methodology/module disambiguated by 1.0. No semantic change | ACCEPTED |
+| 037 | 2026-07-20 | v1.12 after 3-agent harness-field survey: C.7 gains run.started/run.cancel (confirmed)/prompt.queued/thread.snapshot/run.usage/gate.dismiss, stop_reason on run.done, typed run.delta, gate.open kind field, reserved M3 names (run.steer, plan.update, checkpoint.*, presence.update); ADR-014 prime loop — interruption preserves work, three-level send gesture (queue M1 / steer / interrupt M3), budgets as loop inputs with distinct terminal status (C.5: run_request_limit=40, run_total_tokens_limit=500k); H7 packet implements the M1 subset before H4. Permissions + sessions ADRs deferred pending human discussion | ACCEPTED |
 
 ## D.3 Resolved-question index (where each folded)
 
