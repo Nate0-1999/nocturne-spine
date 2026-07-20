@@ -1,6 +1,6 @@
 # Harness + Memory System — Specification
 
-**Version 2.1** (2026-07-20) — ADR-018 procedural law (D.2 042). Prior v2.0: EDITOR PASS: content-preserving consolidation of the v1.5–v1.15 organic growth. New/amended law: ADR-012 mode scale, ADR-015 walls, ADR-016 tree, ADR-017 Symphony, ADR-018 Cube+plugins+stack, ADR-007→index, ADR-008 stack resolved; enacted amendments A-001–A-017 folded into Part C (AMENDMENTS.md remains the historical record); D.1 refreshed. Full version lineage: Appendix D.2. Prior v1.4 (2026-07-07) was reorganized from the v0.x iteration transcript;
+**Version 2.2** (2026-07-20) — ADR-018 themes: NEO-NOIR default, swappable style configurations (D.2 043). Prior v2.1: procedural law (D.2 042). Prior v2.0: EDITOR PASS: content-preserving consolidation of the v1.5–v1.15 organic growth. New/amended law: ADR-012 mode scale, ADR-015 walls, ADR-016 tree, ADR-017 Symphony, ADR-018 Cube+plugins+stack, ADR-007→index, ADR-008 stack resolved; enacted amendments A-001–A-017 folded into Part C (AMENDMENTS.md remains the historical record); D.1 refreshed. Full version lineage: Appendix D.2. Prior v1.4 (2026-07-07) was reorganized from the v0.x iteration transcript;
 content-preserving. Audience: implementing agents (via /goal) and the human owner.
 Everything here is binding unless marked OPEN or given a non-accepted status.
 ADR numbers are immutable; superseding requires a new ADR. The chronological
@@ -1022,6 +1022,18 @@ user rearranges, not furniture).
    schema — plugins parameterize them with data and never emit meshes.
    Mechanism: parametric/instanced mesh generation with TSL/compute for
    growth animation (clause 5's stack).
+7. THEMES (amended 2026-07-20; D.2 043). The aesthetic is a swappable
+   STYLE CONFIGURATION on the rack — tokens, motif set, material
+   language — loadable and user-authorable like any panel. Default theme:
+   NEO-NOIR (Syd Mead / tech-noir: neon against dark urban, street-level
+   claustrophobic composition, holographic-display language, rain-slicked
+   materials, volumetric lighting — full vocabulary in NATES_VISION §8).
+   Named alternate: COBALT-SERAPH. Theme law: themes STYLE meaning and
+   never re-encode it — data encodings, fleet identity, and Invariant 14
+   survive every theme; each theme's fleet palette is machine-validated
+   on that theme's grounds before it ships; one danger color per theme.
+   Themes ride the plugin distribution path (versioned, sandbox-safe:
+   a theme is tokens and materials, never code with surface access).
 
 **Rejected:** literal always-3D rendering (readability loses to
 spectacle); per-visualizer data plumbing (the three surfaces are the
@@ -2055,6 +2067,7 @@ into its owning ADR above)
 | 040 | 2026-07-20 | v1.15 garden/NATES_VISION.md codified (GUIDANCE per 1.4): concatenated owner intent from the 2026-07-19/20 human-gate sessions — Invariant-14 soul, founding differentiators, organism/time thesis, modes-as-music with movable judge seat, ADR-012 protocol + conductor drafts, Symphony search (4 operators, portfolio budgets, MEASURED/JUDGED, lessons to Palace), the Cube (faces, selection, memory-trace sanctity, Ableton rack, aesthetics: black/white/orange chrome-seraph), stack (R3F/WebGPU hybrid, Chromium-only ≤M4), quality (B.6 r7), anti-vision. UI-surface packets read it at Boot STEP 5; full ADR-015/016/017 codification still pending human blessing | ACCEPTED |
 | 041 | 2026-07-20 | v2.0 EDITOR PASS (content-preserving, mirroring 022's v0.x→v1.0 consolidation): ADR-012 gains the mode scale (Solo/Duet/Ensemble/Symphony, movable judge seat); ADR-015 walls & boundaries, ADR-016 two-ledgers/one-tree, ADR-017 Symphony search, ADR-018 Cube + plugin rack + resolved stack (R3F/WebGPU, Chromium-only ≤M4) authored from the gate sessions with Verification clauses per B.6; ADR-007 converted to a parity index; amendments A-001–A-017 folded verbatim into Part C (AMENDMENTS.md preserved as historical record; future completions still enact there first); header lineage compressed; D.1 gains OQ-17/18. No semantic change to built behavior | ACCEPTED |
 | 042 | 2026-07-20 | v2.1 ADR-018 clause 6 PROCEDURAL LAW: all stage geometry is a deterministic function of work metadata, seeded by stable ids — model-like 3D parts GROWN by generators (roots from search metadata, colonies from the live directory tree, Palace from memory populations), never hand-authored; same data → same geometry, so as_of scrubbing re-runs generation; plugins parameterize generators, never emit meshes; determinism is directly judgeable (double-render diff) | ACCEPTED |
+| 043 | 2026-07-20 | v2.2 ADR-018 clause 7 THEMES: aesthetics are swappable style configurations on the rack (tokens/motifs/materials, user-authorable, plugin-distributed, never code). Default = NEO-NOIR (Syd Mead tech-noir: neon on dark urban, street-level composition, holographic displays, rain-slicked materials, volumetric light — owner's vocabulary preserved verbatim in NATES_VISION §8); alternate = COBALT-SERAPH (the mock's current skin). Themes style meaning, never re-encode it; per-theme palette validation mandatory; Invariant 14 is not a style | ACCEPTED |
 
 ## D.3 Resolved-question index (where each folded)
 
