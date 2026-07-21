@@ -241,6 +241,22 @@ def _is_project_service_agent(member: str, *, project_number: str) -> bool:
     )
 
 
+def _members_match(member: str, trusted: str) -> bool:
+    """Compare IAM member strings with a case-insensitive email.
+
+    Google account emails are case-insensitive, but an IAM policy preserves the
+    capitalization used when the grant was made, so the deployer authenticated as
+    ``user:name@x`` can appear in a policy as ``user:Name@x``. The member type
+    prefix stays exact; only the email portion is casefolded.
+    """
+
+    def norm(value: str) -> str:
+        prefix, sep, email = value.partition(":")
+        return f"{prefix}{sep}{email.casefold()}"
+
+    return norm(member) == norm(trusted)
+
+
 def validate_role_access(
     role: object,
     *,
@@ -266,7 +282,7 @@ def validate_role_access(
     human_only_danger = bool(permissions & BILLING_CONTROL_PERMISSIONS)
     unexpected: list[str] = []
     for member in members:
-        if member == trusted_member:
+        if _members_match(member, trusted_member):
             continue
         if (
             billing_danger
@@ -322,7 +338,7 @@ def validate_billing_role_access(
     dangerous = permissions & BILLING_CONTROL_PERMISSIONS
     if not dangerous:
         return
-    unexpected = sorted(member for member in members if member != trusted_member)
+    unexpected = sorted(member for member in members if not _members_match(member, trusted_member))
     if unexpected:
         raise UnsafeDeployment(
             f"untrusted direct billing-account members in {role_name} have breaker "

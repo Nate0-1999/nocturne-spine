@@ -458,3 +458,29 @@ collision without changing the specified endpoint or authentication boundary.
 acceptance contract. Making either health endpoint unauthenticated would widen
 the frozen application boundary. A second service, custom domain, or proxy
 would add infrastructure to solve a one-path incompatibility.
+
+## 017 — D2 preflight: case-insensitive deployer email match [P4]
+
+**Decision.** `deployment_checks.py` compared IAM member strings to the trusted
+deployer with exact string equality. Google account emails are case-insensitive,
+but an IAM policy preserves the capitalization used at grant time, so a deployer
+authenticated as `user:name@x` can appear in the billing-account policy as
+`user:Name@x` and be wrongly flagged as an untrusted extra billing administrator
+(observed live: `NDOswalt1@gmail.com` vs `ndoswalt1@gmail.com`). Added
+`_members_match`, which casefolds only the email portion (the member type prefix
+stays exact), and use it at both trusted-deployer comparisons.
+
+**Motivation.** The check's intent is "only the active human deployer may directly
+hold budget/billing IAM." Case-insensitive email matching realizes that intent
+exactly; it admits no additional real principal because case-variant emails are
+the same Google account. This is a correctness fix to a live false-positive, made
+at a human gate with the owner's explicit choice (over mutating billing-account
+IAM), not a loosening of the security boundary.
+
+**Rejected alternatives.** Removing and re-granting the owner's `billing.admin`
+in canonical lowercase would leave the check untouched but mutate billing-account
+IAM with a brief self-lockout window, and would not fix the general case for any
+future differently-cased deployer. Lowercasing the whole member string risks
+collapsing case-significant identifiers elsewhere; scoping the fold to the email
+portion is precise. All 76 D2 tests pass; the fix rejects strangers and
+type-swaps (verified).
