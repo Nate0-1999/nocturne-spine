@@ -245,6 +245,7 @@ def _is_project_service_agent(member: str, *, project_number: str) -> bool:
         f"{project_number}@cloudbuild.gserviceaccount.com",
         f"{project_number}@cloudservices.gserviceaccount.com",
         f"{project_number}-compute@developer.gserviceaccount.com",
+        f"{PROJECT_ID}@appspot.gserviceaccount.com",
     }:
         return True
     local_part, separator, domain = email.partition("@")

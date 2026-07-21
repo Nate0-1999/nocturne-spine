@@ -640,6 +640,7 @@ def test_deploy_role_permissions_allow_only_current_project_service_agents() -> 
         "serviceAccount:service-123456789@containerregistry.iam.gserviceaccount.com",
         "serviceAccount:service-123456789@gcp-sa-run.iam.gserviceaccount.com",
         "serviceAccount:123456789-compute@developer.gserviceaccount.com",
+        "serviceAccount:n8-memory-palace@appspot.gserviceaccount.com",
     ):
         deployment_checks.validate_role_access(role, members=[default_member], **common)
 

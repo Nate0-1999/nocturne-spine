@@ -492,8 +492,9 @@ project: its project-IAM audit hard-rejected Google's own default identities
 (the Container Registry service agent and the default Compute Engine SA with
 `roles/editor`) that hold `pubsub.topics.publish` in essentially every project.
 Two corrections: (1) `_is_project_service_agent` now recognizes the default
-Compute Engine account, a curated set of Google service-agent domains including
-`containerregistry`, and Google's reserved `gcp-sa-*` per-service agents — while
+Compute Engine and App Engine (`@appspot`) accounts, a curated set of Google
+service-agent domains including `containerregistry`, and Google's reserved
+`gcp-sa-*` per-service agents — while
 still refusing a service account minted in any other project's SA domain;
 (2) Google-managed project service agents are trusted for every dangerous
 permission except direct billing ASSOCIATION (project-level detach), which only
