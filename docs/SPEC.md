@@ -1,6 +1,6 @@
 # NOCTURNE — Harness + Memory Palace Specification
 
-**Version 2.4** (2026-07-20) — NOCTURNE christened; ADR-019 onboarding (two-secrets rule, packaging); ADR-020 shared Palaces (HORIZON) (D.2 046–047). Prior v2.3: broker-routed embeddings (D.2 044). Prior v2.2: themes (D.2 043). Prior v2.1: procedural law (D.2 042). Prior v2.0: EDITOR PASS: content-preserving consolidation of the v1.5–v1.15 organic growth. New/amended law: ADR-012 mode scale, ADR-015 walls, ADR-016 tree, ADR-017 Symphony, ADR-018 Cube+plugins+stack, ADR-007→index, ADR-008 stack resolved; enacted amendments A-001–A-017 folded into Part C (AMENDMENTS.md remains the historical record); D.1 refreshed. Full version lineage: Appendix D.2. Prior v1.4 (2026-07-07) was reorganized from the v0.x iteration transcript;
+**Version 2.5** (2026-07-21) — B.6 rule 8: agent walkthroughs — SOPs executed live through agent eyes, not scripts (D.2 048). Prior v2.4: NOCTURNE christened; ADR-019 onboarding; ADR-020 shared Palaces (D.2 046–047). Prior v2.3: broker-routed embeddings (D.2 044). Prior v2.2: themes (D.2 043). Prior v2.1: procedural law (D.2 042). Prior v2.0: EDITOR PASS: content-preserving consolidation of the v1.5–v1.15 organic growth. New/amended law: ADR-012 mode scale, ADR-015 walls, ADR-016 tree, ADR-017 Symphony, ADR-018 Cube+plugins+stack, ADR-007→index, ADR-008 stack resolved; enacted amendments A-001–A-017 folded into Part C (AMENDMENTS.md remains the historical record); D.1 refreshed. Full version lineage: Appendix D.2. Prior v1.4 (2026-07-07) was reorganized from the v0.x iteration transcript;
 content-preserving. Audience: implementing agents (via /goal) and the human owner.
 Everything here is binding unless marked OPEN or given a non-accepted status.
 ADR numbers are immutable; superseding requires a new ADR. The chronological
@@ -1371,6 +1371,25 @@ acceptance criterion — never merely when code exists or unit tests pass.
    interface is not DONE. Rationale: rendering defects (cascade
    collisions, encoding drift, label overlap) are invisible to unit tests
    and expensive to find at refinement; the screenshot IS the test.
+8. **Agent walkthroughs — SOPs for agents (v2.5; D.2 048).** Rule 7's
+   scripted checks prove regressions; they do not prove EXPERIENCE. Every
+   UI packet additionally ships and EXECUTES a written SOP — a
+   human-style operating procedure ("open the app; create a thread; type
+   this; watch what happens; now try to break it") — performed LIVE by
+   the agent through interactive browser use, first person, exactly as
+   the human would: look at every rendered screen, click, type, scroll,
+   wait, and OBSERVE before choosing the next action. This is not
+   automated testing and cannot be discharged by running a script.
+   Requirements: (a) the SOP and its execution log live at
+   verification/<packet>/SOP.md — every step records the action taken,
+   its screenshot, and a PROSE OBSERVATION of what the agent actually saw
+   and judged (surprises, friction, and wrongness are findings, not
+   noise); (b) at least one UNSCRIPTED exploration segment — wander,
+   click around, try odd inputs — recorded the same way; (c) observed
+   defects route through the Blight Protocol; observed DESIGN friction is
+   surfaced to the human gate in the handoff; (d) the judge RE-EXECUTES
+   the packet SOPs at I1/J rather than only reading their logs. The
+   agent's eyes on the rendered pixels are the point.
 
 ---
 ---
@@ -2186,6 +2205,7 @@ into its owning ADR above)
 | 045 | 2026-07-20 | D1 factual/operations correction (no product-contract or version change): live audit proved D.2 033's "D1 executed / Cloud Run spine" status clause false; immutable row 033 remains as the historical record and this entry supersedes only that factual status claim. The foundation actually present is the active project, budget, and bare Cloud SQL instance. Garden D1 is reset as a relay-owned packet with authority narrowly bounded to the named app database/user, migration, backup protection, secrets, dedicated runtime identity, regional image repository, one Cloud Run service, and remote verification. GCS remains M4; billing/budget/D2, deletes, broad IAM, Cloud Build, and destructive recovery remain human boundaries | ACCEPTED |
 | 046 | 2026-07-20 | v2.4 CHRISTENING + ADR-019: the product is NOCTURNE (night music — plays through the night so the composer hears the premiere; install name pipx install nocturne); Escher view = the Cube; Chrysopoeia = the learning loop. ADR-019 onboarding: two-secrets rule (OpenRouter always, GCP cloud-only; local mode = ONE secret), four contract commands (init/up/deploy/open), two wheels + bundled web assets + lockstep versioning, the Garden never ships; packet D3 opens after J | ACCEPTED |
 | 047 | 2026-07-20 | ADR-020 SHARED PALACES (HORIZON like ADR-011; build forbidden until multi-tenant identity, M4): a shared Palace is a principal; contribution = consent-based selective COPY-WITH-LINEAGE (global rev_uid DAG already carries cross-palace provenance — zero schema footprint needed); revocation = tombstone the copy; collisions ride the existing dedup bands + curator merge queue + ADR-011 conflict taxonomy (combining palaces ≡ reconciling replicas); injection draws from the palace union with provenance in the gate; federation across spines = OQ-19 | ACCEPTED |
+| 048 | 2026-07-21 | v2.5 B.6 rule 8 AGENT WALKTHROUGHS (SOPs for agents): every UI packet also executes a written human-style SOP live through interactive browser use — look, click, type, observe, judge, first person — with per-step screenshots + prose observations in verification/<packet>/SOP.md, a mandatory unscripted exploration segment, defects → Blight, design friction → human gate, and judges RE-EXECUTING SOPs at I1/J. Explicitly NOT dischargeable by scripts (rule 7 proves regressions; rule 8 proves experience). Owner's framing: traditional SOPs for humans, performed by agents | ACCEPTED |
 
 ## D.3 Resolved-question index (where each folded)
 
