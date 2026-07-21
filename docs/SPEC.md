@@ -80,10 +80,12 @@ Both are model/token agnostic.
   (ADR-008/009): the flashcard deck is the primary interaction, the
   gallery the multiplexer view, the Ant Farm the agent visualizer; each
   top-level agent wears one fleet color everywhere.
-- **Repo mapping:** local `spine/` (remote `memory-palace` — named for its
-  principal resident), `harness/` (remote `harness`), `garden/` (remote
-  `garden`). Local directory names are load-bearing law; remote names are
-  labels.
+- **Repo mapping:** local `spine/` (remote `nocturne-spine`), `harness/`
+  (remote `nocturne-harness`), `garden/` (remote `nocturne-garden`);
+  `nocturne` is the SPLASH repo — the single front door for new users
+  (quickstart lands there with D3). Renamed to the nocturne-* family
+  2026-07-21; GitHub redirects the old labels. Local directory names are
+  load-bearing law; remote names are labels.
 
 ### 1.1 Topology
 
@@ -987,7 +989,10 @@ user rearranges, not furniture).
    tree as chambered burrows, files as cells, zoom, CAD-floating on black
    + faint grid) · ROOTS the depth axis (organic meandering roots growing
    horizontally from each colony; dead roots preserved and desiccated;
-   thickness = tokens spent; EV encoding = OQ-17) · TIPS opposite the
+   thickness = tokens spent; opacity = SELECTION FOCUS — the selected
+   score's roots at full presence, every other score dimmed but always
+   visible, floor 0.25; EV is NOT an alpha channel — OQ-17 resolved
+   2026-07-21: the owner wants focus, not valuation, in opacity) · TIPS opposite the
    Farm (roots end-on; the frontier grid of next-round starts) · plus
    DECK (left rail, time-ordered, auto-advance, conductor drafts — the
    ONLY surface that may demand) · LEDGER (capital alluvial) · PALACE
@@ -1093,6 +1098,14 @@ setup attention is still attention.
    is LOCKSTEP: one product version stamps both wheels; the C-contracts
    are the compatibility surface. THE GARDEN NEVER SHIPS — it is the
    methodology that grew the organism, not the organism.
+4. SEED INGESTION — the cold open (added 2026-07-21; builds in M2). Cold
+   start is product surface: at init (or any time) the user uploads
+   markdown files and curator-style splitters break them into ATOMIC
+   memories (the 128-token law) through the STANDARD create/dedup
+   pipeline, landing in an approval queue — the user confirms what enters
+   the Palace. Rides M2's extraction + approval-queue machinery; no new
+   persistence. A palace should never start empty unless its owner wants
+   it to.
 
 **Rejected:** mono-repoing the workspace (relay law is repo-shaped and
 working); container-registry distribution as the primary path (wheels +
@@ -1258,7 +1271,8 @@ arrives). Full build spec: Part C.
 **M2 — learning loop + extraction (COMMITTED):** online weight updates per
 ADR-005 table; scorer versioning + offline replay + rollback; per-feature
 contribution bars in gate; citation heuristic; end-of-thread extraction with
-approval queue; Context Bars port (+memory category); Memory Graph +
+approval queue; markdown SEED INGESTION (upload → curator split →
+approval queue — ADR-019 clause 4); Context Bars port (+memory category); Memory Graph +
 hyperparameter console.
 
 **M3 — scale-out + harness buildout + curation + presence (DIRECTIONAL):**
@@ -2142,8 +2156,6 @@ into its owning ADR above)
   milestone. [M3 planning]
 - **OQ-15:** Per-prompt re-scoring within a thread (gate-less, panel-only)
   vs once per thread. M1 deliberately ships once-per-thread. [M2 decision]
-- **OQ-17:** ROOTS expected-value encoding — opacity-with-floor (mocked)
-  vs node-color ramp. Feel both in the living mock. [M2/M3 viz planning]
 - **OQ-18:** The full Palace scene (pale monumental architecture, ghost
   curator drones restructuring memory live) — dedicated design workstream.
   [M3 planning; aesthetics anchored in NATES_VISION §8]
@@ -2206,6 +2218,7 @@ into its owning ADR above)
 | 046 | 2026-07-20 | v2.4 CHRISTENING + ADR-019: the product is NOCTURNE (night music — plays through the night so the composer hears the premiere; install name pipx install nocturne); Escher view = the Cube; Chrysopoeia = the learning loop. ADR-019 onboarding: two-secrets rule (OpenRouter always, GCP cloud-only; local mode = ONE secret), four contract commands (init/up/deploy/open), two wheels + bundled web assets + lockstep versioning, the Garden never ships; packet D3 opens after J | ACCEPTED |
 | 047 | 2026-07-20 | ADR-020 SHARED PALACES (HORIZON like ADR-011; build forbidden until multi-tenant identity, M4): a shared Palace is a principal; contribution = consent-based selective COPY-WITH-LINEAGE (global rev_uid DAG already carries cross-palace provenance — zero schema footprint needed); revocation = tombstone the copy; collisions ride the existing dedup bands + curator merge queue + ADR-011 conflict taxonomy (combining palaces ≡ reconciling replicas); injection draws from the palace union with provenance in the gate; federation across spines = OQ-19 | ACCEPTED |
 | 048 | 2026-07-21 | v2.5 B.6 rule 8 AGENT WALKTHROUGHS (SOPs for agents): every UI packet also executes a written human-style SOP live through interactive browser use — look, click, type, observe, judge, first person — with per-step screenshots + prose observations in verification/<packet>/SOP.md, a mandatory unscripted exploration segment, defects → Blight, design friction → human gate, and judges RE-EXECUTING SOPs at I1/J. Explicitly NOT dischargeable by scripts (rule 7 proves regressions; rule 8 proves experience). Owner's framing: traditional SOPs for humans, performed by agents | ACCEPTED |
+| 049 | 2026-07-21 | v2.6 owner decisions: OQ-17 resolved — the Roots alpha channel encodes SELECTION FOCUS (selected full, others dimmed-but-present, floor 0.25), never expected value; ADR-019 clause 4 SEED INGESTION (markdown upload → curator split → approval queue; M2) so cold start is product surface; remotes renamed to the nocturne-* family with a new `nocturne` splash repo as the single new-user front door | ACCEPTED |
 
 ## D.3 Resolved-question index (where each folded)
 
@@ -2214,7 +2227,8 @@ live reads → ADR-004 · OQ-6 presence transport → ADR-006 · OQ-7 durable
 execution → ADR-001 · OQ-8 framework → ADR-001 · OQ-9 web command center →
 ADR-008 · OQ-10 M1 slice → B.3 · OQ-11 identity → ADR-008 · OQ-13 pure relay →
 ADR-008 · OQ-16 providers/models → C.5 · OQ-14 repo/product names → 1.0
-vernacular (v1.10)
+vernacular (v1.10) · OQ-17 roots alpha → selection focus, not EV
+(ADR-018, 2026-07-21)
 
 ## D.4 Parked ideas (not scope; preserved thinking)
 
