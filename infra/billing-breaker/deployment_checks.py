@@ -65,6 +65,8 @@ RUNTIME_PROJECT_BILLING_PERMISSIONS = {
     "resourcemanager.projects.deleteBillingAssignment",
 }
 GOOGLE_SERVICE_AGENT_DOMAINS = {
+    "compute-system.iam.gserviceaccount.com",
+    "containerregistry.iam.gserviceaccount.com",
     "gcf-admin-robot.iam.gserviceaccount.com",
     "gcp-sa-artifactregistry.iam.gserviceaccount.com",
     "gcp-sa-cloudbuild.iam.gserviceaccount.com",
@@ -224,6 +226,17 @@ def project_bindings(policy: object) -> list[tuple[str, list[str]]]:
 
 
 def _is_project_service_agent(member: str, *, project_number: str) -> bool:
+    """Recognize Google-managed, project-number-pinned identities.
+
+    These identities (per-service agents, plus the default Cloud Build,
+    cloudservices, and Compute Engine accounts) are created and controlled by
+    Google for this exact project and are not freely mintable by a project
+    principal, so they are not a realistic forge-a-breaker-message vector and
+    must not block a default-posture deployment. User-created service accounts
+    (`local_part` chosen by a human, or any non-service-agent domain) do NOT
+    match here and remain audited by the caller.
+    """
+
     prefix = "serviceAccount:"
     if not member.startswith(prefix):
         return False
@@ -231,13 +244,20 @@ def _is_project_service_agent(member: str, *, project_number: str) -> bool:
     if email in {
         f"{project_number}@cloudbuild.gserviceaccount.com",
         f"{project_number}@cloudservices.gserviceaccount.com",
+        f"{project_number}-compute@developer.gserviceaccount.com",
     }:
         return True
     local_part, separator, domain = email.partition("@")
-    return (
-        separator == "@"
-        and local_part == f"service-{project_number}"
-        and domain in GOOGLE_SERVICE_AGENT_DOMAINS
+    if separator != "@" or local_part != f"service-{project_number}":
+        return False
+    # A curated set of Google-owned service-agent domains, plus Google's
+    # reserved `gcp-sa-*` naming convention for newer per-service agents. A
+    # user project's own SA domain (`<project-id>.iam.gserviceaccount.com`) is
+    # deliberately NOT trusted here: it neither appears in the set nor carries
+    # the reserved prefix, so a service account minted in an attacker project
+    # stays audited.
+    return domain in GOOGLE_SERVICE_AGENT_DOMAINS or (
+        domain.startswith("gcp-sa-") and domain.endswith(".iam.gserviceaccount.com")
     )
 
 
@@ -279,7 +299,6 @@ def validate_role_access(
         return
 
     billing_danger = bool(permissions & BILLING_ASSOCIATION_PERMISSIONS)
-    human_only_danger = bool(permissions & BILLING_CONTROL_PERMISSIONS)
     unexpected: list[str] = []
     for member in members:
         if _members_match(member, trusted_member):
@@ -292,10 +311,16 @@ def validate_role_access(
             and dangerous <= RUNTIME_PROJECT_BILLING_PERMISSIONS
         ):
             continue
-        if (
-            not billing_danger
-            and not human_only_danger
-            and _is_project_service_agent(member, project_number=project_number)
+        # Google-managed project service agents are trusted for every dangerous
+        # permission EXCEPT direct billing association (project-level detach),
+        # which only the runtime binding above may hold. Project-level billing
+        # CONTROL permissions (e.g. the default Compute Engine SA's Editor role
+        # carrying billing.resourcebudgets.write) are inert here because the
+        # breaker budget is BILLING_ACCOUNT-scoped and thus unmodifiable by any
+        # project principal; the separate billing-account audit remains the
+        # guard for who may actually change the budget.
+        if not billing_danger and _is_project_service_agent(
+            member, project_number=project_number
         ):
             continue
         unexpected.append(member)

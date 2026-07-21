@@ -67,10 +67,16 @@ Stop if any item is uncertain:
    permission. For every direct project and billing-account binding, the script
    reads
    the role's current `includedPermissions`; only the active human may directly
-   control the budget or billing-account IAM. It rejects other dangerous project
-   permissions except the exact armed runtime binding and project-number-pinned
-   identities at a fixed allowlist of Google-owned service-agent domains. It
-   separately requires
+   control the budget or billing-account IAM (matched case-insensitively on the
+   email, since Google account emails are case-insensitive). It rejects other
+   dangerous project permissions except the exact armed runtime binding and
+   Google-managed, project-number-pinned service agents — the default Cloud
+   Build, cloudservices, and Compute Engine accounts, a curated set of
+   Google-owned service-agent domains, and Google's reserved `gcp-sa-*` per-
+   service agents. These identities are created and controlled by Google for
+   this project and are not freely mintable, so a default-posture project is
+   deployable; a service account minted in any other project (its own
+   `<project-id>` SA domain) stays audited. It separately requires
    empty direct policies and no user-managed keys on all fresh D2 identities,
    only Google's budget publisher on the topic, and only the trigger identity
    on the service. The armed path must have one target-project Eventarc

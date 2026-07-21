@@ -633,6 +633,15 @@ def test_deploy_role_permissions_allow_only_current_project_service_agents() -> 
         members=["serviceAccount:service-123456789@gcf-admin-robot.iam.gserviceaccount.com"],
         **common,
     )
+    # Google default identities present in essentially every project must not
+    # block a default-posture deployment: the Container Registry service agent,
+    # a reserved gcp-sa-* per-service agent, and the default Compute Engine SA.
+    for default_member in (
+        "serviceAccount:service-123456789@containerregistry.iam.gserviceaccount.com",
+        "serviceAccount:service-123456789@gcp-sa-run.iam.gserviceaccount.com",
+        "serviceAccount:123456789-compute@developer.gserviceaccount.com",
+    ):
+        deployment_checks.validate_role_access(role, members=[default_member], **common)
 
     with pytest.raises(deployment_checks.UnsafeDeployment, match="breaker permissions"):
         deployment_checks.validate_role_access(
@@ -647,10 +656,20 @@ def test_deploy_role_permissions_allow_only_current_project_service_agents() -> 
             **common,
         )
 
+    # A Google service agent whose role carries project-level billing CONTROL
+    # (budget write) is allowed: the breaker budget is BILLING_ACCOUNT-scoped and
+    # cannot be modified by a project principal, so this is inert here.
+    deployment_checks.validate_role_access(
+        {"includedPermissions": ["billing.budgets.update"], "name": role_name},
+        members=["serviceAccount:service-123456789@gcf-admin-robot.iam.gserviceaccount.com"],
+        **common,
+    )
+    # But direct billing ASSOCIATION (project-level detach) on any non-runtime
+    # identity — even a Google service agent — is still refused.
     with pytest.raises(deployment_checks.UnsafeDeployment, match="breaker permissions"):
         deployment_checks.validate_role_access(
             {
-                "includedPermissions": ["billing.budgets.update"],
+                "includedPermissions": ["resourcemanager.projects.deleteBillingAssignment"],
                 "name": role_name,
             },
             members=["serviceAccount:service-123456789@gcf-admin-robot.iam.gserviceaccount.com"],

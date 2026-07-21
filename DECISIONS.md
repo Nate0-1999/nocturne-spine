@@ -484,3 +484,35 @@ future differently-cased deployer. Lowercasing the whole member string risks
 collapsing case-significant identifiers elsewhere; scoping the fold to the email
 portion is precise. All 76 D2 tests pass; the fix rejects strangers and
 type-swaps (verified).
+
+## 018 — D2 preflight: deployable against a default-posture project [P4]
+
+**Decision.** The D2 deploy preflight refused to arm against a standard GCP
+project: its project-IAM audit hard-rejected Google's own default identities
+(the Container Registry service agent and the default Compute Engine SA with
+`roles/editor`) that hold `pubsub.topics.publish` in essentially every project.
+Two corrections: (1) `_is_project_service_agent` now recognizes the default
+Compute Engine account, a curated set of Google service-agent domains including
+`containerregistry`, and Google's reserved `gcp-sa-*` per-service agents — while
+still refusing a service account minted in any other project's SA domain;
+(2) Google-managed project service agents are trusted for every dangerous
+permission except direct billing ASSOCIATION (project-level detach), which only
+the runtime binding may hold. Project-level billing CONTROL permissions are inert
+because the breaker budget is BILLING_ACCOUNT-scoped and unmodifiable by any
+project principal.
+
+**Motivation.** A security gate the legitimate operator cannot pass against a
+default project is a defect in the gate, not a finding about the project (Garden
+report 018; owner's decision to simplify rather than harden project IAM). The
+corrections preserve every resource-level guarantee — topic publish restricted to
+Google's budget alerter, private/no-retry function, exact detach-role binding,
+BILLING_ACCOUNT-scoped budget, and the strict billing-account IAM audit — while
+making the project-IAM audit reject only genuine anomalies (users, groups, and
+user-created service accounts with breaker-relevant permissions).
+
+**Rejected alternatives.** Demoting the whole project-IAM audit to a bare warning
+would drop the guard against a genuinely anomalous non-Google grant. Hardening the
+project's own IAM (removing Editor from the default Compute SA) is a valid, larger
+best-practice change the owner declined for now. All 76 D2 and 160 spine tests
+pass; a live audit of the deployed project's IAM is clean; the destructive
+`--apply` stays human-only.
