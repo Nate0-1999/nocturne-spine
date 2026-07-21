@@ -1,5 +1,15 @@
 # D2 billing circuit breaker
 
+> STATUS: DEPLOYED AND ARMED in `n8-memory-palace` on 2026-07-21. The
+> `billing-breaker` topic, private no-retry function, isolated identities,
+> detach-role binding, and budget wiring are live and least-privilege
+> verified. To change or remove it, use the cleanup procedure below, then
+> re-run `deploy.sh --apply` (it is first-deploy-only and refuses to run
+> while these resources exist). The preflight was hardened at deploy time to
+> run against a default-posture GCP project (recognizes Google default
+> identities: Compute, App Engine `@appspot`, Container Registry, and
+> `gcp-sa-*` agents); see DECISIONS 017–018.
+
 This package is an armed, one-way cost control for `n8-memory-palace`. A valid
 budget message with `costAmount >= budgetAmount` calls Cloud Billing
 `updateBillingInfo` with an empty `billingAccountName`. That deliberately
