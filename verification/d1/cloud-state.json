@@ -1,9 +1,9 @@
 {
-  "status": "returned_todo",
-  "observed_at_utc": "2026-07-20T21:52:04Z",
+  "status": "done",
+  "observed_at_utc": "2026-07-21T14:51:17Z",
   "project": "n8-memory-palace",
   "region": "us-central1",
-  "spine_sha": "3b4b80314bb2376a961168d56a2114287546ad90",
+  "spine_sha": "e0cf50d50283cd2c4f800272b832b8166e299cab",
   "cloud_sql": {
     "instance": "n8-memory-palace-db",
     "connection_name": "n8-memory-palace:us-central1:n8-memory-palace-db",
@@ -41,25 +41,34 @@
     "repository": "spine",
     "format": "DOCKER",
     "immutable_tags": true,
-    "image": "us-central1-docker.pkg.dev/n8-memory-palace/spine/spine:3b4b80314bb2376a961168d56a2114287546ad90",
-    "amd64_index_digest": "sha256:86d28c235854a68e0bcf40085f690df9d6c77cc27bfc9ac8b505712364f15a7b",
-    "deployed_platform_digest": "sha256:a86789f5d99ddcdb463939f66a34dbc8e391dc1c70d2e195578c705ed7de55c7"
+    "image": "us-central1-docker.pkg.dev/n8-memory-palace/spine/spine:e0cf50d50283cd2c4f800272b832b8166e299cab",
+    "amd64_index_digest": "sha256:dd06579e7447c1110ecb7c9be190d293ed79bb319d1b99b1299ee736b648cad3",
+    "deployed_platform_digest": "sha256:975c1e68386c801cedcc3ea20e06009e54b7e9859b7d1551c4835821baaff113"
   },
   "cloud_run": {
     "service": "n8-memory-palace-spine",
-    "revision": "n8-memory-palace-spine-00002-2bs",
+    "generation": 5,
+    "revision": "n8-memory-palace-spine-00003-pjh",
     "ready": true,
     "routes_ready": true,
     "traffic_percent": 100,
+    "diagnostic_tag": {
+      "tag": "d1v",
+      "revision": "n8-memory-palace-spine-00002-2bs"
+    },
     "execution_environment": "gen2",
     "port": 8000,
     "max_scale": 1,
     "ingress": "all",
-    "public_invoker": true,
+    "invoker_iam_disabled": true,
+    "public_invoker_binding": true,
+    "application_auth": "static bearer",
     "urls": [
       "https://n8-memory-palace-spine-713925718873.us-central1.run.app",
       "https://n8-memory-palace-spine-7wq3wmgcoq-uc.a.run.app"
     ],
+    "cloud_health_path": "/health",
+    "local_health_path": "/healthz",
     "non_secret_env": {
       "SPINE_EMBED_BASE_URL": "https://openrouter.ai/api/v1",
       "SPINE_EMBED_MODEL": "openai/text-embedding-3-small"
@@ -71,12 +80,61 @@
     ]
   },
   "remote_verification": {
-    "status": "blocked_before_application",
-    "unauthenticated_health_status": 404,
-    "app_bearer_health_status": 404,
-    "response_media_type": "text/html",
-    "container_request_log_entries": 0,
-    "api_round_trip_run": false,
-    "harness_remote_smoke_run": false
+    "unauthenticated_health": {
+      "status": 401,
+      "media_type": "application/problem+json"
+    },
+    "app_bearer_health": {
+      "status": 200,
+      "body": {
+        "ok": true,
+        "version": "0.1.0"
+      }
+    },
+    "reserved_healthz": {
+      "status": 404,
+      "media_type": "text/html",
+      "container_request_log_entries": 0
+    },
+    "create": {
+      "status": 201,
+      "embedding_model": "openai/text-embedding-3-small",
+      "revision": 1
+    },
+    "hard_duplicate": {
+      "status": 409,
+      "duplicate_of_created": true,
+      "score": 1.0
+    },
+    "prepare": {
+      "status": 200,
+      "scorer_version": "v0",
+      "injected_count": 1,
+      "near_miss_count": 0
+    },
+    "commit": {
+      "status": 200,
+      "final_block_nonempty": true,
+      "wrong_removed_count": 0
+    },
+    "sha256_prefixes": {
+      "run_ref": "5dedbcf59b4f7b77",
+      "memory_id": "e84f3d4dde21b6cc",
+      "injection_id": "3197fe7fc373068e",
+      "principal_project": "cbf4e53745ca8836",
+      "thread_id": "537bba9f6319b860",
+      "body": "f01d30328feabaf3",
+      "final_block": "813541d48e288c35"
+    }
+  },
+  "harness_remote_smoke": {
+    "client": "SpineClient.list_memories",
+    "project_status_q_filters": true,
+    "total": 1,
+    "memory_id_sha256_prefix": "e84f3d4dde21b6cc",
+    "revision": 2,
+    "injections": 1,
+    "embedding_model": "openai/text-embedding-3-small",
+    "env_mode": "0600"
   }
 }
