@@ -1,6 +1,6 @@
-# Harness + Memory System — Specification
+# NOCTURNE — Harness + Memory Palace Specification
 
-**Version 2.3** (2026-07-20) — broker-routed embeddings: one token broker for chat AND embeddings, OpenAI dependency deleted (D.2 044). Prior v2.2: themes (D.2 043). Prior v2.1: procedural law (D.2 042). Prior v2.0: EDITOR PASS: content-preserving consolidation of the v1.5–v1.15 organic growth. New/amended law: ADR-012 mode scale, ADR-015 walls, ADR-016 tree, ADR-017 Symphony, ADR-018 Cube+plugins+stack, ADR-007→index, ADR-008 stack resolved; enacted amendments A-001–A-017 folded into Part C (AMENDMENTS.md remains the historical record); D.1 refreshed. Full version lineage: Appendix D.2. Prior v1.4 (2026-07-07) was reorganized from the v0.x iteration transcript;
+**Version 2.4** (2026-07-20) — NOCTURNE christened; ADR-019 onboarding (two-secrets rule, packaging); ADR-020 shared Palaces (HORIZON) (D.2 046–047). Prior v2.3: broker-routed embeddings (D.2 044). Prior v2.2: themes (D.2 043). Prior v2.1: procedural law (D.2 042). Prior v2.0: EDITOR PASS: content-preserving consolidation of the v1.5–v1.15 organic growth. New/amended law: ADR-012 mode scale, ADR-015 walls, ADR-016 tree, ADR-017 Symphony, ADR-018 Cube+plugins+stack, ADR-007→index, ADR-008 stack resolved; enacted amendments A-001–A-017 folded into Part C (AMENDMENTS.md remains the historical record); D.1 refreshed. Full version lineage: Appendix D.2. Prior v1.4 (2026-07-07) was reorganized from the v0.x iteration transcript;
 content-preserving. Audience: implementing agents (via /goal) and the human owner.
 Everything here is binding unless marked OPEN or given a non-accepted status.
 ADR numbers are immutable; superseding requires a new ADR. The chronological
@@ -46,6 +46,17 @@ Both are model/token agnostic.
 
 ### 1.0 Vernacular (the words of this project, used consistently hereafter)
 
+- **NOCTURNE** — the product entire: the Harness and the Memory Palace as
+  one instrument, named 2026-07-20 (D.2 046) — night music: the agent
+  plays through the night so the composer hears the premiere in the
+  morning. The install name (`pipx install nocturne`, ADR-019) and the
+  front door; every component name below is unchanged beneath it.
+- **The Escher view** — the Cube's formal name (ADR-018): six projections
+  of one object no single face can fully show.
+- **The Chrysopoeia** — the learning loop (ADR-005 signals → M2 weight
+  learning): the transmutation of gate decisions into scorer gold.
+- **A shared Palace** — a team's combined memory palace, built by
+  selective contribution from personal Palaces (ADR-020, HORIZON).
 - **The Memory Palace** — the memory product: the database, the algorithms
   that curate it (scoring, dedup bands, the learning loop), and — from M3 —
   the curator (maintenance) agent. In M1 it is the spine deployable's
@@ -1050,6 +1061,100 @@ and procedural determinism is judged directly — render the same `as_of`
 twice and diff the geometry (must be identical), change one metadata
 input and verify exactly the corresponding visual property moves.
 
+### ADR-019 — Onboarding: the two-secrets rule and packaging
+
+**Status: ACCEPTED (2026-07-20; D.2 046).** CONTRACT for the packaging
+wave (packet D3, opens after the M1 judge); the principle binds all
+future onboarding surface immediately.
+
+**Motivation.** The three-repo workspace is the RELAY's reality, not the
+user's. A newcomer must reach a working Nocturne without cloning
+anything, building web assets, or hand-assembling env files — the
+onboarding tax is a product surface, and Invariant 14 applies to it:
+setup attention is still attention.
+
+**Decision:**
+1. THE TWO-SECRETS RULE. A newcomer reaches a working Nocturne with at
+   most two secrets: an OpenRouter key (always — the broker carries chat
+   AND embeddings per v2.3) and GCP credentials (cloud mode only, via
+   their existing `gcloud auth`). LOCAL MODE NEEDS ONE SECRET. Everything
+   else — spine bearer token, database passwords, runtime identities,
+   budget guard, billing breaker — is generated, defaulted, or derived.
+2. THE FOUR COMMANDS (contract names): `nocturne init` (first-run wizard;
+   asks only for the secrets), `nocturne up` (local: pull pgvector
+   container, migrate, start spine + daemon, open the browser),
+   `nocturne deploy` (cloud: the D1 runbook as idempotent code with
+   --dry-run; includes the D2 breaker), `nocturne open`.
+3. PACKAGING. Two wheels, zero clones: `nocturne` (harness repo — daemon,
+   CLI, agent, spine client, WEB ASSETS PRE-BUILT AND BUNDLED as package
+   data; users never run Node) and `nocturne-spine` (spine repo — app +
+   alembic migrations as package data; a dependency of `nocturne` for
+   local mode; `nocturne deploy` ships its packaged source). Versioning
+   is LOCKSTEP: one product version stamps both wheels; the C-contracts
+   are the compatibility surface. THE GARDEN NEVER SHIPS — it is the
+   methodology that grew the organism, not the organism.
+
+**Rejected:** mono-repoing the workspace (relay law is repo-shaped and
+working); container-registry distribution as the primary path (wheels +
+source-deploy are simpler and registry-free); shipping the Garden
+(users need the product, not our scaffolding).
+*Verification:* a fresh machine with Docker + pipx and ONE OpenRouter key
+reaches a working browser chat via the three local commands; a --dry-run
+deploy prints a complete, correct plan without mutating anything.
+
+### ADR-020 — Shared Palaces: combining memory across people
+
+**Status: ACCEPTED as HORIZON (2026-07-20; D.2 047)** — end-state design
+accepted now, like ADR-011; BUILDING IS FORBIDDEN before real
+multi-tenant identity exists (M4 headline; ADR-011's M5 multi-principal
+soak is its stress test). Required M1–M3 schema footprint: NONE — the
+existing design already carries it (verified below).
+
+**Motivation.** Different people working the same project should be able
+to pool chosen memories into a COMBINED palace — the remembering
+orchestra, scaled from a soloist to a section. The owner's requirement:
+each user CHOOSES what to contribute; combination is consent-based and
+selective, never automatic.
+
+**Decision:**
+1. A shared Palace IS a principal. `principal_id` already scopes every
+   table; a team palace is simply a principal that multiple humans'
+   harnesses may address. No parallel machinery.
+2. CONTRIBUTION = COPY-WITH-LINEAGE, never move: contributing creates a
+   new unit in the shared Palace whose first revision's `parent_uid`
+   points at the contributor's source `rev_uid`. Because rev_uids are
+   globally unique ULIDs in one revision DAG, CROSS-PALACE LINEAGE
+   ALREADY WORKS WITH ZERO SCHEMA CHANGE — provenance (who gave what,
+   from where) is the existing editor/machine/lineage record.
+3. SELECTIVE AND REVOCABLE. Contribution is an explicit act through the
+   panel's existing list/filter machinery; originals never leave the
+   personal Palace; revocation tombstones the contributed copy (the
+   shared Palace obeys the same never-delete law).
+4. COLLISIONS ARE ALREADY SOLVED MACHINERY. Two teammates contributing
+   overlapping knowledge hit the write-time dedup bands like any create;
+   the M3 curator's merge queue and ADR-011's single conflict taxonomy
+   (union / fast-forward / review) govern the rest. Combining palaces and
+   reconciling divergent replicas are THE SAME MECHANISM — ADR-011's
+   per-unit three-way merge, applied across people instead of machines.
+5. INJECTION FROM THE UNION. An agent on a shared project draws
+   candidates from the personal Palace plus subscribed shared Palaces;
+   scorer v-current runs unchanged over the union; the gate shows
+   PROVENANCE on every card (whose memory this is). Per-source trust
+   weighting is a future scorer feature, decided by replay evidence.
+6. The gating dependency is IDENTITY: real multi-tenant auth (per-human
+   principals, membership, tokens) replaces M1's single bearer before any
+   of this ships. Federation across separate spine deployments is
+   deliberately open — OQ-19.
+
+**Rejected:** automatic whole-palace merging (consent is the point);
+moving memories out of personal palaces (contribution must be reversible
+and non-destructive); a separate "team memory" schema (a shared Palace
+that isn't a Palace would fork every downstream mechanism).
+*Verification (at build time):* contribute → provenance lineage resolves
+to the source revision; revoke → tombstone hides it from the union
+without touching the original; two overlapping contributions → dedup
+band fires; gate cards show contributor provenance.
+
 ### ADR-006 — Presence
 
 **Status: PROPOSED**
@@ -2023,6 +2128,10 @@ into its owning ADR above)
 - **OQ-18:** The full Palace scene (pale monumental architecture, ghost
   curator drones restructuring memory live) — dedicated design workstream.
   [M3 planning; aesthetics anchored in NATES_VISION §8]
+- **OQ-19:** Shared-Palace federation — can contributions flow between
+  SEPARATE spine deployments, or does a team share one spine? (ADR-020
+  assumes one; federation would need cross-deployment identity + the
+  ADR-011 sync path.) [M4 planning]
 
 ## D.2 Decision log (chronological, immutable)
 
@@ -2075,6 +2184,8 @@ into its owning ADR above)
 | 043 | 2026-07-20 | v2.2 ADR-018 clause 7 THEMES: aesthetics are swappable style configurations on the rack (tokens/motifs/materials, user-authorable, plugin-distributed, never code). Default = NEO-NOIR (Syd Mead tech-noir: neon on dark urban, street-level composition, holographic displays, rain-slicked materials, volumetric light — owner's vocabulary preserved verbatim in NATES_VISION §8); alternate = COBALT-SERAPH (the mock's current skin). Themes style meaning, never re-encode it; per-theme palette validation mandatory; Invariant 14 is not a style | ACCEPTED |
 | 044 | 2026-07-20 | v2.3 broker-routed embeddings (owner's token-broker thesis; Invariant 13 completed): C.5 gains embed_base_url defaulting to OpenRouter, embed_model becomes the namespaced openai/text-embedding-3-small; the key slot accepts any OpenAI-compatible bearer. Verified live against OpenRouter's /embeddings before enactment. Chat AND embeddings now flow through one third-party broker by default; direct providers are overrides. New packet S7 wires config→adapter; D1 no longer requires OpenAI credits | ACCEPTED |
 | 045 | 2026-07-20 | D1 factual/operations correction (no product-contract or version change): live audit proved D.2 033's "D1 executed / Cloud Run spine" status clause false; immutable row 033 remains as the historical record and this entry supersedes only that factual status claim. The foundation actually present is the active project, budget, and bare Cloud SQL instance. Garden D1 is reset as a relay-owned packet with authority narrowly bounded to the named app database/user, migration, backup protection, secrets, dedicated runtime identity, regional image repository, one Cloud Run service, and remote verification. GCS remains M4; billing/budget/D2, deletes, broad IAM, Cloud Build, and destructive recovery remain human boundaries | ACCEPTED |
+| 046 | 2026-07-20 | v2.4 CHRISTENING + ADR-019: the product is NOCTURNE (night music — plays through the night so the composer hears the premiere; install name pipx install nocturne); Escher view = the Cube; Chrysopoeia = the learning loop. ADR-019 onboarding: two-secrets rule (OpenRouter always, GCP cloud-only; local mode = ONE secret), four contract commands (init/up/deploy/open), two wheels + bundled web assets + lockstep versioning, the Garden never ships; packet D3 opens after J | ACCEPTED |
+| 047 | 2026-07-20 | ADR-020 SHARED PALACES (HORIZON like ADR-011; build forbidden until multi-tenant identity, M4): a shared Palace is a principal; contribution = consent-based selective COPY-WITH-LINEAGE (global rev_uid DAG already carries cross-palace provenance — zero schema footprint needed); revocation = tombstone the copy; collisions ride the existing dedup bands + curator merge queue + ADR-011 conflict taxonomy (combining palaces ≡ reconciling replicas); injection draws from the palace union with provenance in the gate; federation across spines = OQ-19 | ACCEPTED |
 
 ## D.3 Resolved-question index (where each folded)
 
