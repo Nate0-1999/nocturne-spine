@@ -142,6 +142,12 @@ def create_app(
         )
 
     @app.get(
+        "/health",
+        response_model=HealthResponse,
+        responses={401: problem_openapi("Bearer token missing or invalid")},
+        include_in_schema=False,
+    )
+    @app.get(
         "/healthz",
         response_model=HealthResponse,
         responses={401: problem_openapi("Bearer token missing or invalid")},

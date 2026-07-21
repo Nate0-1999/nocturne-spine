@@ -437,3 +437,24 @@ starting an interactive login merely to run the proxy would create credential
 state when the active deployer's short-lived token is sufficient. Container
 boot migrations would race across revisions and mix deployment with schema
 ownership.
+
+## 016 — Cloud-safe health alias under the existing bearer boundary
+
+**Problem Tree:** P4
+
+**Decision.** Retain the specified `/healthz` endpoint and add `/health` as an
+alias of the same handler for Cloud Run verification. Protect both paths with
+the existing application-wide static bearer and keep the alias out of the
+committed OpenAPI surface. Use `/health` for remote D1 probes while local and
+Compose acceptance continue to exercise `/healthz`.
+
+**Motivation.** Cloud Run documents some URL paths ending in `z` as reserved
+and recommends avoiding every such path. Live probes confirmed that its front
+end intercepted `/healthz` with an unlogged Google HTML 404 while ordinary
+paths reached the ready Spine revision. A non-`z` alias resolves that platform
+collision without changing the specified endpoint or authentication boundary.
+
+**Rejected alternatives.** Removing or renaming `/healthz` would break the C.8
+acceptance contract. Making either health endpoint unauthenticated would widen
+the frozen application boundary. A second service, custom domain, or proxy
+would add infrastructure to solve a one-path incompatibility.

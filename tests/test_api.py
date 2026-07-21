@@ -35,15 +35,22 @@ def _assert_problem(response: Any, *, status: int, endpoint: str) -> None:
     assert body["endpoint"] == endpoint
 
 
-async def test_healthz_and_auth_are_live(app: FastAPI) -> None:
+async def test_health_endpoints_and_auth_are_live(app: FastAPI) -> None:
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        unauthorized = await client.get("/healthz")
-        healthy = await client.get("/healthz", headers={"Authorization": f"Bearer {TOKEN}"})
+        unauthorized_healthz = await client.get("/healthz")
+        unauthorized_health = await client.get("/health")
+        healthy_healthz = await client.get("/healthz", headers={"Authorization": f"Bearer {TOKEN}"})
+        healthy_health = await client.get("/health", headers={"Authorization": f"Bearer {TOKEN}"})
 
-    _assert_problem(unauthorized, status=401, endpoint="GET /healthz")
-    assert unauthorized.headers["www-authenticate"] == "Bearer"
-    assert healthy.status_code == 200
-    assert healthy.json() == {"ok": True, "version": "0.1.0"}
+    _assert_problem(unauthorized_healthz, status=401, endpoint="GET /healthz")
+    _assert_problem(unauthorized_health, status=401, endpoint="GET /health")
+    assert unauthorized_healthz.headers["www-authenticate"] == "Bearer"
+    assert unauthorized_health.headers["www-authenticate"] == "Bearer"
+    assert healthy_healthz.status_code == 200
+    assert healthy_health.status_code == 200
+    assert healthy_healthz.json() == {"ok": True, "version": "0.1.0"}
+    assert healthy_health.json() == healthy_healthz.json()
+    assert "/health" not in app.openapi()["paths"]
 
 
 async def test_validation_errors_are_rfc7807(app: FastAPI) -> None:
