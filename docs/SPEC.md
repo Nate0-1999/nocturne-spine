@@ -1,6 +1,6 @@
 # NOCTURNE — Harness + Memory Palace Specification
 
-**Version 2.6** (2026-07-21) — OQ-17 resolved (roots alpha = selection focus); ADR-019 seed ingestion; nocturne-* remotes + splash repo (D.2 049). Prior v2.5: B.6 rule 8 agent walkthroughs (D.2 048). Prior v2.4: NOCTURNE christened; ADR-019 onboarding; ADR-020 shared Palaces (D.2 046–047). Prior v2.3: broker-routed embeddings (D.2 044). Prior v2.2: themes (D.2 043). Prior v2.1: procedural law (D.2 042). Prior v2.0: EDITOR PASS: content-preserving consolidation of the v1.5–v1.15 organic growth. New/amended law: ADR-012 mode scale, ADR-015 walls, ADR-016 tree, ADR-017 Symphony, ADR-018 Cube+plugins+stack, ADR-007→index, ADR-008 stack resolved; enacted amendments A-001–A-017 folded into Part C (AMENDMENTS.md remains the historical record); D.1 refreshed. Full version lineage: Appendix D.2. Prior v1.4 (2026-07-07) was reorganized from the v0.x iteration transcript;
+**Version 2.7** (2026-07-22) — gate-day data + v0.2 proposal adoptions: hybrid candidate retrieval, keywords mandate, training-data hygiene, curator consolidation taxonomy + typed edges, promotion blend, candidate status (D.2 050). Prior v2.6: OQ-17 resolved (roots alpha = selection focus); ADR-019 seed ingestion; nocturne-* remotes + splash repo (D.2 049). Prior v2.5: B.6 rule 8 agent walkthroughs (D.2 048). Prior v2.4: NOCTURNE christened; ADR-019 onboarding; ADR-020 shared Palaces (D.2 046–047). Prior v2.3: broker-routed embeddings (D.2 044). Prior v2.2: themes (D.2 043). Prior v2.1: procedural law (D.2 042). Prior v2.0: EDITOR PASS: content-preserving consolidation of the v1.5–v1.15 organic growth. New/amended law: ADR-012 mode scale, ADR-015 walls, ADR-016 tree, ADR-017 Symphony, ADR-018 Cube+plugins+stack, ADR-007→index, ADR-008 stack resolved; enacted amendments A-001–A-017 folded into Part C (AMENDMENTS.md remains the historical record); D.1 refreshed. Full version lineage: Appendix D.2. Prior v1.4 (2026-07-07) was reorganized from the v0.x iteration transcript;
 content-preserving. Audience: implementing agents (via /goal) and the human owner.
 Everything here is binding unless marked OPEN or given a non-accepted status.
 ADR numbers are immutable; superseding requires a new ADR. The chronological
@@ -494,15 +494,26 @@ citations, never_kills, last_injected_at), per-memory bias b_m.
   explicitly reaching outside the snapshot.
 
 **Promotion (resolves the original proposal-sheet contradiction):**
-frequency-threshold promotion does NOT write to agents.md/user.md. It flips
+promotion does NOT write to agents.md/user.md. It flips
 `pin=true` (always injected, exempt from scoring, still user-removable in the
 gate → unpins). The "does not manipulate sessions/skills/agents.md" invariant
-holds. Automatic promotion logic: M3; manual pinning: free from M1.
+holds. Automatic promotion logic: M3; manual pinning: free from M1. The M3
+promotion score blends signals — reuse success (citations/kept outcomes from
+the log), stability (survives revisions/time), and manual signal (pins,
+add-backs) — never raw injection frequency alone (frequency alone promotes
+nonsense; v2.7).
 
 **Maintenance (M3; cron + /maintain_memory + 80%-budget trigger):** semantic
-clustering over embeddings → dedup merge proposals (merge = new unit with
-`merged_from` lineage, sources tombstoned), staleness review,
-promotion/demotion pass. Runs as its own agent under the same CAS rules.
+clustering over embeddings → consolidation proposals with a four-verdict
+taxonomy (v2.7): **merge** (new unit with `merged_from` lineage, sources
+tombstoned), **new** (keep separate), **contradict** (two active memories
+assert conflicting facts → review queue; truth calls are never automatic),
+**supersede** (newer memory replaces older → typed edge + demote/tombstone
+proposal); plus staleness review and the promotion/demotion pass. Curators
+may maintain a TYPED EDGE OVERLAY (supersedes / contradicts / relates-to)
+as rows in the same database — used for 1-hop expansion during consolidation
+and audit, never as first-pass retrieval (graph is an overlay, not the
+architecture). Runs as its own agent under the same CAS rules.
 OPEN (OQ-4): auto-merge above high similarity vs user-approved queue —
 leaning: auto only above high threshold, queue the rest.
 
@@ -544,6 +555,10 @@ tuple (project_key, agent_kind, memory_kind, scorer_version) so any scope is a
 modeling change, not a migration; offline replay is a first-class evaluation
 tool. M2 = **global weights** (fastest learner on sparse single-user signal;
 b_m absorbs memory-specific corrections; f_proj expresses project affinity).
+TRAINING-DATA HYGIENE (v2.7): learning and replay MUST exclude events from
+verification/test principals — filter on machine_id/editor prefixes used by
+packet verification (e.g. `*-verification-*`, `verification:*`) — so fixture
+runs never tune the scorer; the events remain in the log (append-only law).
 M3 = **hierarchical per-project offsets**, zero-initialized, partial-pooling:
 `score = (w_global + w_offset[project])·f + b_m`; adopt when the log shows a
 context whose removals fight the global trend. Rejected: fully per-context
@@ -1269,10 +1284,16 @@ loop; stock capabilities make these cheap to add when their milestone
 arrives). Full build spec: Part C.
 
 **M2 — learning loop + extraction (COMMITTED):** online weight updates per
-ADR-005 table; scorer versioning + offline replay + rollback; per-feature
+ADR-005 table (with the v2.7 training-data hygiene filter); scorer versioning
++ offline replay + rollback; per-feature
 contribution bars in gate; citation heuristic; end-of-thread extraction with
 approval queue; markdown SEED INGESTION (upload → curator split →
-approval queue — ADR-019 clause 4); Context Bars port (+memory category); Memory Graph +
+approval queue — ADR-019 clause 4); HYBRID CANDIDATE RETRIEVAL (v2.7): the
+candidate pool becomes the UNION of vector top-50 and Postgres full-text
+search matches — an exact-keyword memory with a weak embedding must be able
+to reach the scorer; the scorer ranks the union, nothing else changes;
+a formal `candidate` status for approval-queue units (extraction + seed
+ingestion) instead of overloading `active`; Context Bars port (+memory category); Memory Graph +
 hyperparameter console.
 
 **M3 — scale-out + harness buildout + curation + presence (DIRECTIONAL):**
@@ -1860,11 +1881,14 @@ Agent instructions addition (verbatim, part of capability):
    something you got wrong, a stable project fact, or a procedure the user
    wants repeated. Keep every memory ATOMIC: one fact per unit, at most a
    few sentences (hard cap 128 tokens); split larger content into multiple
-   units. Prefer editing an existing memory over creating a near-duplicate.
+   units. ALWAYS include 2-5 lowercase keywords (searchable nouns/terms —
+   a memory without keywords is handicapped in retrieval). Prefer editing
+   an existing memory over creating a near-duplicate.
    Never save secrets or credentials."
 User command: `/remember <text>` → daemon calls POST /v1/memories with
-kind=fact, editor='user', label auto-generated by the agent model (one short
-completion), then confirms in chat.
+kind=fact, editor='user', label AND 2-5 keywords auto-generated by the agent
+model (one short completion produces both; v2.7 — keyword-less units were
+observed handicapped on f_kw in live gate-day data), then confirms in chat.
 
 ## C.7 WS envelope (relay-shaped from day one)
 
@@ -2219,6 +2243,7 @@ into its owning ADR above)
 | 047 | 2026-07-20 | ADR-020 SHARED PALACES (HORIZON like ADR-011; build forbidden until multi-tenant identity, M4): a shared Palace is a principal; contribution = consent-based selective COPY-WITH-LINEAGE (global rev_uid DAG already carries cross-palace provenance — zero schema footprint needed); revocation = tombstone the copy; collisions ride the existing dedup bands + curator merge queue + ADR-011 conflict taxonomy (combining palaces ≡ reconciling replicas); injection draws from the palace union with provenance in the gate; federation across spines = OQ-19 | ACCEPTED |
 | 048 | 2026-07-21 | v2.5 B.6 rule 8 AGENT WALKTHROUGHS (SOPs for agents): every UI packet also executes a written human-style SOP live through interactive browser use — look, click, type, observe, judge, first person — with per-step screenshots + prose observations in verification/<packet>/SOP.md, a mandatory unscripted exploration segment, defects → Blight, design friction → human gate, and judges RE-EXECUTING SOPs at I1/J. Explicitly NOT dischargeable by scripts (rule 7 proves regressions; rule 8 proves experience). Owner's framing: traditional SOPs for humans, performed by agents | ACCEPTED |
 | 049 | 2026-07-21 | v2.6 owner decisions: OQ-17 resolved — the Roots alpha channel encodes SELECTION FOCUS (selected full, others dimmed-but-present, floor 0.25), never expected value; ADR-019 clause 4 SEED INGESTION (markdown upload → curator split → approval queue; M2) so cold start is product surface; remotes renamed to the nocturne-* family with a new `nocturne` splash repo as the single new-user front door | ACCEPTED |
+| 050 | 2026-07-22 | v2.7 GATE-DAY DATA + v0.2 PROPOSAL ADOPTIONS (live Palace audit + owner's Code-Puppy v0.2 sheet review; notes/scorer-evolution.md): (1) HYBRID CANDIDATE RETRIEVAL — M2 candidate pool = vector top-50 ∪ Postgres FTS matches (exact-keyword memories with weak embeddings must reach the scorer); (2) KEYWORDS MANDATE — C.6 agent instructions require 2-5 keywords per save; /remember generates label AND keywords in one completion (live data showed keyword-less units handicapped on f_kw); (3) TRAINING-DATA HYGIENE — Chrysopoeia learning/replay excludes verification/test principals (H5 fixtures observed in the live log); (4) curator CONSOLIDATION TAXONOMY merge/new/contradict/supersede + TYPED EDGE OVERLAY (1-hop, never first-pass retrieval); (5) M3 promotion blends reuse/stability/manual — never raw frequency; (6) formal `candidate` status for approval-queue units. Rejected from v0.2: questionnaire tuning (Invariant 14 — gate signals collect the same passively), SQLite local-first, discrete path-multiplier ladder (continuous f_loc superior). Entity/importance axes routed to the agentic-axes replay pipeline (notes) | ACCEPTED |
 
 ## D.3 Resolved-question index (where each folded)
 
