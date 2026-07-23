@@ -1,6 +1,6 @@
 # NOCTURNE — Harness + Memory Palace Specification
 
-**Version 2.11** (2026-07-22) — PALACE VITALS gauges (lifecycle rates/hr, token spend by category/hr, counters) + ADR-021 lifecycle closures C1-C6 (D.2 054). Prior v2.10: ADR-021 MEMORY WRITE LAW: admit-then-curate, fire-and-forget saves, reinforcement coalescing, 10% attention budget (principle), Symphony staging + judge promotion, origin_agent lineage id (D.2 053). Prior v2.9: CURATOR ARCHITECTURE: deterministic diagnostics → Palace Health Report → LLM verdicts → deterministic write tools (D.2 052). Prior v2.8: CURATOR DOCTRINE: write-count trigger, palace-anchored, surgeons (root-cause, minimal intervention), slop removal, versioned curation SOPs (D.2 051). Prior v2.7: gate-day data + v0.2 proposal adoptions: hybrid candidate retrieval, keywords mandate, training-data hygiene, curator consolidation taxonomy + typed edges, promotion blend, candidate status (D.2 050). Prior v2.6: OQ-17 resolved (roots alpha = selection focus); ADR-019 seed ingestion; nocturne-* remotes + splash repo (D.2 049). Prior v2.5: B.6 rule 8 agent walkthroughs (D.2 048). Prior v2.4: NOCTURNE christened; ADR-019 onboarding; ADR-020 shared Palaces (D.2 046–047). Prior v2.3: broker-routed embeddings (D.2 044). Prior v2.2: themes (D.2 043). Prior v2.1: procedural law (D.2 042). Prior v2.0: EDITOR PASS: content-preserving consolidation of the v1.5–v1.15 organic growth. New/amended law: ADR-012 mode scale, ADR-015 walls, ADR-016 tree, ADR-017 Symphony, ADR-018 Cube+plugins+stack, ADR-007→index, ADR-008 stack resolved; enacted amendments A-001–A-017 folded into Part C (AMENDMENTS.md remains the historical record); D.1 refreshed. Full version lineage: Appendix D.2. Prior v1.4 (2026-07-07) was reorganized from the v0.x iteration transcript;
+**Version 2.12** (2026-07-22) — EDITOR PASS II (content-preserving): ADR-022 THE CURATORS extracted from ADR-004 accretions; problem tree gains P1.5/P1.6/P2.4; memory lifecycle map (D.2 055). Prior v2.11: PALACE VITALS gauges (lifecycle rates/hr, token spend by category/hr, counters) + ADR-021 lifecycle closures C1-C6 (D.2 054). Prior v2.10: ADR-021 MEMORY WRITE LAW: admit-then-curate, fire-and-forget saves, reinforcement coalescing, 10% attention budget (principle), Symphony staging + judge promotion, origin_agent lineage id (D.2 053). Prior v2.9: CURATOR ARCHITECTURE: deterministic diagnostics → Palace Health Report → LLM verdicts → deterministic write tools (D.2 052). Prior v2.8: CURATOR DOCTRINE: write-count trigger, palace-anchored, surgeons (root-cause, minimal intervention), slop removal, versioned curation SOPs (D.2 051). Prior v2.7: gate-day data + v0.2 proposal adoptions: hybrid candidate retrieval, keywords mandate, training-data hygiene, curator consolidation taxonomy + typed edges, promotion blend, candidate status (D.2 050). Prior v2.6: OQ-17 resolved (roots alpha = selection focus); ADR-019 seed ingestion; nocturne-* remotes + splash repo (D.2 049). Prior v2.5: B.6 rule 8 agent walkthroughs (D.2 048). Prior v2.4: NOCTURNE christened; ADR-019 onboarding; ADR-020 shared Palaces (D.2 046–047). Prior v2.3: broker-routed embeddings (D.2 044). Prior v2.2: themes (D.2 043). Prior v2.1: procedural law (D.2 042). Prior v2.0: EDITOR PASS: content-preserving consolidation of the v1.5–v1.15 organic growth. New/amended law: ADR-012 mode scale, ADR-015 walls, ADR-016 tree, ADR-017 Symphony, ADR-018 Cube+plugins+stack, ADR-007→index, ADR-008 stack resolved; enacted amendments A-001–A-017 folded into Part C (AMENDMENTS.md remains the historical record); D.1 refreshed. Full version lineage: Appendix D.2. Prior v1.4 (2026-07-07) was reorganized from the v0.x iteration transcript;
 content-preserving. Audience: implementing agents (via /goal) and the human owner.
 Everything here is binding unless marked OPEN or given a non-accepted status.
 ADR numbers are immutable; superseding requires a new ADR. The chronological
@@ -252,10 +252,18 @@ wrong, the human has no lever to correct it.
       example) and multi-party. → ULID revisions + parent lineage, event_uids,
       union-merged logs, learned state re-derived not synced. [ADR-011;
       HORIZON — footprint only]
-  - **P1.4** Accumulated memory rots (duplicates, stale facts, noise).
-    → write-time dedup bands now [C.4]; maintenance agent, promotion,
-    staleness later [ADR-004, M3]; quarantine for the persistently unwanted
-    [C.3].
+  - **P1.4** Accumulated memory rots four ways — redundancy, staleness,
+    contradiction, misvaluation — and only time reveals it.
+    → write-time triage at the door now [C.4, ADR-021]; the curators —
+    surgeons over a deterministic tool set — later [ADR-022, M3];
+    quarantine for the persistently unwanted [C.3].
+  - **P1.5** Agent-written memories must cost the build almost nothing,
+    yet no earned lesson may ever be lost. → the admit-then-curate write
+    law: fire-and-forget saves, deterministic door triage, reinforcement
+    coalescing, the ≤10% attention principle. [ADR-021]
+  - **P1.6** Parallel search agents learn lessons inside timelines that
+    may lose. → branch-scoped staging, sibling invisibility, judge-gated
+    promotion, pruned-branch negative-result capture. [ADR-021 R1–R5]
 - **P2. A human cannot trust or steer what they cannot see.**
   → S2: the visibility layer. [ADR-009]
   - **P2.1** Where are my agents? → presence events → Ant Farm. [ADR-006, M3]
@@ -263,6 +271,9 @@ wrong, the human has no lever to correct it.
   - **P2.3** What does the memory know, and why was THIS injected?
     → Memory Graph + hyperparameter console; every visual channel encodes a
     real variable. [M2, Invariant 10]
+  - **P2.4** Is the memory system earning its keep, and what does it cost?
+    → Palace Vitals gauges: lifecycle rates/hr, token spend by category/hr,
+    palace counters. [ADR-009 item 5, M2]
 - **P3. Agents must work where the files are, yet be commanded from anywhere**
   (including a phone).
   → S3: workspace-anchored loops; daemons dial out; relay-through-spine;
@@ -467,6 +478,21 @@ sync is far costlier than starting cloud-first. Firestore (no clean
 vector+relational combo). Spanner (overkill). Separate vector DB (operational
 overhead, two-phase consistency problems).
 
+**The memory lifecycle map (v2.12)** — one glance for implementing agents:
+where each stage's law lives. Read the ADR named for your stage FIRST; its
+Motivation section is why your packet exists.
+
+| lifecycle stage | law | milestone |
+|---|---|---|
+| birth — agent saves, /remember, extraction, seeds | ADR-021; C.4/C.6; ADR-019 cl. 4 | M1–M2 |
+| injection & the gate | ADR-005; C.3/C.5 | M1 |
+| staging & promotion (search runs) | ADR-021 R1–R5 | M3 |
+| tending — dedup, contradiction, promotion, slop | ADR-022 | M3 |
+| learning (the Chrysopoeia) | ADR-005 signals + hygiene + actor classes | M2 |
+| observability | ADR-009 item 5 (Palace Vitals) | M2 |
+| sharing across people | ADR-020 | M4+ |
+| death & resurrection | ADR-004 tombstones; C.3 quarantine; gate add-backs | M1 |
+
 ### ADR-004 — Memory unit model & concurrency
 
 **Status: PROPOSED** (unit shape refined ACCEPTED in review: atomic ≤128
@@ -497,58 +523,14 @@ citations, never_kills, last_injected_at), per-memory bias b_m.
 promotion does NOT write to agents.md/user.md. It flips
 `pin=true` (always injected, exempt from scoring, still user-removable in the
 gate → unpins). The "does not manipulate sessions/skills/agents.md" invariant
-holds. Automatic promotion logic: M3; manual pinning: free from M1. The M3
-promotion score blends signals — reuse success (citations/kept outcomes from
-the log), stability (survives revisions/time), and manual signal (pins,
-add-backs) — never raw injection frequency alone (frequency alone promotes
-nonsense; v2.7).
+holds. Manual pinning: free from M1. Automatic promotion is curator work —
+criteria and timing in ADR-022.
 
-**Maintenance (M3; triggers, v2.8: every N active-unit writes since the last
-pass — config `curator_write_trigger`, default 25 — plus cron,
-/maintain_memory, and the 80%-budget trigger):** semantic
-clustering over embeddings → consolidation proposals with a four-verdict
-taxonomy (v2.7): **merge** (new unit with `merged_from` lineage, sources
-tombstoned), **new** (keep separate), **contradict** (two active memories
-assert conflicting facts → review queue; truth calls are never automatic),
-**supersede** (newer memory replaces older → typed edge + demote/tombstone
-proposal); plus staleness review and the promotion/demotion pass. Curators
-may maintain a TYPED EDGE OVERLAY (supersedes / contradicts / relates-to)
-as rows in the same database — used for 1-hop expansion during consolidation
-and audit, never as first-pass retrieval (graph is an overlay, not the
-architecture). Runs as its own agent under the same CAS rules.
-
-Curator doctrine (owner, v2.8): curators are PALACE-ANCHORED — the exception
-that proves the ADR-010 movement law: their work IS the palace, so they run
-at the palace's location (spine-side scheduled job at scale; local
-/maintain_memory acceptable in the first M3 era). Curators are **SURGEONS**:
-minimally invasive, targeting the ROOT problem and letting the system sort
-out the symptoms (supersede the bad seed memory, don't patch each conflicting
-derivative); prefer the smallest intervention that restores health — a typed
-edge over an edit, an edit over a merge, a merge over a rewrite; when in
-doubt, queue rather than cut. **SLOP REMOVAL is curator work:** units that
-are vague, non-atomic, or demonstrably never useful (zero citations plus
-repeated removals across a full era) are proposed for quarantine → tombstone
-through the same review queue — never hard-deleted (append-only law).
-Curator operations follow WRITTEN STANDARD PROCEDURES — versioned SOP
-documents (the curation counterpart of B.6 rule 8) so every pass is
-auditable against its procedure and procedure changes are reviewable
-diffs, not prompt drift.
-
-Curator architecture (owner, v2.9) — **diagnose deterministically, operate
-surgically:** a curator pass is a smart LLM over a DETERMINISTIC TOOL SET.
-(1) A scripted diagnostic pre-pass — code, not LLM — generates a full
-PALACE HEALTH REPORT (cluster map, duplicate/contradiction candidate pairs,
-staleness and never-useful lists, keyword coverage, stats deltas since last
-pass; versioned format). (2) The curator agent MUST read the report before
-intervening — no intervention without diagnostics. (3) All writes go through
-the deterministic tools (merge_units, add_edge, propose_quarantine,
-split_unit, …) which enforce CAS, lineage, and queue rules mechanically —
-the LLM supplies judgment at the verdict layer only; it can call diagnostic
-tools ad hoc but can never free-hand a write. Giving curators the tools and
-context to genuinely understand the palace is acknowledged HARD — the health
-report format is a first-class design surface, not an afterthought.
-OPEN (OQ-4): auto-merge above high similarity vs user-approved queue —
-leaning: auto only above high threshold, queue the rest.
+**Maintenance → ADR-022 (consolidated v2.12).** All curator law — the rot
+taxonomy that motivates them, doctrine, architecture, operations, triggers —
+lives in ADR-022. What remains true here: curators are writers like any
+other; every curator write obeys the same CAS, lineage, and tombstone rules
+above.
 
 ### ADR-005 — Injection scoring, gate & the learning loop
 
@@ -1336,6 +1318,108 @@ health report; staged sibling memories never appear in each other's search
 or injection; judge promotion moves only the winning prefix; rate-cap
 excess lands staged+flagged, not dropped.
 
+### ADR-022 — The Curators
+
+**Status: ACCEPTED** (doctrine + architecture owner-declared 2026-07-22,
+D.2 050–052; operational details PROPOSED until the M3 build). Consolidated
+here from ADR-004's accretions in the v2.12 editor pass — content-preserving;
+the law below is D.2 050–052 verbatim in substance.
+
+**The problem — memory rots four ways, and only time reveals it.** The gate
+protects each THREAD (every injection auditable, reversible); nothing
+protects the CORPUS over time. Left alone a palace accumulates: REDUNDANCY
+(near-duplicates saved weeks apart sail past write-time bands), STALENESS
+(facts expire and nothing notices), CONTRADICTION (the world changes; two
+active memories assert conflicting things — and injection might surface
+either), and MISVALUATION (load-bearing memories sit buried while mediocre
+ones ride frequency). Write-time triage (ADR-021) catches only what is
+visible at the door with thread context. Everything time reveals belongs to
+the curators. Division of labor: WRITERS OPTIMIZE RECALL (never lose a
+lesson), CURATORS OPTIMIZE PRECISION (keep the corpus true). Boundary with
+the learning loop: curators tend the CONTENTS, the Chrysopoeia tunes the
+ALGORITHM — curators ask "is this memory in good condition?", the
+Chrysopoeia asks "did we show the right memories?" Curators never touch a
+scorer weight.
+
+**Doctrine (owner, v2.8):**
+- **Surgeons.** Minimally invasive; target the ROOT problem and let the
+  system sort out the symptoms (supersede the bad seed memory, don't patch
+  each conflicting derivative); prefer the smallest intervention that
+  restores health — a typed edge over an edit, an edit over a merge, a
+  merge over a rewrite; when in doubt, queue rather than cut.
+- **Palace-anchored.** The exception that proves the ADR-010 movement law:
+  their work IS the palace, so they run at the palace's location —
+  spine-side scheduled job at scale; local /maintain_memory acceptable in
+  the first M3 era.
+- **Triggers:** every N active-unit writes since the last pass (config
+  `curator_write_trigger`, default 25; staged writes don't tick it —
+  ADR-021 C3), plus cron, /maintain_memory, and the 80%-budget trigger.
+- **Slop removal is curator work:** units that are vague, non-atomic, or
+  demonstrably never useful (zero citations plus repeated removals across
+  a full era) are proposed for quarantine → tombstone through the same
+  review queue — never hard-deleted (append-only law).
+- **Written standard procedures:** curator operations follow versioned SOP
+  documents (the curation counterpart of B.6 rule 8) so every pass is
+  auditable against its procedure and procedure changes are reviewable
+  diffs, not prompt drift.
+
+**Architecture (owner, v2.9) — diagnose deterministically, operate
+surgically.** A curator pass is a smart LLM over a DETERMINISTIC TOOL SET:
+1. A scripted diagnostic pre-pass — code, not LLM — generates a full
+   PALACE HEALTH REPORT: cluster map, duplicate/contradiction candidate
+   pairs (pre-seeded by ADR-021's possible-dup stamps), staleness and
+   never-useful lists, keyword coverage, stats deltas since last pass;
+   versioned format.
+2. The curator agent MUST read the report before intervening — no
+   intervention without diagnostics.
+3. All writes go through the deterministic tools (merge_units, add_edge,
+   propose_quarantine, split_unit, …) which enforce CAS, lineage, and
+   queue rules mechanically — the LLM supplies judgment at the VERDICT
+   LAYER only; it can call diagnostic tools ad hoc but can never
+   free-hand a write.
+Giving curators the tools and context to genuinely understand the palace
+is acknowledged HARD — the health report format is a first-class design
+surface, not an afterthought.
+
+**Operations (M3):** semantic clustering over embeddings → consolidation
+proposals with the four-verdict taxonomy (v2.7): **merge** (new unit with
+`merged_from` lineage, sources tombstoned), **new** (keep separate),
+**contradict** (two active memories assert conflicting facts → review
+queue; truth calls are never automatic), **supersede** (newer memory
+replaces older → typed edge + demote/tombstone proposal); plus staleness
+review and the promotion/demotion pass. **Promotion criteria (v2.7):** the
+score blends reuse success (citations/kept outcomes from the log),
+stability (survives revisions/time), and manual signal (pins, add-backs) —
+never raw injection frequency alone (frequency alone promotes nonsense);
+the mechanism it drives is ADR-004's pin flip. Curators may maintain a
+TYPED EDGE OVERLAY (supersedes / contradicts / relates-to) as rows in the
+same database — used for 1-hop expansion during consolidation and audit,
+never as first-pass retrieval (the graph is an overlay, not the
+architecture). Curators run as their own agent (editor='maintenance')
+under the same CAS rules as every writer; their actions log with actor
+class per ADR-021 C5 and never masquerade as human preference signal.
+
+**Kinships (routing, no new law):** the birth-time extractor is this same
+role at a different moment with the opposite blind spot — thread context
+without corpus context (ADR-021 clause 4; same taxonomy, same tools). The
+judge's run-close memory gate is the run-scoped sibling (ADR-021 R3).
+Combining shared Palaces reuses curator merge machinery wholesale (ADR-020
+clause 4). Seed ingestion's splitters are curator-style workers (ADR-019
+clause 4).
+
+**OPEN (OQ-4):** auto-merge above high similarity vs user-approved queue —
+leaning: auto only above high threshold, queue the rest; sharpened leaning
+(2026-07-22, unenacted): autonomy EARNED per verdict class — queue
+everything in the first era, graduate a class to auto only when human
+approval of that class runs near-unanimous over a real sample.
+
+*Verification (at build time, per B.6):* health report is deterministic
+(same palace state → byte-identical report, double-run diff); a free-hand
+curator write (bypassing the tool set) is refused; every intervention
+cites the report section that motivated it; merge produces merged_from
+lineage and tombstoned sources; contradict never auto-resolves; a
+promotion/demotion pass logs its blended score inputs.
+
 ### ADR-006 — Presence
 
 **Status: PROPOSED**
@@ -1467,8 +1551,9 @@ hyperparameter console.
 
 **M3 — scale-out + harness buildout + curation + presence (DIRECTIONAL):**
 cloud relay (multi-machine), harness parity (fs/shell/skills/compaction/HITL,
-queuing/interjection, loops, subagents) + DBOS durable execution, maintenance
-agent (clustering, dedup merge queue, promotion, staleness), memory_drafts
+queuing/interjection, loops, subagents) + DBOS durable execution, the
+CURATORS (ADR-022: health report + deterministic tools, verdict taxonomy,
+promotion blend, slop removal, branch-staging promotion per ADR-021), memory_drafts
 offline flow, Ant Farm, PWA install, hierarchical scorer offsets when data
 justifies, Rust daemon if triggers fire.
 
@@ -2342,8 +2427,9 @@ start planting without asking where anything is.
 ## D.1 Open questions (all currently open items; everything else is folded
 into its owning ADR above)
 
-- **OQ-4:** Maintenance dedup merges — auto-merge above high similarity,
-  queue the rest (leaning) vs fully automatic. [decide before M3]
+- **OQ-4:** Curator dedup merges (ADR-022) — auto-merge above high
+  similarity, queue the rest (leaning; sharpened: autonomy earned per
+  verdict class) vs fully automatic. [decide before M3]
 - **OQ-5:** Citation signal — n-gram heuristic (M2 v1) vs LLM judge (cost).
   [M2]
 - **OQ-12:** Localhost fallback page for offline prompt entry — which
@@ -2418,6 +2504,7 @@ into its owning ADR above)
 | 052 | 2026-07-22 | v2.9 CURATOR ARCHITECTURE (owner): diagnose deterministically, operate surgically — a curator pass = smart LLM over a deterministic tool set: (1) scripted diagnostic pre-pass (code, not LLM) generates a versioned PALACE HEALTH REPORT (cluster map, dup/contradiction candidates, staleness + never-useful lists, keyword coverage, stats deltas); (2) the agent MUST read the report before intervening; (3) all writes go through deterministic tools (merge_units, add_edge, propose_quarantine, split_unit, …) that mechanically enforce CAS/lineage/queue rules — LLM judgment lives at the verdict layer only, ad-hoc diagnostic calls allowed, free-hand writes never. Curator context assembly acknowledged HARD; the health-report format is a first-class design surface | ACCEPTED |
 | 053 | 2026-07-22 | v2.10 ADR-021 MEMORY WRITE LAW & ATTENTION BUDGET (owner: simple rules; AskUserQuestion: admit-then-curate, branch staging + judge gate, 10% as principle not meter): fire-and-forget saves for build agents (mode-aware — interactive kinds keep the C.6 neighbor dialog); deterministic spine-side triage (hard-dup → reinforcement coalesce — independent re-derivation IS importance signal; near-similar → admit + possible-dup edge stamp feeding the Health Report; distinct → admit); async micro-verdicts never block; ambient extraction rides thread-close/compaction in-context (summary + open loops + ≤5 durable candidates) with verdicts-at-birth on approval-queue cards; 10% memory-attention budget as DESIGN PRINCIPLE (meter only if creep); Symphony rules R1-R5 (all agents save; staging visible own-only — sibling invisibility preserves attempt independence; judge promotes the winning branch + may extract pruned-branch negative results; k-way re-derivation coalesces; deterministic rate cap); `origin_agent` materialized-path lineage id (run_id/root.i.j, generation = depth; schema lands with M3 staging). Rejected: squash-at-write, blocking 409s for build agents, direct mid-run corpus writes, metered budget now | ACCEPTED |
 | 054 | 2026-07-22 | v2.11 PALACE VITALS + LIFECYCLE CLOSURES: (1) owner directive — main-window USAGE GAUGES as viz suite item 5 / first-party rack plugin [M2 basic]: memory lifecycle rates per hour (created/reinforced/superseded/merged/quarantined/tombstoned/add-backs, queue depth, staged), token spend by category per hour (building vs memory tools vs curation vs judge vs extraction — the observability half of the 10% principle; gauges show, never enforce), palace counters; read-only views over existing logs (Invariants 10+14). (2) ADR-021 closures from red-teaming configurations: C1 staged reinforcement holdback (losing branches never inflate corpus stats), C2 queue-aware extraction dedup (repeated compactions don't flood), C3 staging doesn't tick curator_write_trigger, C4 Symphony promotions arrive as judge-ranked per-run digest, C5 signal provenance classes human/judge/passive extending v2.7 hygiene (passive keeps must not drown attended labels), C6 superseded-since-injection marker (no mid-thread yank; ADR-002 stands) | ACCEPTED |
+| 055 | 2026-07-22 | v2.12 EDITOR PASS II — memory lifecycle consolidation (content-preserving, mirroring 041's method): ADR-022 THE CURATORS extracted from ADR-004's v2.7–v2.9 accretions — rot-taxonomy motivation (redundancy/staleness/contradiction/misvaluation), doctrine (surgeons, palace-anchored, triggers, slop, SOPs), architecture (Health Report → verdict layer → deterministic tools), operations (four verdicts, edge overlay, promotion blend), kinships (extractor/judge-gate/shared-palace/seed routing), OQ-4 moved with sharpened earned-autonomy leaning recorded as UNENACTED; ADR-004 retains unit/CAS/tombstone law + pin mechanism and points to ADR-022; problem tree: P1.4 rewritten to the four rots, NEW P1.5 (attention vs capture → ADR-021), P1.6 (lessons from losing timelines → staging), P2.4 (is memory earning its keep → Vitals); MEMORY LIFECYCLE MAP added ahead of ADR-004 (stage → law → milestone; motivation-first reading order for implementing agents); B.3 M3 + D.1 OQ-4 pointers updated. NO semantic change to any decision | ACCEPTED |
 
 ## D.3 Resolved-question index (where each folded)
 
