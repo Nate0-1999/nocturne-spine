@@ -1,6 +1,6 @@
 # NOCTURNE — Harness + Memory Palace Specification
 
-**Version 2.12** (2026-07-22) — EDITOR PASS II (content-preserving): ADR-022 THE CURATORS extracted from ADR-004 accretions; problem tree gains P1.5/P1.6/P2.4; memory lifecycle map (D.2 055). Prior v2.11: PALACE VITALS gauges (lifecycle rates/hr, token spend by category/hr, counters) + ADR-021 lifecycle closures C1-C6 (D.2 054). Prior v2.10: ADR-021 MEMORY WRITE LAW: admit-then-curate, fire-and-forget saves, reinforcement coalescing, 10% attention budget (principle), Symphony staging + judge promotion, origin_agent lineage id (D.2 053). Prior v2.9: CURATOR ARCHITECTURE: deterministic diagnostics → Palace Health Report → LLM verdicts → deterministic write tools (D.2 052). Prior v2.8: CURATOR DOCTRINE: write-count trigger, palace-anchored, surgeons (root-cause, minimal intervention), slop removal, versioned curation SOPs (D.2 051). Prior v2.7: gate-day data + v0.2 proposal adoptions: hybrid candidate retrieval, keywords mandate, training-data hygiene, curator consolidation taxonomy + typed edges, promotion blend, candidate status (D.2 050). Prior v2.6: OQ-17 resolved (roots alpha = selection focus); ADR-019 seed ingestion; nocturne-* remotes + splash repo (D.2 049). Prior v2.5: B.6 rule 8 agent walkthroughs (D.2 048). Prior v2.4: NOCTURNE christened; ADR-019 onboarding; ADR-020 shared Palaces (D.2 046–047). Prior v2.3: broker-routed embeddings (D.2 044). Prior v2.2: themes (D.2 043). Prior v2.1: procedural law (D.2 042). Prior v2.0: EDITOR PASS: content-preserving consolidation of the v1.5–v1.15 organic growth. New/amended law: ADR-012 mode scale, ADR-015 walls, ADR-016 tree, ADR-017 Symphony, ADR-018 Cube+plugins+stack, ADR-007→index, ADR-008 stack resolved; enacted amendments A-001–A-017 folded into Part C (AMENDMENTS.md remains the historical record); D.1 refreshed. Full version lineage: Appendix D.2. Prior v1.4 (2026-07-07) was reorganized from the v0.x iteration transcript;
+**Version 2.13** (2026-07-22) — OQ-4 RESOLVED (curator autonomy earned per verdict class); injection-pressure trigger defined (was "80%-budget"); status normalization → J's charge (D.2 056). Prior v2.12: EDITOR PASS II (content-preserving): ADR-022 THE CURATORS extracted from ADR-004 accretions; problem tree gains P1.5/P1.6/P2.4; memory lifecycle map (D.2 055). Prior v2.11: PALACE VITALS gauges (lifecycle rates/hr, token spend by category/hr, counters) + ADR-021 lifecycle closures C1-C6 (D.2 054). Prior v2.10: ADR-021 MEMORY WRITE LAW: admit-then-curate, fire-and-forget saves, reinforcement coalescing, 10% attention budget (principle), Symphony staging + judge promotion, origin_agent lineage id (D.2 053). Prior v2.9: CURATOR ARCHITECTURE: deterministic diagnostics → Palace Health Report → LLM verdicts → deterministic write tools (D.2 052). Prior v2.8: CURATOR DOCTRINE: write-count trigger, palace-anchored, surgeons (root-cause, minimal intervention), slop removal, versioned curation SOPs (D.2 051). Prior v2.7: gate-day data + v0.2 proposal adoptions: hybrid candidate retrieval, keywords mandate, training-data hygiene, curator consolidation taxonomy + typed edges, promotion blend, candidate status (D.2 050). Prior v2.6: OQ-17 resolved (roots alpha = selection focus); ADR-019 seed ingestion; nocturne-* remotes + splash repo (D.2 049). Prior v2.5: B.6 rule 8 agent walkthroughs (D.2 048). Prior v2.4: NOCTURNE christened; ADR-019 onboarding; ADR-020 shared Palaces (D.2 046–047). Prior v2.3: broker-routed embeddings (D.2 044). Prior v2.2: themes (D.2 043). Prior v2.1: procedural law (D.2 042). Prior v2.0: EDITOR PASS: content-preserving consolidation of the v1.5–v1.15 organic growth. New/amended law: ADR-012 mode scale, ADR-015 walls, ADR-016 tree, ADR-017 Symphony, ADR-018 Cube+plugins+stack, ADR-007→index, ADR-008 stack resolved; enacted amendments A-001–A-017 folded into Part C (AMENDMENTS.md remains the historical record); D.1 refreshed. Full version lineage: Appendix D.2. Prior v1.4 (2026-07-07) was reorganized from the v0.x iteration transcript;
 content-preserving. Audience: implementing agents (via /goal) and the human owner.
 Everything here is binding unless marked OPEN or given a non-accepted status.
 ADR numbers are immutable; superseding requires a new ADR. The chronological
@@ -623,7 +623,8 @@ reconcile.
 - **Memory = per-unit three-way merge**, enabled by atomic units:
   new-on-either-side → union (+ sync-time dedup pass reusing write-time
   similarity machinery); edited-one-side → fast-forward; edited-both →
-  conflict into the same review queue as maintenance merges (OQ-4);
+  conflict into the same review queue as curator merges (ADR-022 autonomy
+  law applies);
   edit-vs-tombstone → review queue.
 - **Logs = union.** Append-only; conflicts impossible.
 - **Learned state = derived, never synced.** After log union, weights are
@@ -1353,7 +1354,11 @@ scorer weight.
   the first M3 era.
 - **Triggers:** every N active-unit writes since the last pass (config
   `curator_write_trigger`, default 25; staged writes don't tick it —
-  ADR-021 C3), plus cron, /maintain_memory, and the 80%-budget trigger.
+  ADR-021 C3), plus cron, /maintain_memory, and INJECTION PRESSURE
+  (defined v2.13; the founding doc's undefined "80%-budget trigger"):
+  when injected blocks saturate ≥80% of the C.3 token budget in ~8 of
+  the last 10 threads, schedule a pass — crowding is a curation signal,
+  measured from injection_event with no new machinery.
 - **Slop removal is curator work:** units that are vague, non-atomic, or
   demonstrably never useful (zero citations plus repeated removals across
   a full era) are proposed for quarantine → tombstone through the same
@@ -1407,11 +1412,20 @@ Combining shared Palaces reuses curator merge machinery wholesale (ADR-020
 clause 4). Seed ingestion's splitters are curator-style workers (ADR-019
 clause 4).
 
-**OPEN (OQ-4):** auto-merge above high similarity vs user-approved queue —
-leaning: auto only above high threshold, queue the rest; sharpened leaning
-(2026-07-22, unenacted): autonomy EARNED per verdict class — queue
-everything in the first era, graduate a class to auto only when human
-approval of that class runs near-unanimous over a real sample.
+**Autonomy (RESOLVED OQ-4, v2.13; D.2 056): EARNED PER VERDICT CLASS.**
+Everything is queued in the first era. Per verdict class (high-similarity
+merge, supersede, staleness demotion, slop quarantine, …) the system
+tracks the human approval rate; a class GRADUATES to auto-execute when
+approval runs near-unanimous over a real sample (guideline: ≥50 decisions
+at ≥98% — constants tunable config, not law). Graduated classes report
+passively — a "curator merged 3 units" line in the Vitals feed, watchable
+never demanding — and DEMOTE back to queued if rejections return.
+CONTRADICTION never graduates: truth calls are never automatic (standing
+operations law). Rationale: subsumes the threshold-split idea (a
+similarity band is just a class), converges to full economy without ever
+ASSERTING trust, is reversible at every step, and mirrors the system's
+founding philosophy — log first, learn second; curators get autonomy the
+way the scorer gets weights.
 
 *Verification (at build time, per B.6):* health report is deterministic
 (same palace state → byte-identical report, double-run diff); a free-hand
@@ -2427,9 +2441,6 @@ start planting without asking where anything is.
 ## D.1 Open questions (all currently open items; everything else is folded
 into its owning ADR above)
 
-- **OQ-4:** Curator dedup merges (ADR-022) — auto-merge above high
-  similarity, queue the rest (leaning; sharpened: autonomy earned per
-  verdict class) vs fully automatic. [decide before M3]
 - **OQ-5:** Citation signal — n-gram heuristic (M2 v1) vs LLM judge (cost).
   [M2]
 - **OQ-12:** Localhost fallback page for offline prompt entry — which
@@ -2505,11 +2516,13 @@ into its owning ADR above)
 | 053 | 2026-07-22 | v2.10 ADR-021 MEMORY WRITE LAW & ATTENTION BUDGET (owner: simple rules; AskUserQuestion: admit-then-curate, branch staging + judge gate, 10% as principle not meter): fire-and-forget saves for build agents (mode-aware — interactive kinds keep the C.6 neighbor dialog); deterministic spine-side triage (hard-dup → reinforcement coalesce — independent re-derivation IS importance signal; near-similar → admit + possible-dup edge stamp feeding the Health Report; distinct → admit); async micro-verdicts never block; ambient extraction rides thread-close/compaction in-context (summary + open loops + ≤5 durable candidates) with verdicts-at-birth on approval-queue cards; 10% memory-attention budget as DESIGN PRINCIPLE (meter only if creep); Symphony rules R1-R5 (all agents save; staging visible own-only — sibling invisibility preserves attempt independence; judge promotes the winning branch + may extract pruned-branch negative results; k-way re-derivation coalesces; deterministic rate cap); `origin_agent` materialized-path lineage id (run_id/root.i.j, generation = depth; schema lands with M3 staging). Rejected: squash-at-write, blocking 409s for build agents, direct mid-run corpus writes, metered budget now | ACCEPTED |
 | 054 | 2026-07-22 | v2.11 PALACE VITALS + LIFECYCLE CLOSURES: (1) owner directive — main-window USAGE GAUGES as viz suite item 5 / first-party rack plugin [M2 basic]: memory lifecycle rates per hour (created/reinforced/superseded/merged/quarantined/tombstoned/add-backs, queue depth, staged), token spend by category per hour (building vs memory tools vs curation vs judge vs extraction — the observability half of the 10% principle; gauges show, never enforce), palace counters; read-only views over existing logs (Invariants 10+14). (2) ADR-021 closures from red-teaming configurations: C1 staged reinforcement holdback (losing branches never inflate corpus stats), C2 queue-aware extraction dedup (repeated compactions don't flood), C3 staging doesn't tick curator_write_trigger, C4 Symphony promotions arrive as judge-ranked per-run digest, C5 signal provenance classes human/judge/passive extending v2.7 hygiene (passive keeps must not drown attended labels), C6 superseded-since-injection marker (no mid-thread yank; ADR-002 stands) | ACCEPTED |
 | 055 | 2026-07-22 | v2.12 EDITOR PASS II — memory lifecycle consolidation (content-preserving, mirroring 041's method): ADR-022 THE CURATORS extracted from ADR-004's v2.7–v2.9 accretions — rot-taxonomy motivation (redundancy/staleness/contradiction/misvaluation), doctrine (surgeons, palace-anchored, triggers, slop, SOPs), architecture (Health Report → verdict layer → deterministic tools), operations (four verdicts, edge overlay, promotion blend), kinships (extractor/judge-gate/shared-palace/seed routing), OQ-4 moved with sharpened earned-autonomy leaning recorded as UNENACTED; ADR-004 retains unit/CAS/tombstone law + pin mechanism and points to ADR-022; problem tree: P1.4 rewritten to the four rots, NEW P1.5 (attention vs capture → ADR-021), P1.6 (lessons from losing timelines → staging), P2.4 (is memory earning its keep → Vitals); MEMORY LIFECYCLE MAP added ahead of ADR-004 (stage → law → milestone; motivation-first reading order for implementing agents); B.3 M3 + D.1 OQ-4 pointers updated. NO semantic change to any decision | ACCEPTED |
+| 056 | 2026-07-22 | v2.13 owner decisions (AskUserQuestion): (1) OQ-4 RESOLVED — curator autonomy EARNED PER VERDICT CLASS: first era queues everything; a class graduates to auto-execute at near-unanimous human approval over a real sample (guideline ≥50 decisions ≥98%, tunable config); graduated classes report passively via Vitals; rejections demote back to queued; CONTRADICTION never graduates (truth never automatic). Subsumes threshold-split; trust earned from the owner's own decision log — curators get autonomy the way the scorer gets weights. (2) the founding doc's undefined "80%-budget trigger" DEFINED as INJECTION PRESSURE: injected blocks saturating ≥80% of the C.3 budget in ~8 of the last 10 threads schedules a curator pass (crowding is a curation signal; measured from injection_event). (3) ADR status normalization delegated to the runtime agent: J's charge gains the duty — judge PROPOSES status updates in its verdict, human gate enacts | ACCEPTED |
 
 ## D.3 Resolved-question index (where each folded)
 
 OQ-1 block placement → ADR-002 · OQ-2 offline mode → ADR-003 · OQ-3 mid-thread
-live reads → ADR-004 · OQ-6 presence transport → ADR-006 · OQ-7 durable
+live reads → ADR-004 · OQ-4 curator autonomy (earned per verdict class) →
+ADR-022 · OQ-6 presence transport → ADR-006 · OQ-7 durable
 execution → ADR-001 · OQ-8 framework → ADR-001 · OQ-9 web command center →
 ADR-008 · OQ-10 M1 slice → B.3 · OQ-11 identity → ADR-008 · OQ-13 pure relay →
 ADR-008 · OQ-16 providers/models → C.5 · OQ-14 repo/product names → 1.0
