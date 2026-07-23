@@ -1,6 +1,6 @@
 # NOCTURNE — Harness + Memory Palace Specification
 
-**Version 2.10** (2026-07-22) — ADR-021 MEMORY WRITE LAW: admit-then-curate, fire-and-forget saves, reinforcement coalescing, 10% attention budget (principle), Symphony staging + judge promotion, origin_agent lineage id (D.2 053). Prior v2.9: CURATOR ARCHITECTURE: deterministic diagnostics → Palace Health Report → LLM verdicts → deterministic write tools (D.2 052). Prior v2.8: CURATOR DOCTRINE: write-count trigger, palace-anchored, surgeons (root-cause, minimal intervention), slop removal, versioned curation SOPs (D.2 051). Prior v2.7: gate-day data + v0.2 proposal adoptions: hybrid candidate retrieval, keywords mandate, training-data hygiene, curator consolidation taxonomy + typed edges, promotion blend, candidate status (D.2 050). Prior v2.6: OQ-17 resolved (roots alpha = selection focus); ADR-019 seed ingestion; nocturne-* remotes + splash repo (D.2 049). Prior v2.5: B.6 rule 8 agent walkthroughs (D.2 048). Prior v2.4: NOCTURNE christened; ADR-019 onboarding; ADR-020 shared Palaces (D.2 046–047). Prior v2.3: broker-routed embeddings (D.2 044). Prior v2.2: themes (D.2 043). Prior v2.1: procedural law (D.2 042). Prior v2.0: EDITOR PASS: content-preserving consolidation of the v1.5–v1.15 organic growth. New/amended law: ADR-012 mode scale, ADR-015 walls, ADR-016 tree, ADR-017 Symphony, ADR-018 Cube+plugins+stack, ADR-007→index, ADR-008 stack resolved; enacted amendments A-001–A-017 folded into Part C (AMENDMENTS.md remains the historical record); D.1 refreshed. Full version lineage: Appendix D.2. Prior v1.4 (2026-07-07) was reorganized from the v0.x iteration transcript;
+**Version 2.11** (2026-07-22) — PALACE VITALS gauges (lifecycle rates/hr, token spend by category/hr, counters) + ADR-021 lifecycle closures C1-C6 (D.2 054). Prior v2.10: ADR-021 MEMORY WRITE LAW: admit-then-curate, fire-and-forget saves, reinforcement coalescing, 10% attention budget (principle), Symphony staging + judge promotion, origin_agent lineage id (D.2 053). Prior v2.9: CURATOR ARCHITECTURE: deterministic diagnostics → Palace Health Report → LLM verdicts → deterministic write tools (D.2 052). Prior v2.8: CURATOR DOCTRINE: write-count trigger, palace-anchored, surgeons (root-cause, minimal intervention), slop removal, versioned curation SOPs (D.2 051). Prior v2.7: gate-day data + v0.2 proposal adoptions: hybrid candidate retrieval, keywords mandate, training-data hygiene, curator consolidation taxonomy + typed edges, promotion blend, candidate status (D.2 050). Prior v2.6: OQ-17 resolved (roots alpha = selection focus); ADR-019 seed ingestion; nocturne-* remotes + splash repo (D.2 049). Prior v2.5: B.6 rule 8 agent walkthroughs (D.2 048). Prior v2.4: NOCTURNE christened; ADR-019 onboarding; ADR-020 shared Palaces (D.2 046–047). Prior v2.3: broker-routed embeddings (D.2 044). Prior v2.2: themes (D.2 043). Prior v2.1: procedural law (D.2 042). Prior v2.0: EDITOR PASS: content-preserving consolidation of the v1.5–v1.15 organic growth. New/amended law: ADR-012 mode scale, ADR-015 walls, ADR-016 tree, ADR-017 Symphony, ADR-018 Cube+plugins+stack, ADR-007→index, ADR-008 stack resolved; enacted amendments A-001–A-017 folded into Part C (AMENDMENTS.md remains the historical record); D.1 refreshed. Full version lineage: Appendix D.2. Prior v1.4 (2026-07-07) was reorganized from the v0.x iteration transcript;
 content-preserving. Audience: implementing agents (via /goal) and the human owner.
 Everything here is binding unless marked OPEN or given a non-accepted status.
 ADR numbers are immutable; superseding requires a new ADR. The chronological
@@ -1300,6 +1300,29 @@ stamps, and provenance-aware curation is the standing mitigation for
 untrusted-content poisoning (an agent that read a hostile page and saved a
 "fact" is traceable to the thread and branch that did it).
 
+**Lifecycle closures (v2.11; found by red-teaming the law across harness
+configurations):**
+- C1. STAGED REINFORCEMENT HOLDBACK: when a staged (mid-run) save
+  hard-collides with a CORPUS unit, the reinforcement event is held in
+  staging and folds into corpus stats only if the branch wins — a losing
+  branch must never inflate corpus importance.
+- C2. QUEUE-AWARE DEDUP: extraction candidates dedup against the corpus
+  AND the pending approval queue — a long thread that compacts five times
+  must not queue five copies of the same lesson.
+- C3. Staged writes do NOT tick `curator_write_trigger`; promotions do
+  (curators scan the corpus, not scratch space).
+- C4. Symphony promotions enter the approval queue as a PER-RUN GROUPED
+  DIGEST, judge-ranked — a big search dumps one reviewable card set, not
+  dozens of stragglers.
+- C5. SIGNAL PROVENANCE CLASSES (extends the v2.7 hygiene rule): every
+  gate/queue event logs its actor class — human / judge / passive — and
+  the Chrysopoeia may weight classes differently (human strongest);
+  unattended-thread passive keeps must never drown attended-thread labels.
+- C6. SUPERSEDED-SINCE-INJECTION: when another machine or a curator
+  supersedes a memory that a live thread already has injected, the block
+  is not yanked mid-thread (ADR-002 stands); the panel/gate marks it
+  "superseded since injection" on next render.
+
 **Rejected:** squash-at-write (the least-informed actor destroying
 information irreversibly; wrong merges cost more than temporary dupes);
 reject-at-write / blocking 409s for build agents (spends capture and
@@ -1354,6 +1377,20 @@ Three named visualizations, all fed by data the spine already logs
    new scorer_config version and activates it; in-place mutation forbidden
    (manual tweaks stay comparable/auditable against learned versions via
    offline replay).
+5. **Palace Vitals — usage gauges** [M2 basic; categories grow with their
+   machinery] (owner directive, v2.11) — main-window gauges, read-only
+   views over logs that already exist (injection_event, memory_revision,
+   run.usage; Invariant 10 — every gauge encodes a real logged variable;
+   Invariant 14 — watchable, never demanding):
+   (a) MEMORY LIFECYCLE RATES per hour: created, reinforced (re-derivation
+   coalesces), superseded, merged, quarantined, tombstoned, add-backs,
+   queue depth (+ staged count during runs);
+   (b) TOKEN SPEND BY CATEGORY per hour: building vs memory tools vs
+   curation vs judge vs extraction — the observability half of ADR-021's
+   10% attention principle (gauges show the ratio; nothing enforces it);
+   (c) PALACE COUNTERS: active units, pinned, candidates pending, edges.
+   Rendered as a first-party rack plugin (ADR-018); themes style it,
+   never re-encode it.
 
 **Mobile:** the SPA is responsive from day one (hard requirement on all M1 UI
 work; gate and chat must be phone-usable). PWA manifest + install flow [M3].
@@ -2380,6 +2417,7 @@ into its owning ADR above)
 | 051 | 2026-07-22 | v2.8 CURATOR DOCTRINE (owner decide-and-declare): curators exist because memories conflict and overlap over time; their job is remediation — deconflict, deduplicate, remove slop. (1) TRIGGER: every N active-unit writes since last pass (config `curator_write_trigger`, default 25), composing with cron + /maintain_memory + 80%-budget; (2) LOCATION: palace-anchored — curators run at the Memory Palace's location (spine-side at scale), the exception that proves the ADR-010 movement law; (3) SURGEONS: minimally invasive, root problem not symptoms, smallest intervention that restores health (edge < edit < merge < rewrite), queue when in doubt; (4) SLOP REMOVAL: vague/non-atomic/never-useful units → quarantine → tombstone via review queue, never hard-deleted; (5) curator ops follow versioned written SOPs (curation counterpart of B.6 rule 8) | ACCEPTED |
 | 052 | 2026-07-22 | v2.9 CURATOR ARCHITECTURE (owner): diagnose deterministically, operate surgically — a curator pass = smart LLM over a deterministic tool set: (1) scripted diagnostic pre-pass (code, not LLM) generates a versioned PALACE HEALTH REPORT (cluster map, dup/contradiction candidates, staleness + never-useful lists, keyword coverage, stats deltas); (2) the agent MUST read the report before intervening; (3) all writes go through deterministic tools (merge_units, add_edge, propose_quarantine, split_unit, …) that mechanically enforce CAS/lineage/queue rules — LLM judgment lives at the verdict layer only, ad-hoc diagnostic calls allowed, free-hand writes never. Curator context assembly acknowledged HARD; the health-report format is a first-class design surface | ACCEPTED |
 | 053 | 2026-07-22 | v2.10 ADR-021 MEMORY WRITE LAW & ATTENTION BUDGET (owner: simple rules; AskUserQuestion: admit-then-curate, branch staging + judge gate, 10% as principle not meter): fire-and-forget saves for build agents (mode-aware — interactive kinds keep the C.6 neighbor dialog); deterministic spine-side triage (hard-dup → reinforcement coalesce — independent re-derivation IS importance signal; near-similar → admit + possible-dup edge stamp feeding the Health Report; distinct → admit); async micro-verdicts never block; ambient extraction rides thread-close/compaction in-context (summary + open loops + ≤5 durable candidates) with verdicts-at-birth on approval-queue cards; 10% memory-attention budget as DESIGN PRINCIPLE (meter only if creep); Symphony rules R1-R5 (all agents save; staging visible own-only — sibling invisibility preserves attempt independence; judge promotes the winning branch + may extract pruned-branch negative results; k-way re-derivation coalesces; deterministic rate cap); `origin_agent` materialized-path lineage id (run_id/root.i.j, generation = depth; schema lands with M3 staging). Rejected: squash-at-write, blocking 409s for build agents, direct mid-run corpus writes, metered budget now | ACCEPTED |
+| 054 | 2026-07-22 | v2.11 PALACE VITALS + LIFECYCLE CLOSURES: (1) owner directive — main-window USAGE GAUGES as viz suite item 5 / first-party rack plugin [M2 basic]: memory lifecycle rates per hour (created/reinforced/superseded/merged/quarantined/tombstoned/add-backs, queue depth, staged), token spend by category per hour (building vs memory tools vs curation vs judge vs extraction — the observability half of the 10% principle; gauges show, never enforce), palace counters; read-only views over existing logs (Invariants 10+14). (2) ADR-021 closures from red-teaming configurations: C1 staged reinforcement holdback (losing branches never inflate corpus stats), C2 queue-aware extraction dedup (repeated compactions don't flood), C3 staging doesn't tick curator_write_trigger, C4 Symphony promotions arrive as judge-ranked per-run digest, C5 signal provenance classes human/judge/passive extending v2.7 hygiene (passive keeps must not drown attended labels), C6 superseded-since-injection marker (no mid-thread yank; ADR-002 stands) | ACCEPTED |
 
 ## D.3 Resolved-question index (where each folded)
 
