@@ -1,6 +1,6 @@
 # NOCTURNE — Harness + Memory Palace Specification
 
-**Version 2.9** (2026-07-22) — CURATOR ARCHITECTURE: deterministic diagnostics → Palace Health Report → LLM verdicts → deterministic write tools (D.2 052). Prior v2.8: CURATOR DOCTRINE: write-count trigger, palace-anchored, surgeons (root-cause, minimal intervention), slop removal, versioned curation SOPs (D.2 051). Prior v2.7: gate-day data + v0.2 proposal adoptions: hybrid candidate retrieval, keywords mandate, training-data hygiene, curator consolidation taxonomy + typed edges, promotion blend, candidate status (D.2 050). Prior v2.6: OQ-17 resolved (roots alpha = selection focus); ADR-019 seed ingestion; nocturne-* remotes + splash repo (D.2 049). Prior v2.5: B.6 rule 8 agent walkthroughs (D.2 048). Prior v2.4: NOCTURNE christened; ADR-019 onboarding; ADR-020 shared Palaces (D.2 046–047). Prior v2.3: broker-routed embeddings (D.2 044). Prior v2.2: themes (D.2 043). Prior v2.1: procedural law (D.2 042). Prior v2.0: EDITOR PASS: content-preserving consolidation of the v1.5–v1.15 organic growth. New/amended law: ADR-012 mode scale, ADR-015 walls, ADR-016 tree, ADR-017 Symphony, ADR-018 Cube+plugins+stack, ADR-007→index, ADR-008 stack resolved; enacted amendments A-001–A-017 folded into Part C (AMENDMENTS.md remains the historical record); D.1 refreshed. Full version lineage: Appendix D.2. Prior v1.4 (2026-07-07) was reorganized from the v0.x iteration transcript;
+**Version 2.10** (2026-07-22) — ADR-021 MEMORY WRITE LAW: admit-then-curate, fire-and-forget saves, reinforcement coalescing, 10% attention budget (principle), Symphony staging + judge promotion, origin_agent lineage id (D.2 053). Prior v2.9: CURATOR ARCHITECTURE: deterministic diagnostics → Palace Health Report → LLM verdicts → deterministic write tools (D.2 052). Prior v2.8: CURATOR DOCTRINE: write-count trigger, palace-anchored, surgeons (root-cause, minimal intervention), slop removal, versioned curation SOPs (D.2 051). Prior v2.7: gate-day data + v0.2 proposal adoptions: hybrid candidate retrieval, keywords mandate, training-data hygiene, curator consolidation taxonomy + typed edges, promotion blend, candidate status (D.2 050). Prior v2.6: OQ-17 resolved (roots alpha = selection focus); ADR-019 seed ingestion; nocturne-* remotes + splash repo (D.2 049). Prior v2.5: B.6 rule 8 agent walkthroughs (D.2 048). Prior v2.4: NOCTURNE christened; ADR-019 onboarding; ADR-020 shared Palaces (D.2 046–047). Prior v2.3: broker-routed embeddings (D.2 044). Prior v2.2: themes (D.2 043). Prior v2.1: procedural law (D.2 042). Prior v2.0: EDITOR PASS: content-preserving consolidation of the v1.5–v1.15 organic growth. New/amended law: ADR-012 mode scale, ADR-015 walls, ADR-016 tree, ADR-017 Symphony, ADR-018 Cube+plugins+stack, ADR-007→index, ADR-008 stack resolved; enacted amendments A-001–A-017 folded into Part C (AMENDMENTS.md remains the historical record); D.1 refreshed. Full version lineage: Appendix D.2. Prior v1.4 (2026-07-07) was reorganized from the v0.x iteration transcript;
 content-preserving. Audience: implementing agents (via /goal) and the human owner.
 Everything here is binding unless marked OPEN or given a non-accepted status.
 ADR numbers are immutable; superseding requires a new ADR. The chronological
@@ -1216,6 +1216,103 @@ to the source revision; revoke → tombstone hides it from the union
 without touching the original; two overlapping contributions → dedup
 band fires; gate cards show contributor provenance.
 
+### ADR-021 — Memory write law & the attention budget
+
+**Status: ACCEPTED (2026-07-22; D.2 053)** — governs how memories are BORN
+when agents (not humans) write them, and what memory management may cost a
+working agent. Owner doctrine: err on the side of simple rules.
+
+**Motivation.** At write time three goods compete: CAPTURE (never lose a
+lesson an agent spent real compute earning), ATTENTION (a build agent's
+context belongs to the build), and TRUTH (a deduplicated, consistent
+palace). Only truth is deferrable: an admitted duplicate costs fractions of
+a cent and mild scoring noise until a curator reconciles it; a lost lesson
+or a burned context window is unrecoverable. And the writer is the
+least-informed actor in the system about the corpus (it has thread context,
+not citation history or lineage) — so it must never operate on the corpus.
+This asymmetry decides everything below.
+
+**Decision — admit-then-curate:**
+1. **Fire-and-forget saves for build agents.** save_memory costs the agent
+   its output tokens and a one-line ack, nothing else. No neighbor reading,
+   no blocking dialogs, no 409 dance. Mode-aware surface (ADR-012): 
+   interactive/chat kinds keep the richer C.6 neighbor dialog
+   (edit-over-create); build/conduct kinds get fire-and-forget.
+2. **Deterministic spine-side triage at the door** (no LLM in the write
+   path): hard-duplicate → COALESCE AS REINFORCEMENT — no new unit; the
+   existing unit's stats record an independent re-derivation (an importance
+   signal feeding f_freq and the M3 promotion blend; the collision IS the
+   signal). Near-similar band → ADMIT the unit and auto-stamp a
+   `possible-dup` typed edge to its neighbors — pre-populating the Palace
+   Health Report's duplicate-candidates list (curator food). Distinct →
+   admit clean.
+3. **Async micro-verdicts never block.** A cheap spine-side model MAY later
+   upgrade stamps to queued merge/supersede proposals (curator taxonomy);
+   the writer is never waiting.
+4. **Birth-time deconfliction for ambient extraction (M2).** Extraction
+   rides the thread-close/compaction moment IN-CONTEXT — the closing model
+   emits three outputs: working summary, open loops, durable memory
+   candidates (≤5 per thread, atomic, keyworded) — with a cheap-model
+   fallback pass for threads that die unclosed. Candidates flow through the
+   standard create/dedup pipeline; each approval-queue card shows the
+   candidate, its machine-fetched neighbors, and an extractor-proposed
+   verdict (new / merge / supersede / contradict); approving enacts the
+   verdict. The extractor and the curator are the same role at different
+   moments with opposite blind spots (thread context vs corpus context) —
+   same taxonomy, same tools, complementary vision.
+5. **The 10% attention budget (DESIGN PRINCIPLE).** A build agent spends at
+   most ~10% of thread tokens on memory: the injected block (≤5% via C.3),
+   tool traffic (near-zero under fire-and-forget), optional search_memory
+   pulls. Not yet a metered invariant (owner call, D.2 053) — but every
+   memory-facing design decision is tested against it: injection stays PUSH
+   (the gate curates; the agent never shops), saves stay fire-and-forget,
+   and no build agent ever blocks on a memory dialog. Revisit metering
+   (run.usage per-agent %) if memory creep appears.
+
+**Multi-agent write rules (Symphony / sub-agents; owner's simple rules):**
+- R1. ALL agents may save memories, always fire-and-forget.
+- R2. While sub-agents/attempts are active their saves are STAGED, not
+  corpus: search and injection see the long-term corpus PLUS the agent's
+  OWN staged additions only. Sibling staging is invisible (attempt
+  independence — judge-panel diversity is never contaminated mid-run).
+- R3. At run close the JUDGE is the memory gate (the agent-side mirror of
+  the human gate): the WINNING agent's staged memories promote to the
+  long-term corpus through the standard birth pipeline (triage, stamps,
+  queue). The judge may additionally extract negative-result lessons from
+  pruned branches ("approach X fails because Y" — the most reusable
+  artifact a search produces) as part of its verdict duties. Unpromoted
+  staging is archived with the run — never deleted, never corpus.
+- R4. Identical lessons re-derived by k branches coalesce at promotion as
+  k-way reinforcement (rule 2 of the triage, applied across branches).
+- R5. Deterministic per-thread save rate cap (spine-side) against memory
+  storms; excess is staged and flagged for curator review — data is never
+  dropped, attention is never spent.
+
+**Provenance — the constructed agent id.** Memory birth records gain
+`origin_agent`: a materialized-path lineage id `run_id/root[.i[.j…]]`
+(premiere = `root`, its attempt 3 = `root.3`, that attempt's sub-agent 1 =
+`root.3.1`; generation = path depth). Own-staging visibility is an exact
+match; promoting a winning branch is a prefix match; audits walk the
+subtree with LIKE — the parent-pointer shape, materialized as a string.
+Schema lands with the M3 staging migration (C.2 unchanged until then).
+origin_agent joins machine_id/editor/thread_origin/origin_path as birth
+stamps, and provenance-aware curation is the standing mitigation for
+untrusted-content poisoning (an agent that read a hostile page and saved a
+"fact" is traceable to the thread and branch that did it).
+
+**Rejected:** squash-at-write (the least-informed actor destroying
+information irreversibly; wrong merges cost more than temporary dupes);
+reject-at-write / blocking 409s for build agents (spends capture and
+attention to buy deferrable truth); direct mid-run corpus writes from
+attempts (counterfactual pollution from losing branches + independence
+breakage); a metered budget invariant now (principle first, meter if creep).
+*Verification (at build time):* build-agent save returns in one round-trip
+with no neighbor payload; hard-dup save increments stats without creating a
+unit; near-similar save lands with a possible-dup edge visible in the next
+health report; staged sibling memories never appear in each other's search
+or injection; judge promotion moves only the winning prefix; rate-cap
+excess lands staged+flagged, not dropped.
+
 ### ADR-006 — Presence
 
 **Status: PROPOSED**
@@ -1320,7 +1417,9 @@ arrives). Full build spec: Part C.
 ADR-005 table (with the v2.7 training-data hygiene filter); scorer versioning
 + offline replay + rollback; per-feature
 contribution bars in gate; citation heuristic; end-of-thread extraction with
-approval queue; markdown SEED INGESTION (upload → curator split →
+approval queue (per ADR-021: rides thread-close/compaction in-context —
+three outputs — with verdicts-at-birth on queue cards, ≤5 candidates/thread,
+cheap-model fallback for unclosed threads); markdown SEED INGESTION (upload → curator split →
 approval queue — ADR-019 clause 4); HYBRID CANDIDATE RETRIEVAL (v2.7): the
 candidate pool becomes the UNION of vector top-50 and Postgres full-text
 search matches — an exact-keyword memory with a weak embedding must be able
@@ -1371,6 +1470,7 @@ OFF = later milestone; FORB = forbidden — flag if seemingly needed.
 | Citation heuristic | OFF | ON | ON | ON |
 | Cloud relay (multi-machine) | FORB* | OFF | ON | ON |
 | Subagents, queue/interjection | OFF | OFF | ON | ON |
+| Branch memory staging + judge promotion (ADR-021) | FORB | FORB | ON | ON |
 | Maintenance agent (cluster/dedup/promote/stale) | FORB | OFF | ON | ON |
 | Pin-promotion by frequency | SCHEMA | OFF | ON | ON |
 | Ant Farm + presence pipeline | SCHEMA | OFF | ON | ON |
@@ -2279,6 +2379,7 @@ into its owning ADR above)
 | 050 | 2026-07-22 | v2.7 GATE-DAY DATA + v0.2 PROPOSAL ADOPTIONS (live Palace audit + owner's Code-Puppy v0.2 sheet review; notes/scorer-evolution.md): (1) HYBRID CANDIDATE RETRIEVAL — M2 candidate pool = vector top-50 ∪ Postgres FTS matches (exact-keyword memories with weak embeddings must reach the scorer); (2) KEYWORDS MANDATE — C.6 agent instructions require 2-5 keywords per save; /remember generates label AND keywords in one completion (live data showed keyword-less units handicapped on f_kw); (3) TRAINING-DATA HYGIENE — Chrysopoeia learning/replay excludes verification/test principals (H5 fixtures observed in the live log); (4) curator CONSOLIDATION TAXONOMY merge/new/contradict/supersede + TYPED EDGE OVERLAY (1-hop, never first-pass retrieval); (5) M3 promotion blends reuse/stability/manual — never raw frequency; (6) formal `candidate` status for approval-queue units. Rejected from v0.2: questionnaire tuning (Invariant 14 — gate signals collect the same passively), SQLite local-first, discrete path-multiplier ladder (continuous f_loc superior). Entity/importance axes routed to the agentic-axes replay pipeline (notes) | ACCEPTED |
 | 051 | 2026-07-22 | v2.8 CURATOR DOCTRINE (owner decide-and-declare): curators exist because memories conflict and overlap over time; their job is remediation — deconflict, deduplicate, remove slop. (1) TRIGGER: every N active-unit writes since last pass (config `curator_write_trigger`, default 25), composing with cron + /maintain_memory + 80%-budget; (2) LOCATION: palace-anchored — curators run at the Memory Palace's location (spine-side at scale), the exception that proves the ADR-010 movement law; (3) SURGEONS: minimally invasive, root problem not symptoms, smallest intervention that restores health (edge < edit < merge < rewrite), queue when in doubt; (4) SLOP REMOVAL: vague/non-atomic/never-useful units → quarantine → tombstone via review queue, never hard-deleted; (5) curator ops follow versioned written SOPs (curation counterpart of B.6 rule 8) | ACCEPTED |
 | 052 | 2026-07-22 | v2.9 CURATOR ARCHITECTURE (owner): diagnose deterministically, operate surgically — a curator pass = smart LLM over a deterministic tool set: (1) scripted diagnostic pre-pass (code, not LLM) generates a versioned PALACE HEALTH REPORT (cluster map, dup/contradiction candidates, staleness + never-useful lists, keyword coverage, stats deltas); (2) the agent MUST read the report before intervening; (3) all writes go through deterministic tools (merge_units, add_edge, propose_quarantine, split_unit, …) that mechanically enforce CAS/lineage/queue rules — LLM judgment lives at the verdict layer only, ad-hoc diagnostic calls allowed, free-hand writes never. Curator context assembly acknowledged HARD; the health-report format is a first-class design surface | ACCEPTED |
+| 053 | 2026-07-22 | v2.10 ADR-021 MEMORY WRITE LAW & ATTENTION BUDGET (owner: simple rules; AskUserQuestion: admit-then-curate, branch staging + judge gate, 10% as principle not meter): fire-and-forget saves for build agents (mode-aware — interactive kinds keep the C.6 neighbor dialog); deterministic spine-side triage (hard-dup → reinforcement coalesce — independent re-derivation IS importance signal; near-similar → admit + possible-dup edge stamp feeding the Health Report; distinct → admit); async micro-verdicts never block; ambient extraction rides thread-close/compaction in-context (summary + open loops + ≤5 durable candidates) with verdicts-at-birth on approval-queue cards; 10% memory-attention budget as DESIGN PRINCIPLE (meter only if creep); Symphony rules R1-R5 (all agents save; staging visible own-only — sibling invisibility preserves attempt independence; judge promotes the winning branch + may extract pruned-branch negative results; k-way re-derivation coalesces; deterministic rate cap); `origin_agent` materialized-path lineage id (run_id/root.i.j, generation = depth; schema lands with M3 staging). Rejected: squash-at-write, blocking 409s for build agents, direct mid-run corpus writes, metered budget now | ACCEPTED |
 
 ## D.3 Resolved-question index (where each folded)
 
