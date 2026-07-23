@@ -1,6 +1,6 @@
 # NOCTURNE — Harness + Memory Palace Specification
 
-**Version 2.7** (2026-07-22) — gate-day data + v0.2 proposal adoptions: hybrid candidate retrieval, keywords mandate, training-data hygiene, curator consolidation taxonomy + typed edges, promotion blend, candidate status (D.2 050). Prior v2.6: OQ-17 resolved (roots alpha = selection focus); ADR-019 seed ingestion; nocturne-* remotes + splash repo (D.2 049). Prior v2.5: B.6 rule 8 agent walkthroughs (D.2 048). Prior v2.4: NOCTURNE christened; ADR-019 onboarding; ADR-020 shared Palaces (D.2 046–047). Prior v2.3: broker-routed embeddings (D.2 044). Prior v2.2: themes (D.2 043). Prior v2.1: procedural law (D.2 042). Prior v2.0: EDITOR PASS: content-preserving consolidation of the v1.5–v1.15 organic growth. New/amended law: ADR-012 mode scale, ADR-015 walls, ADR-016 tree, ADR-017 Symphony, ADR-018 Cube+plugins+stack, ADR-007→index, ADR-008 stack resolved; enacted amendments A-001–A-017 folded into Part C (AMENDMENTS.md remains the historical record); D.1 refreshed. Full version lineage: Appendix D.2. Prior v1.4 (2026-07-07) was reorganized from the v0.x iteration transcript;
+**Version 2.8** (2026-07-22) — CURATOR DOCTRINE: write-count trigger, palace-anchored, surgeons (root-cause, minimal intervention), slop removal, versioned curation SOPs (D.2 051). Prior v2.7: gate-day data + v0.2 proposal adoptions: hybrid candidate retrieval, keywords mandate, training-data hygiene, curator consolidation taxonomy + typed edges, promotion blend, candidate status (D.2 050). Prior v2.6: OQ-17 resolved (roots alpha = selection focus); ADR-019 seed ingestion; nocturne-* remotes + splash repo (D.2 049). Prior v2.5: B.6 rule 8 agent walkthroughs (D.2 048). Prior v2.4: NOCTURNE christened; ADR-019 onboarding; ADR-020 shared Palaces (D.2 046–047). Prior v2.3: broker-routed embeddings (D.2 044). Prior v2.2: themes (D.2 043). Prior v2.1: procedural law (D.2 042). Prior v2.0: EDITOR PASS: content-preserving consolidation of the v1.5–v1.15 organic growth. New/amended law: ADR-012 mode scale, ADR-015 walls, ADR-016 tree, ADR-017 Symphony, ADR-018 Cube+plugins+stack, ADR-007→index, ADR-008 stack resolved; enacted amendments A-001–A-017 folded into Part C (AMENDMENTS.md remains the historical record); D.1 refreshed. Full version lineage: Appendix D.2. Prior v1.4 (2026-07-07) was reorganized from the v0.x iteration transcript;
 content-preserving. Audience: implementing agents (via /goal) and the human owner.
 Everything here is binding unless marked OPEN or given a non-accepted status.
 ADR numbers are immutable; superseding requires a new ADR. The chronological
@@ -503,7 +503,9 @@ the log), stability (survives revisions/time), and manual signal (pins,
 add-backs) — never raw injection frequency alone (frequency alone promotes
 nonsense; v2.7).
 
-**Maintenance (M3; cron + /maintain_memory + 80%-budget trigger):** semantic
+**Maintenance (M3; triggers, v2.8: every N active-unit writes since the last
+pass — config `curator_write_trigger`, default 25 — plus cron,
+/maintain_memory, and the 80%-budget trigger):** semantic
 clustering over embeddings → consolidation proposals with a four-verdict
 taxonomy (v2.7): **merge** (new unit with `merged_from` lineage, sources
 tombstoned), **new** (keep separate), **contradict** (two active memories
@@ -514,6 +516,23 @@ may maintain a TYPED EDGE OVERLAY (supersedes / contradicts / relates-to)
 as rows in the same database — used for 1-hop expansion during consolidation
 and audit, never as first-pass retrieval (graph is an overlay, not the
 architecture). Runs as its own agent under the same CAS rules.
+
+Curator doctrine (owner, v2.8): curators are PALACE-ANCHORED — the exception
+that proves the ADR-010 movement law: their work IS the palace, so they run
+at the palace's location (spine-side scheduled job at scale; local
+/maintain_memory acceptable in the first M3 era). Curators are **SURGEONS**:
+minimally invasive, targeting the ROOT problem and letting the system sort
+out the symptoms (supersede the bad seed memory, don't patch each conflicting
+derivative); prefer the smallest intervention that restores health — a typed
+edge over an edit, an edit over a merge, a merge over a rewrite; when in
+doubt, queue rather than cut. **SLOP REMOVAL is curator work:** units that
+are vague, non-atomic, or demonstrably never useful (zero citations plus
+repeated removals across a full era) are proposed for quarantine → tombstone
+through the same review queue — never hard-deleted (append-only law).
+Curator operations follow WRITTEN STANDARD PROCEDURES — versioned SOP
+documents (the curation counterpart of B.6 rule 8) so every pass is
+auditable against its procedure and procedure changes are reviewable
+diffs, not prompt drift.
 OPEN (OQ-4): auto-merge above high similarity vs user-approved queue —
 leaning: auto only above high threshold, queue the rest.
 
@@ -2244,6 +2263,7 @@ into its owning ADR above)
 | 048 | 2026-07-21 | v2.5 B.6 rule 8 AGENT WALKTHROUGHS (SOPs for agents): every UI packet also executes a written human-style SOP live through interactive browser use — look, click, type, observe, judge, first person — with per-step screenshots + prose observations in verification/<packet>/SOP.md, a mandatory unscripted exploration segment, defects → Blight, design friction → human gate, and judges RE-EXECUTING SOPs at I1/J. Explicitly NOT dischargeable by scripts (rule 7 proves regressions; rule 8 proves experience). Owner's framing: traditional SOPs for humans, performed by agents | ACCEPTED |
 | 049 | 2026-07-21 | v2.6 owner decisions: OQ-17 resolved — the Roots alpha channel encodes SELECTION FOCUS (selected full, others dimmed-but-present, floor 0.25), never expected value; ADR-019 clause 4 SEED INGESTION (markdown upload → curator split → approval queue; M2) so cold start is product surface; remotes renamed to the nocturne-* family with a new `nocturne` splash repo as the single new-user front door | ACCEPTED |
 | 050 | 2026-07-22 | v2.7 GATE-DAY DATA + v0.2 PROPOSAL ADOPTIONS (live Palace audit + owner's Code-Puppy v0.2 sheet review; notes/scorer-evolution.md): (1) HYBRID CANDIDATE RETRIEVAL — M2 candidate pool = vector top-50 ∪ Postgres FTS matches (exact-keyword memories with weak embeddings must reach the scorer); (2) KEYWORDS MANDATE — C.6 agent instructions require 2-5 keywords per save; /remember generates label AND keywords in one completion (live data showed keyword-less units handicapped on f_kw); (3) TRAINING-DATA HYGIENE — Chrysopoeia learning/replay excludes verification/test principals (H5 fixtures observed in the live log); (4) curator CONSOLIDATION TAXONOMY merge/new/contradict/supersede + TYPED EDGE OVERLAY (1-hop, never first-pass retrieval); (5) M3 promotion blends reuse/stability/manual — never raw frequency; (6) formal `candidate` status for approval-queue units. Rejected from v0.2: questionnaire tuning (Invariant 14 — gate signals collect the same passively), SQLite local-first, discrete path-multiplier ladder (continuous f_loc superior). Entity/importance axes routed to the agentic-axes replay pipeline (notes) | ACCEPTED |
+| 051 | 2026-07-22 | v2.8 CURATOR DOCTRINE (owner decide-and-declare): curators exist because memories conflict and overlap over time; their job is remediation — deconflict, deduplicate, remove slop. (1) TRIGGER: every N active-unit writes since last pass (config `curator_write_trigger`, default 25), composing with cron + /maintain_memory + 80%-budget; (2) LOCATION: palace-anchored — curators run at the Memory Palace's location (spine-side at scale), the exception that proves the ADR-010 movement law; (3) SURGEONS: minimally invasive, root problem not symptoms, smallest intervention that restores health (edge < edit < merge < rewrite), queue when in doubt; (4) SLOP REMOVAL: vague/non-atomic/never-useful units → quarantine → tombstone via review queue, never hard-deleted; (5) curator ops follow versioned written SOPs (curation counterpart of B.6 rule 8) | ACCEPTED |
 
 ## D.3 Resolved-question index (where each folded)
 
