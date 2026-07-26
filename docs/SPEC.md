@@ -1,6 +1,6 @@
 # NOCTURNE — Harness + Memory Palace Specification
 
-**Version 2.14** (2026-07-22) — flow-walkthrough closures: reinforcement in every mode, candidate invisibility, rejection-as-signal, anti-nag law, pin overflow (D.2 057). Prior v2.13: OQ-4 RESOLVED (curator autonomy earned per verdict class); injection-pressure trigger defined (was "80%-budget"); status normalization → J's charge (D.2 056). Prior v2.12: EDITOR PASS II (content-preserving): ADR-022 THE CURATORS extracted from ADR-004 accretions; problem tree gains P1.5/P1.6/P2.4; memory lifecycle map (D.2 055). Prior v2.11: PALACE VITALS gauges (lifecycle rates/hr, token spend by category/hr, counters) + ADR-021 lifecycle closures C1-C6 (D.2 054). Prior v2.10: ADR-021 MEMORY WRITE LAW: admit-then-curate, fire-and-forget saves, reinforcement coalescing, 10% attention budget (principle), Symphony staging + judge promotion, origin_agent lineage id (D.2 053). Prior v2.9: CURATOR ARCHITECTURE: deterministic diagnostics → Palace Health Report → LLM verdicts → deterministic write tools (D.2 052). Prior v2.8: CURATOR DOCTRINE: write-count trigger, palace-anchored, surgeons (root-cause, minimal intervention), slop removal, versioned curation SOPs (D.2 051). Prior v2.7: gate-day data + v0.2 proposal adoptions: hybrid candidate retrieval, keywords mandate, training-data hygiene, curator consolidation taxonomy + typed edges, promotion blend, candidate status (D.2 050). Prior v2.6: OQ-17 resolved (roots alpha = selection focus); ADR-019 seed ingestion; nocturne-* remotes + splash repo (D.2 049). Prior v2.5: B.6 rule 8 agent walkthroughs (D.2 048). Prior v2.4: NOCTURNE christened; ADR-019 onboarding; ADR-020 shared Palaces (D.2 046–047). Prior v2.3: broker-routed embeddings (D.2 044). Prior v2.2: themes (D.2 043). Prior v2.1: procedural law (D.2 042). Prior v2.0: EDITOR PASS: content-preserving consolidation of the v1.5–v1.15 organic growth. New/amended law: ADR-012 mode scale, ADR-015 walls, ADR-016 tree, ADR-017 Symphony, ADR-018 Cube+plugins+stack, ADR-007→index, ADR-008 stack resolved; enacted amendments A-001–A-017 folded into Part C (AMENDMENTS.md remains the historical record); D.1 refreshed. Full version lineage: Appendix D.2. Prior v1.4 (2026-07-07) was reorganized from the v0.x iteration transcript;
+**Version 2.15** (2026-07-22) — B.6 rule 9 SCOUT-BEFORE-OWNER (relay self-routes to scout at human gates) + ADR-022 split law (semantic, lineaged, never summarized) (D.2 058). Prior v2.14: flow-walkthrough closures: reinforcement in every mode, candidate invisibility, rejection-as-signal, anti-nag law, pin overflow (D.2 057). Prior v2.13: OQ-4 RESOLVED (curator autonomy earned per verdict class); injection-pressure trigger defined (was "80%-budget"); status normalization → J's charge (D.2 056). Prior v2.12: EDITOR PASS II (content-preserving): ADR-022 THE CURATORS extracted from ADR-004 accretions; problem tree gains P1.5/P1.6/P2.4; memory lifecycle map (D.2 055). Prior v2.11: PALACE VITALS gauges (lifecycle rates/hr, token spend by category/hr, counters) + ADR-021 lifecycle closures C1-C6 (D.2 054). Prior v2.10: ADR-021 MEMORY WRITE LAW: admit-then-curate, fire-and-forget saves, reinforcement coalescing, 10% attention budget (principle), Symphony staging + judge promotion, origin_agent lineage id (D.2 053). Prior v2.9: CURATOR ARCHITECTURE: deterministic diagnostics → Palace Health Report → LLM verdicts → deterministic write tools (D.2 052). Prior v2.8: CURATOR DOCTRINE: write-count trigger, palace-anchored, surgeons (root-cause, minimal intervention), slop removal, versioned curation SOPs (D.2 051). Prior v2.7: gate-day data + v0.2 proposal adoptions: hybrid candidate retrieval, keywords mandate, training-data hygiene, curator consolidation taxonomy + typed edges, promotion blend, candidate status (D.2 050). Prior v2.6: OQ-17 resolved (roots alpha = selection focus); ADR-019 seed ingestion; nocturne-* remotes + splash repo (D.2 049). Prior v2.5: B.6 rule 8 agent walkthroughs (D.2 048). Prior v2.4: NOCTURNE christened; ADR-019 onboarding; ADR-020 shared Palaces (D.2 046–047). Prior v2.3: broker-routed embeddings (D.2 044). Prior v2.2: themes (D.2 043). Prior v2.1: procedural law (D.2 042). Prior v2.0: EDITOR PASS: content-preserving consolidation of the v1.5–v1.15 organic growth. New/amended law: ADR-012 mode scale, ADR-015 walls, ADR-016 tree, ADR-017 Symphony, ADR-018 Cube+plugins+stack, ADR-007→index, ADR-008 stack resolved; enacted amendments A-001–A-017 folded into Part C (AMENDMENTS.md remains the historical record); D.1 refreshed. Full version lineage: Appendix D.2. Prior v1.4 (2026-07-07) was reorganized from the v0.x iteration transcript;
 content-preserving. Audience: implementing agents (via /goal) and the human owner.
 Everything here is binding unless marked OPEN or given a non-accepted status.
 ADR numbers are immutable; superseding requires a new ADR. The chronological
@@ -1418,6 +1418,25 @@ architecture). Curators run as their own agent (editor='maintenance')
 under the same CAS rules as every writer; their actions log with actor
 class per ADR-021 C5 and never masquerade as human preference signal.
 
+**Splitting (v2.15) — semantic, lineaged, never summarized.** Splits
+happen at three doors, always agentically: the WRITER at save time (C.6:
+split before saving — it holds the context to split well), the seed
+SPLITTERS at ingestion (ADR-019 clause 4), and curators via split_unit.
+Split points are SEMANTIC, never mechanical token-chopping: each
+resulting unit must stand alone — one claim, independently
+comprehensible (no unresolved references), independently retrievable
+(its own label and keywords). Summarizing to fit the cap is FORBIDDEN
+(decision 015: information loss chosen at the least-informed moment).
+LINEAGE: a split is copy-with-lineage times N — each child's first
+revision carries parent_uid → the source revision (the same mechanism as
+merged_from and ADR-020 contribution), siblings are auto-stamped
+relates-to edges (they were one memory; co-relevance is likely), and the
+source is tombstoned-as-split RETAINING its stats history (children
+start fresh and earn their own — history is preserved in lineage, never
+copied as unearned importance). Split families are visible in the Health
+Report and to the scorer's future sibling-aware features; the algorithm
+and curators can always see that one memory became many.
+
 **Kinships (routing, no new law):** the birth-time extractor is this same
 role at a different moment with the opposite blind spot — thread context
 without corpus context (ADR-021 clause 4; same taxonomy, same tools). The
@@ -1713,6 +1732,25 @@ acceptance criterion — never merely when code exists or unit tests pass.
    surfaced to the human gate in the handoff; (d) the judge RE-EXECUTES
    the packet SOPs at I1/J rather than only reading their logs. The
    agent's eyes on the rendered pixels are the point.
+9. **Scout before owner (v2.15; D.2 058).** The owner's attention is the
+   scarcest resource in the system — Invariant 14 applies to it above all.
+   Therefore every HUMAN gate (a HUMAN packet, a human-use hold, any
+   future gate day or benchmark) is PRECEDED by an agent SCOUT pass, as
+   the DEFAULT relay behavior (PLAN Section 3 dispatches it — the owner
+   fires the same one-line relay kickoff and the session self-routes):
+   the scout opens the harness in the browser and uses it exactly as the
+   owner would (rule 8 discipline: look, click, type, observe, first
+   person), executing the gate's checklist; classifies every item
+   PASS / FAIL / NEEDS-TASTE; burns down the easy passes with evidence;
+   surfaces FAILs for owner consultation (Blight/flag) and lists
+   NEEDS-TASTE items for the owner's personal session. Scouts run under a
+   verification principal (machine_id '<gate>-sop-verification') so their
+   events are hygiene-excluded from learning (v2.7/C5 — an agent's taps
+   must never impersonate the owner's signal), and tombstone every
+   fixture they create. THE SCOUT NEVER CLEARS THE GATE — mechanics can
+   be delegated; taste and authentic training signal cannot. The owner's
+   session is reserved for real use, feel judgments, and the signal only
+   a human hand generates.
 
 ---
 ---
@@ -2537,6 +2575,7 @@ into its owning ADR above)
 | 055 | 2026-07-22 | v2.12 EDITOR PASS II — memory lifecycle consolidation (content-preserving, mirroring 041's method): ADR-022 THE CURATORS extracted from ADR-004's v2.7–v2.9 accretions — rot-taxonomy motivation (redundancy/staleness/contradiction/misvaluation), doctrine (surgeons, palace-anchored, triggers, slop, SOPs), architecture (Health Report → verdict layer → deterministic tools), operations (four verdicts, edge overlay, promotion blend), kinships (extractor/judge-gate/shared-palace/seed routing), OQ-4 moved with sharpened earned-autonomy leaning recorded as UNENACTED; ADR-004 retains unit/CAS/tombstone law + pin mechanism and points to ADR-022; problem tree: P1.4 rewritten to the four rots, NEW P1.5 (attention vs capture → ADR-021), P1.6 (lessons from losing timelines → staging), P2.4 (is memory earning its keep → Vitals); MEMORY LIFECYCLE MAP added ahead of ADR-004 (stage → law → milestone; motivation-first reading order for implementing agents); B.3 M3 + D.1 OQ-4 pointers updated. NO semantic change to any decision | ACCEPTED |
 | 056 | 2026-07-22 | v2.13 owner decisions (AskUserQuestion): (1) OQ-4 RESOLVED — curator autonomy EARNED PER VERDICT CLASS: first era queues everything; a class graduates to auto-execute at near-unanimous human approval over a real sample (guideline ≥50 decisions ≥98%, tunable config); graduated classes report passively via Vitals; rejections demote back to queued; CONTRADICTION never graduates (truth never automatic). Subsumes threshold-split; trust earned from the owner's own decision log — curators get autonomy the way the scorer gets weights. (2) the founding doc's undefined "80%-budget trigger" DEFINED as INJECTION PRESSURE: injected blocks saturating ≥80% of the C.3 budget in ~8 of the last 10 threads schedules a curator pass (crowding is a curation signal; measured from injection_event). (3) ADR status normalization delegated to the runtime agent: J's charge gains the duty — judge PROPOSES status updates in its verdict, human gate enacts | ACCEPTED |
 | 057 | 2026-07-22 | v2.14 FLOW-WALKTHROUGH CLOSURES (message-sequence audit of every memory flow): (1) reinforcement stats bump fires in EVERY mode — mode changes what the agent sees, never what the log learns; /remember hard-dup confirms "already known — reinforced", never errors; (2) CANDIDATE-status units invisible to injection and search until approved — an unapproved candidate must never shape an agent; (3) rejected queue candidates tombstoned-as-rejected + logged (human actor class) — rejection is extraction-quality signal, never silent discard; (4) ANTI-NAG LAW — rejected curator proposals are remembered (rejection record read by the health report); no re-proposal without material change (new revision on an implicated unit); re-asking answered questions violates Invariant 14; (5) PIN OVERFLOW — pins exempt from budget cap (explicit human intent outranks it), overflow injects whole, surfaced in Vitals + ticks injection pressure, never silent truncation. Horizon holes noted (unlawed, dormant): embedding-model migration/re-embedding, archival tiers at scale, palace export/portability | ACCEPTED |
+| 058 | 2026-07-22 | v2.15 SCOUT-BEFORE-OWNER + SPLIT LAW (owner decide-and-declare): (1) B.6 rule 9 — every HUMAN gate is preceded by an agent SCOUT pass as DEFAULT relay behavior; PLAN Section 3 gains the SCOUT role (priority 3) so the owner's one-line relay kickoff self-routes: scout opens the harness in the browser and uses it as the owner would (rule 8 discipline), executes the gate checklist, classifies PASS/FAIL/NEEDS-TASTE, burns down passes with evidence, escalates FAILs for owner consultation; verification principal '<gate>-sop-verification' (hygiene-excluded), fixtures tombstoned, no re-scouting unchanged ground; the scout NEVER clears the gate — taste and authentic training signal cannot be delegated. (2) ADR-022 SPLITTING law — splits are semantic (each child stands alone: one claim, own label/keywords), never mechanical chopping, summarize-to-fit FORBIDDEN (decision 015); lineage = copy-with-lineage ×N (child parent_uid → source revision, same mechanism as merged_from/ADR-020), siblings auto-stamped relates-to, source tombstoned-as-split retaining stats history, children earn fresh stats; split families visible to Health Report + future sibling-aware scorer features | ACCEPTED |
 
 ## D.3 Resolved-question index (where each folded)
 
