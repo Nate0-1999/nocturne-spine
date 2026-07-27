@@ -320,9 +320,7 @@ def validate_role_access(
         # breaker budget is BILLING_ACCOUNT-scoped and thus unmodifiable by any
         # project principal; the separate billing-account audit remains the
         # guard for who may actually change the budget.
-        if not billing_danger and _is_project_service_agent(
-            member, project_number=project_number
-        ):
+        if not billing_danger and _is_project_service_agent(member, project_number=project_number):
             continue
         unexpected.append(member)
     if unexpected:
