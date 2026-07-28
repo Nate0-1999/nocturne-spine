@@ -270,12 +270,20 @@ def _plan_commit(
             f"memory {min(overlap, key=lambda value: value.int)} is in both lists"
         )
 
-    for memory_id in removed:
+    for memory_id, reason in removed.items():
         event = by_memory.get(memory_id)
-        if event is None or event["shown_as"] not in {"injected", "pinned"}:
+        if event is None:
             raise InvalidCommitChoicesError(
-                f"removed memory {memory_id} is not an injected or pinned batch member"
+                f"removed memory {memory_id} is not an injection batch member"
             )
+        shown_as = event["shown_as"]
+        if shown_as in {"injected", "pinned"}:
+            continue
+        if shown_as == "near_miss" and reason == "never":
+            continue
+        raise InvalidCommitChoicesError(
+            f"removed memory {memory_id} cannot use reason {reason!r} when shown_as is {shown_as!r}"
+        )
     for memory_id in added_back:
         event = by_memory.get(memory_id)
         if event is None or event["shown_as"] != "near_miss":
@@ -288,7 +296,12 @@ def _plan_commit(
         memory_id = _event_uuid(event, "memory_id")
         shown_as = event["shown_as"]
         if shown_as == "near_miss":
-            desired = "added_back" if memory_id in added_back else None
+            reason = removed.get(memory_id)
+            desired = (
+                "removed:never"
+                if reason == "never"
+                else ("added_back" if memory_id in added_back else None)
+            )
         elif shown_as in {"injected", "pinned"}:
             reason = removed.get(memory_id)
             desired = f"removed:{reason}" if reason is not None else "kept"

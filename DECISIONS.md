@@ -517,3 +517,28 @@ project's own IAM (removing Editor from the default Compute SA) is a valid, larg
 best-practice change the owner declined for now. All 76 D2 and 160 spine tests
 pass; a live audit of the deployed project's IAM is clean; the destructive
 `--apply` stays human-only.
+
+## 019 — Near-miss Never reuses the removal transition
+
+**Problem Tree:** P1.2.1b
+
+**Decision.** Implement Garden A-022 by accepting an existing commit
+`removed` entry for a row shown as `near_miss` only when its reason is
+`never`. Plan that choice as `removed:never` and send it through the same
+event outcome, scorer-version rule, CAS head update, bias step, kill counter,
+quarantine threshold, revision reason, idempotency, and final-block exclusion
+already used for an injected or pinned Never. Keep `wrong` and
+`not_relevant` invalid for near misses, and keep a near-miss ID disjoint from
+`added_back`. The C.4 body and database schema do not change.
+
+**Motivation.** Two Never signals can lower a memory below the injection
+threshold, making the third kill required for quarantine reachable only in
+the near-miss lane. A-022 makes that lane's veto executable while preserving
+one literal negative outcome and one replayable mutation path.
+
+**Rejected alternatives.** A second request field or outcome name would split
+identical human intent across two contracts and two replay semantics.
+Allowing every removal reason on near misses would invent edit and relevance
+behavior the amendment does not authorize. Lowering the threshold, pinning
+the unit, or mutating it through a direct quarantine endpoint would manipulate
+selection merely to expose an already-recorded gate action.

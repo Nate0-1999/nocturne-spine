@@ -422,7 +422,7 @@ async def test_commit_mixed_gate_decisions_render_frozen_and_return_current_wron
     }
 
 
-async def test_three_never_commits_quarantine_and_zero_card_commit_is_canonical(
+async def test_third_never_from_near_miss_quarantines_and_zero_card_commit_is_canonical(
     memory_client: AsyncClient,
     embedding_provider: ScriptedEmbeddingProvider,
     memory_session_factory: async_sessionmaker[AsyncSession],
@@ -435,37 +435,57 @@ async def test_three_never_commits_quarantine_and_zero_card_commit_is_canonical(
         body="Eventually quarantined",
     )
     injection_ids = [UUID(int=value) for value in (9101, 9102, 9103)]
+    third_request: dict[str, Any] | None = None
     for index, injection_id in enumerate(injection_ids, start=1):
         await _insert_event(
             memory_session_factory,
             injection_id=injection_id,
             memory_id=memory_id,
             rank=1,
-            shown_as="injected",
+            shown_as="near_miss" if index == 3 else "injected",
             event_seed=100 + index,
             label="Never again",
             body="Eventually quarantined",
         )
+        request = {
+            "injection_id": str(injection_id),
+            "removed": [{"memory_id": str(memory_id), "reason": "never"}],
+            "added_back": [],
+        }
         response = _assert_json(
             await memory_client.post(
                 "/v1/inject/commit",
-                json={
-                    "injection_id": str(injection_id),
-                    "removed": [{"memory_id": str(memory_id), "reason": "never"}],
-                    "added_back": [],
-                },
+                json=request,
             ),
             200,
         )
         assert response == {"final_block": CANONICAL_EMPTY_BLOCK, "wrong_removed": []}
+        if index == 3:
+            third_request = request
+
+    assert third_request is not None
+    repeated = _assert_json(
+        await memory_client.post("/v1/inject/commit", json=third_request),
+        200,
+    )
+    assert repeated == {"final_block": CANONICAL_EMPTY_BLOCK, "wrong_removed": []}
 
     async with memory_session_factory() as session:
         head = await session.get(MemoryUnit, memory_id)
-        revisions = await session.scalar(
-            select(func.count())
-            .select_from(MemoryRevision)
-            .where(MemoryRevision.memory_id == memory_id)
-        )
+        revisions = (
+            await session.scalars(
+                select(MemoryRevision)
+                .where(MemoryRevision.memory_id == memory_id)
+                .order_by(MemoryRevision.revision)
+            )
+        ).all()
+        events = (
+            await session.scalars(
+                select(InjectionEvent)
+                .where(InjectionEvent.memory_id == memory_id)
+                .order_by(InjectionEvent.injection_id)
+            )
+        ).all()
     assert head is not None
     assert (head.status, head.stats["never_kills"], head.stats["removals"], head.revision) == (
         "quarantined",
@@ -474,7 +494,16 @@ async def test_three_never_commits_quarantine_and_zero_card_commit_is_canonical(
         4,
     )
     assert head.bias == pytest.approx(-0.45)
-    assert revisions == 4
+    assert len(revisions) == 4
+    assert (revisions[-1].reason, revisions[-1].origin_machine_id) == (
+        "inject/commit:removed:never",
+        "machine-gate",
+    )
+    assert [(event.shown_as, event.outcome) for event in events] == [
+        ("injected", "removed:never"),
+        ("injected", "removed:never"),
+        ("near_miss", "removed:never"),
+    ]
 
     prompt = "quarantined units stay out"
     embedding_provider.set(prompt, basis_vector(0))
@@ -676,6 +705,14 @@ async def test_commit_validation_and_concurrent_retry_are_atomic(
         {
             "removed": [{"memory_id": str(near_id), "reason": "wrong"}],
             "added_back": [],
+        },
+        {
+            "removed": [{"memory_id": str(near_id), "reason": "not_relevant"}],
+            "added_back": [],
+        },
+        {
+            "removed": [{"memory_id": str(near_id), "reason": "never"}],
+            "added_back": [str(near_id)],
         },
         {"removed": [], "added_back": [str(injected_id)]},
         {
