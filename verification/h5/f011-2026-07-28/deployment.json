@@ -1,0 +1,93 @@
+{
+  "status": "PASS",
+  "evidence_kind": "H5 F011 image-only deployment",
+  "captured_at": "2026-07-28T20:18:00Z",
+  "project": "n8-memory-palace",
+  "region": "us-central1",
+  "service": "n8-memory-palace-spine",
+  "spine_source_commit": "d41b2862d1e824fafb29fada955756304e48e7f5",
+  "build": {
+    "source_remote": "https://github.com/Nate0-1999/nocturne-spine.git",
+    "source_worktree_head": "d41b2862d1e824fafb29fada955756304e48e7f5",
+    "image_tag": "us-central1-docker.pkg.dev/n8-memory-palace/spine/spine:d41b2862d1e824fafb29fada955756304e48e7f5",
+    "index_digest": "sha256:dfe9fd5465038e9ac82ca61a49fd93f872afd041dae60b992a5b625fcb694cbb",
+    "runtime_manifest_digest": "sha256:959b8460759ce0ef91e4ddfeb3e3cb5b6cdaa39901c5d8844c58f319ceccc52f",
+    "attestation_manifest_digest": "sha256:9115eab01d629a350326982fb5c9801341fe1ab7f46b6654911d4950afd02944",
+    "base_image_digest": "sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de",
+    "platform": "linux/amd64",
+    "revision_label": "d41b2862d1e824fafb29fada955756304e48e7f5",
+    "registry_immutable_tags": true,
+    "reproducible_from_git_alone": false,
+    "reproducibility_caveat": "The historical Dockerfile uses an unpinned base name and unlocked pip dependency ranges. The captured base, manifest, index, and attestation digests make this deployed artifact immutable, but rebuilding the Git commit later is not guaranteed to reproduce it bit-for-bit."
+  },
+  "mutation": {
+    "count": 1,
+    "kind": "gcloud run services update --image",
+    "image_only": true,
+    "requested_image": "us-central1-docker.pkg.dev/n8-memory-palace/spine/spine@sha256:dfe9fd5465038e9ac82ca61a49fd93f872afd041dae60b992a5b625fcb694cbb",
+    "grant_consumed": true
+  },
+  "before": {
+    "generation": 5,
+    "revision": "n8-memory-palace-spine-00003-pjh",
+    "image": "us-central1-docker.pkg.dev/n8-memory-palace/spine/spine:e0cf50d50283cd2c4f800272b832b8166e299cab",
+    "traffic": [
+      {
+        "revisionName": "n8-memory-palace-spine-00002-2bs",
+        "tag": "d1v",
+        "url": "https://d1v---n8-memory-palace-spine-7wq3wmgcoq-uc.a.run.app"
+      },
+      {
+        "latestRevision": true,
+        "percent": 100,
+        "revisionName": "n8-memory-palace-spine-00003-pjh"
+      }
+    ]
+  },
+  "after": {
+    "generation": 6,
+    "revision": "n8-memory-palace-spine-00004-vs2",
+    "image": "us-central1-docker.pkg.dev/n8-memory-palace/spine/spine@sha256:dfe9fd5465038e9ac82ca61a49fd93f872afd041dae60b992a5b625fcb694cbb",
+    "runtime_image_digest": "us-central1-docker.pkg.dev/n8-memory-palace/spine/spine@sha256:959b8460759ce0ef91e4ddfeb3e3cb5b6cdaa39901c5d8844c58f319ceccc52f",
+    "ready": true,
+    "created_at": "2026-07-28T20:16:12.700021Z",
+    "ready_at": "2026-07-28T20:16:26.368098Z",
+    "service_urls": [
+      "https://n8-memory-palace-spine-713925718873.us-central1.run.app",
+      "https://n8-memory-palace-spine-7wq3wmgcoq-uc.a.run.app"
+    ],
+    "traffic": [
+      {
+        "revisionName": "n8-memory-palace-spine-00002-2bs",
+        "tag": "d1v",
+        "url": "https://d1v---n8-memory-palace-spine-7wq3wmgcoq-uc.a.run.app"
+      },
+      {
+        "latestRevision": true,
+        "percent": 100,
+        "revisionName": "n8-memory-palace-spine-00004-vs2"
+      }
+    ]
+  },
+  "protected_state": {
+    "canonicalization": "Service runtime configuration excluding revision/image/generation/nonces and operation metadata, plus service IAM, Artifact Registry posture, Cloud SQL safety state, and billing-breaker runtime state.",
+    "before_sha256": "c5006f2141490ac10ebb4c319dcefbcf4d47ee80fe0413039dc34ff2f196a2aa",
+    "after_sha256": "c5006f2141490ac10ebb4c319dcefbcf4d47ee80fe0413039dc34ff2f196a2aa",
+    "equal": true,
+    "comparisons": {
+      "project_region_service": true,
+      "runtime_identity": true,
+      "cloud_sql_attachment": true,
+      "secret_references": true,
+      "iam": true,
+      "max_scale": true,
+      "ingress_and_application_bearer_posture": true,
+      "traffic_posture_and_d1v_tag": true,
+      "cloud_sql_backups_pitr_and_deletion_protection": true,
+      "artifact_registry_immutable_tags": true,
+      "billing_breaker": true
+    }
+  },
+  "protected_state_unchanged": true,
+  "credentials_redacted": true
+}
