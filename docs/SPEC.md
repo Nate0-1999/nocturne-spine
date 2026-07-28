@@ -1,6 +1,6 @@
 # NOCTURNE — Harness + Memory Palace Specification
 
-**Version 2.17** (2026-07-27) — SPEND DASHBOARD: Vitals as Ableton-style bottom strip, dollar-true lanes (D.2 060). Prior v2.16: H5 scout consult: near-miss "never" veto (resolves F007 deadlock); no silent scope broadening (F008) (D.2 059). Prior v2.15: B.6 rule 9 SCOUT-BEFORE-OWNER (relay self-routes to scout at human gates) + ADR-022 split law (semantic, lineaged, never summarized) (D.2 058). Prior v2.14: flow-walkthrough closures: reinforcement in every mode, candidate invisibility, rejection-as-signal, anti-nag law, pin overflow (D.2 057). Prior v2.13: OQ-4 RESOLVED (curator autonomy earned per verdict class); injection-pressure trigger defined (was "80%-budget"); status normalization → J's charge (D.2 056). Prior v2.12: EDITOR PASS II (content-preserving): ADR-022 THE CURATORS extracted from ADR-004 accretions; problem tree gains P1.5/P1.6/P2.4; memory lifecycle map (D.2 055). Prior v2.11: PALACE VITALS gauges (lifecycle rates/hr, token spend by category/hr, counters) + ADR-021 lifecycle closures C1-C6 (D.2 054). Prior v2.10: ADR-021 MEMORY WRITE LAW: admit-then-curate, fire-and-forget saves, reinforcement coalescing, 10% attention budget (principle), Symphony staging + judge promotion, origin_agent lineage id (D.2 053). Prior v2.9: CURATOR ARCHITECTURE: deterministic diagnostics → Palace Health Report → LLM verdicts → deterministic write tools (D.2 052). Prior v2.8: CURATOR DOCTRINE: write-count trigger, palace-anchored, surgeons (root-cause, minimal intervention), slop removal, versioned curation SOPs (D.2 051). Prior v2.7: gate-day data + v0.2 proposal adoptions: hybrid candidate retrieval, keywords mandate, training-data hygiene, curator consolidation taxonomy + typed edges, promotion blend, candidate status (D.2 050). Prior v2.6: OQ-17 resolved (roots alpha = selection focus); ADR-019 seed ingestion; nocturne-* remotes + splash repo (D.2 049). Prior v2.5: B.6 rule 8 agent walkthroughs (D.2 048). Prior v2.4: NOCTURNE christened; ADR-019 onboarding; ADR-020 shared Palaces (D.2 046–047). Prior v2.3: broker-routed embeddings (D.2 044). Prior v2.2: themes (D.2 043). Prior v2.1: procedural law (D.2 042). Prior v2.0: EDITOR PASS: content-preserving consolidation of the v1.5–v1.15 organic growth. New/amended law: ADR-012 mode scale, ADR-015 walls, ADR-016 tree, ADR-017 Symphony, ADR-018 Cube+plugins+stack, ADR-007→index, ADR-008 stack resolved; enacted amendments A-001–A-017 folded into Part C (AMENDMENTS.md remains the historical record); D.1 refreshed. Full version lineage: Appendix D.2. Prior v1.4 (2026-07-07) was reorganized from the v0.x iteration transcript;
+**Version 2.18** (2026-07-28) — PLUGINS ALL THE WAY DOWN: ADR-018 cl.8-10 — ground-up composition, control plugins + parameter registry, authoring ease + reference plugins (D.2 061). Prior v2.17: SPEND DASHBOARD: Vitals as Ableton-style bottom strip, dollar-true lanes (D.2 060). Prior v2.16: H5 scout consult: near-miss "never" veto (resolves F007 deadlock); no silent scope broadening (F008) (D.2 059). Prior v2.15: B.6 rule 9 SCOUT-BEFORE-OWNER (relay self-routes to scout at human gates) + ADR-022 split law (semantic, lineaged, never summarized) (D.2 058). Prior v2.14: flow-walkthrough closures: reinforcement in every mode, candidate invisibility, rejection-as-signal, anti-nag law, pin overflow (D.2 057). Prior v2.13: OQ-4 RESOLVED (curator autonomy earned per verdict class); injection-pressure trigger defined (was "80%-budget"); status normalization → J's charge (D.2 056). Prior v2.12: EDITOR PASS II (content-preserving): ADR-022 THE CURATORS extracted from ADR-004 accretions; problem tree gains P1.5/P1.6/P2.4; memory lifecycle map (D.2 055). Prior v2.11: PALACE VITALS gauges (lifecycle rates/hr, token spend by category/hr, counters) + ADR-021 lifecycle closures C1-C6 (D.2 054). Prior v2.10: ADR-021 MEMORY WRITE LAW: admit-then-curate, fire-and-forget saves, reinforcement coalescing, 10% attention budget (principle), Symphony staging + judge promotion, origin_agent lineage id (D.2 053). Prior v2.9: CURATOR ARCHITECTURE: deterministic diagnostics → Palace Health Report → LLM verdicts → deterministic write tools (D.2 052). Prior v2.8: CURATOR DOCTRINE: write-count trigger, palace-anchored, surgeons (root-cause, minimal intervention), slop removal, versioned curation SOPs (D.2 051). Prior v2.7: gate-day data + v0.2 proposal adoptions: hybrid candidate retrieval, keywords mandate, training-data hygiene, curator consolidation taxonomy + typed edges, promotion blend, candidate status (D.2 050). Prior v2.6: OQ-17 resolved (roots alpha = selection focus); ADR-019 seed ingestion; nocturne-* remotes + splash repo (D.2 049). Prior v2.5: B.6 rule 8 agent walkthroughs (D.2 048). Prior v2.4: NOCTURNE christened; ADR-019 onboarding; ADR-020 shared Palaces (D.2 046–047). Prior v2.3: broker-routed embeddings (D.2 044). Prior v2.2: themes (D.2 043). Prior v2.1: procedural law (D.2 042). Prior v2.0: EDITOR PASS: content-preserving consolidation of the v1.5–v1.15 organic growth. New/amended law: ADR-012 mode scale, ADR-015 walls, ADR-016 tree, ADR-017 Symphony, ADR-018 Cube+plugins+stack, ADR-007→index, ADR-008 stack resolved; enacted amendments A-001–A-017 folded into Part C (AMENDMENTS.md remains the historical record); D.1 refreshed. Full version lineage: Appendix D.2. Prior v1.4 (2026-07-07) was reorganized from the v0.x iteration transcript;
 content-preserving. Audience: implementing agents (via /goal) and the human owner.
 Everything here is binding unless marked OPEN or given a non-accepted status.
 ADR numbers are immutable; superseding requires a new ADR. The chronological
@@ -1092,6 +1092,66 @@ user rearranges, not furniture).
    on that theme's grounds before it ships; one danger color per theme.
    Themes ride the plugin distribution path (versioned, sandbox-safe:
    a theme is tokens and materials, never code with surface access).
+8. GROUND-UP COMPOSITION (owner, v2.18). The shipped interface is not a
+   program with a plugin slot — it IS plugins, all the way down: every
+   rail, panel, strip, and face (chat pane, thread list, deck, context
+   bars, the spend strip, memory graph, Cube faces) is a rack module
+   built on the SAME public plugin API. The current mock is "version one
+   of the default opinion" — a factory preset, replaceable like any
+   Ableton set. DOGFOODING IS THE ENFORCEMENT: if a first-party surface
+   needs an API the public one lacks, the public API grows; a private
+   path is FORBIDDEN. LAW-BOUND SURFACES (the gate, boundary cards, the
+   approval queue, the deck's demand right) are plugins too, but their
+   ACTION CONTRACTS are law: an alternate gate plugin must render every
+   card, expose every removal reason and add-back, emit every C.4
+   outcome event, and suppress nothing — proven by a CONTRACT-
+   CONFORMANCE test before it may be selected. Extends the theme law
+   upward: plugins compose the stage; contracts guard the meaning. The
+   deck remains the only surface that may demand, whoever renders it.
+9. CONTROL PLUGINS & THE PARAMETER REGISTRY (owner, v2.18). A second
+   plugin class beside visualizers: CONTROLS — Ableton-device-style
+   input blocks (knobs, sliders, XY pads) that WRITE. Enabling law: the
+   PARAMETER REGISTRY — harness and spine declare every controllable
+   parameter as a typed descriptor {id, label, type, range/options,
+   default, scope: global|thread|run|agent-kind, authority:
+   free-journaled | law-bound}. Controls BIND to descriptors and never
+   free-hand a write (the curator-tools pattern again: judgment at the
+   knob, mechanics in the registry). Every change is a journaled A-016
+   event (who, when, old→new) — as_of-scrubbable, so knob history
+   replays like everything else. First residents: per-thread MODEL
+   PARAMS — temperature, top_p, top_k, max_tokens, reasoning effort —
+   joining the M2 per-thread model selector (C.5), plus A-020's
+   MODEL_INTELLIGENCE_FLOOR as a literal dial. Scorer hyperparameters
+   (τ, top_k, budget, half-lives, weights) are LAW-BOUND descriptors:
+   binding them requires the console's versioned-insert semantics — the
+   hyperparameter console is hereby reclassified as the first first-
+   party law-bound control plugin. Invariant 10 extends to controls:
+   EVERY KNOB BINDS A REAL PARAMETER — decorative controls are
+   forbidden; and clause 3's sanctity is untouched — visualizers still
+   never write, and no control bypasses a wall, a gate, or the scorer's
+   versioning law.
+10. AUTHORING EASE & REFERENCE PLUGINS (owner, v2.18: "very easy").
+   A plugin is a FOLDER: a manifest (name, version, class: visualizer |
+   control | face | theme; declared streams; declared parameter
+   bindings; layout hints) plus an entry html/js. The SDK is small by
+   law — subscribe(stream), query(+as_of), selection bus, bind(param),
+   theme tokens auto-injected — and dev mode is drop-the-folder-in,
+   hot reload. Capability floor: no network egress, no notify, no
+   writes outside bound descriptors; the hostile-plugin verification
+   extends to controls (a write to an unbound or law-bound descriptor
+   is refused MECHANICALLY, not by convention). Distribution rides the
+   theme path. ACCEPTANCE BAR: a competent user ships a working
+   visualizer in an afternoon starting from the reference examples.
+   REFERENCE PLUGINS, shipped first-party and doubling as the tutorial:
+   (a) the SPEND STRIP (v2.17 Vitals presentation) — the visualizer
+   reference; (b) the MODEL DEVICE (owner) — an Ableton-esque device
+   strip showing the thread's resolved model (the A-020 slug) with
+   registry-bound knobs for its parameters — the control reference.
+   Both replaceable by user versions; the defaults are presets, not
+   privileges. Milestones: the composition principle and registry bind
+   all UI work immediately; spend strip + model device land M2 (with
+   Vitals and the per-thread selector); the public SDK + third-party
+   authoring surface land with the M3 Cube buildout.
 
 **Rejected:** literal always-3D rendering (readability loses to
 spectacle); per-visualizer data plumbing (the three surfaces are the
@@ -1101,7 +1161,12 @@ packets); hand-modeled or imported scene assets (cannot time-scrub,
 cannot track live projects, and would let art drift from truth — the
 organism must be GROWN from its data or it is a picture of an organism).
 *Verification:* per B.6 rule 7 throughout — plus: a hostile test plugin
-must be unable to notify, write, or escape its rectangle; selection made
+must be unable to notify, write, or escape its rectangle; a hostile
+CONTROL plugin attempting an unbound or law-bound write must be refused
+mechanically with the refusal journaled; an alternate law-bound surface
+must pass contract conformance (every action, every event, nothing
+suppressed) before selection; every shipped knob must be traced to its
+registry descriptor (no decorative controls); selection made
 on any face must appear on all faces and the trace drawer within one
 event cycle; the palette validator must pass on the shipped grounds;
 and procedural determinism is judged directly — render the same `as_of`
@@ -2594,6 +2659,7 @@ into its owning ADR above)
 | 058 | 2026-07-22 | v2.15 SCOUT-BEFORE-OWNER + SPLIT LAW (owner decide-and-declare): (1) B.6 rule 9 — every HUMAN gate is preceded by an agent SCOUT pass as DEFAULT relay behavior; PLAN Section 3 gains the SCOUT role (priority 3) so the owner's one-line relay kickoff self-routes: scout opens the harness in the browser and uses it as the owner would (rule 8 discipline), executes the gate checklist, classifies PASS/FAIL/NEEDS-TASTE, burns down passes with evidence, escalates FAILs for owner consultation; verification principal '<gate>-sop-verification' (hygiene-excluded), fixtures tombstoned, no re-scouting unchanged ground; the scout NEVER clears the gate — taste and authentic training signal cannot be delegated. (2) ADR-022 SPLITTING law — splits are semantic (each child stands alone: one claim, own label/keywords), never mechanical chopping, summarize-to-fit FORBIDDEN (decision 015); lineage = copy-with-lineage ×N (child parent_uid → source revision, same mechanism as merged_from/ADR-020), siblings auto-stamped relates-to, source tombstoned-as-split retaining stats history, children earn fresh stats; split families visible to Health Report + future sibling-aware scorer features | ACCEPTED |
 | 059 | 2026-07-27 | v2.16 H5 SCOUT CONSULT (owner decisions on F006-F010): (1) F007 deadlock RESOLVED — near-miss rows gain a "never show this" veto with identical event semantics/kill counter (two kills push a unit below τ where only add-back existed; the exploration lane needs a veto — a near-miss the owner never wants is its strongest signal); C.8 AC4 becomes satisfiable through the gate. (2) F008 — NO SILENT SCOPE BROADENING law in C.6: project_scoped save with no project context surfaces the missing-context result; global fallback requires explicit user confirmation. (3) F009 — checklist was ahead of its milestone (owner: nothing existed to destroy — C.7 conformance confirmed); closing checklist corrected, durable sessions remain an M2 planning item. F006 (removal must bind the turn + wrong→edit/expire flow) and F010 (390px gate clipping) are straight FIXER repairs needing no law change. FIXER inherits all five; affected SOP slices re-run before the owner's personal gate | ACCEPTED |
 | 060 | 2026-07-27 | v2.17 SPEND DASHBOARD (owner; NATES_VISION §15): Palace Vitals' presentation is an Ableton-style bottom strip — spend/time line graphs, lanes by agent / sub-agent (origin_agent subtree) / model / category / total; dollar-true via the broker's native per-call cost (OpenRouter returns USD per call — attribution is just logging: purpose enum + origin_agent tag at the broker seam); lane click = selection focus; scrubs the shared as_of timeline; collapsible per Invariant 14. Doubles as the 10%-principle watchdog and the D2 budget's early-warning sibling | ACCEPTED |
+| 061 | 2026-07-28 | v2.18 PLUGINS ALL THE WAY DOWN (owner; ADR-018 clauses 8-10 + NATES_VISION §16): (8) GROUND-UP COMPOSITION — the shipped UI IS plugins on the same public API (mock = factory preset, 'version one of the default opinion'); dogfooding enforced (private first-party paths FORBIDDEN); law-bound surfaces (gate, boundary cards, queue, deck's demand right) are plugins whose ACTION CONTRACTS are law, alternates gated by contract-conformance tests. (9) CONTROL PLUGIN class + PARAMETER REGISTRY — typed descriptors {id,type,range,scope,authority}; controls bind, never free-hand; every change a journaled as_of-scrubbable event; first residents: per-thread model params (temperature/top_p/top_k/max_tokens/effort) + A-020 floor dial; scorer hyperparams law-bound via console versioning (console reclassified as first law-bound control plugin); Invariant 10 extends — every knob binds a real parameter. (10) AUTHORING EASE — plugin = folder (manifest + entry), small SDK by law, hot-reload dev mode, afternoon acceptance bar; reference plugins: SPEND STRIP (visualizer) + MODEL DEVICE (control); capability floor mechanical (hostile control writes refused + journaled). Milestones: principle+registry bind immediately; references M2; public SDK M3 | ACCEPTED |
 
 ## D.3 Resolved-question index (where each folded)
 
