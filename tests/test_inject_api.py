@@ -142,7 +142,7 @@ async def _insert_memory(
     return root_uid
 
 
-async def test_prepare_scores_filters_logs_snapshot_and_cas_updates_only_injected(
+async def test_prepare_commit_replays_gate_and_prepare_updates_only_injected(
     memory_client: AsyncClient,
     embedding_provider: ScriptedEmbeddingProvider,
     memory_session_factory: async_sessionmaker[AsyncSession],
@@ -333,6 +333,70 @@ async def test_prepare_scores_filters_logs_snapshot_and_cas_updates_only_injecte
         "machine-1",
         "inject/prepare",
     )
+
+    commit = _assert_json(
+        await memory_client.post(
+            "/v1/inject/commit",
+            json={
+                "injection_id": payload["injection_id"],
+                "removed": [
+                    {
+                        "memory_id": injected["memory_id"],
+                        "reason": "not_relevant",
+                    }
+                ],
+                "added_back": [near["memory_id"]],
+            },
+        ),
+        200,
+    )
+    assert near["body"] in commit["final_block"]
+    assert injected["body"] not in commit["final_block"]
+
+    async with memory_session_factory() as session:
+        replayed = (
+            await session.scalars(
+                select(InjectionEvent)
+                .where(InjectionEvent.injection_id == UUID(payload["injection_id"]))
+                .order_by(InjectionEvent.rank)
+            )
+        ).all()
+
+    assert [
+        {
+            "memory_id": str(event.memory_id),
+            "shown_as": event.shown_as,
+            "score": event.score,
+            "features": {name: event.features[name] for name in FEATURE_NAMES},
+            "prompt_text": event.prompt_text,
+            "scorer_version": event.scorer_version,
+            "outcome": event.outcome,
+            "memory": event.features["_memory"],
+        }
+        for event in replayed
+    ] == [
+        {
+            "memory_id": card["memory_id"],
+            "shown_as": shown_as,
+            "score": card["score"],
+            "features": card["features"],
+            "prompt_text": prompt,
+            "scorer_version": payload["scorer_version"],
+            "outcome": outcome,
+            "memory": {
+                "label": card["label"],
+                "body": card["body"],
+                "pin": card["pin"],
+                "updated_at": replayed[index].features["_memory"]["updated_at"],
+            },
+        }
+        for index, (card, shown_as, outcome) in enumerate(
+            [
+                (injected, "injected", "removed:not_relevant"),
+                (near, "near_miss", "added_back"),
+            ]
+        )
+    ]
 
 
 async def test_pins_bypass_threshold_and_budget_and_regular_ties_use_memory_id(

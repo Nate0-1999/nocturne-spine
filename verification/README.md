@@ -3,6 +3,11 @@
 Bootstrap evidence lives in `bootstrap/`. Milestone verdict artifacts belong
 under `verification/<milestone>/` and are produced by an independent judge.
 
+The current integration replay handoff is
+[`verification/i1/README.md`](i1/README.md). It is builder evidence for I1,
+whose overall packet is currently returned TODO, not an independent M1 judge
+verdict.
+
 ## SPEC B.6 (verbatim)
 
 ```text
