@@ -6,6 +6,7 @@ build-backend = "hatchling.build"
 name = "nocturne-spine"
 dynamic = ["version"]
 description = "Nocturne memory spine"
+readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
   "alembic>=1.13,<2",
@@ -28,12 +29,17 @@ dev = [
   "testcontainers[postgres]>=4.8,<5",
 ]
 
+[project.urls]
+Homepage = "https://github.com/Nate0-1999/nocturne"
+Source = "https://github.com/Nate0-1999/nocturne-spine"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/spine"]
 
 [tool.hatch.build.targets.sdist]
 include = [
   "/Dockerfile",
+  "/README.md",
   "/pyproject.toml",
   "/src/spine",
   "/infra/billing-breaker/README.md",
