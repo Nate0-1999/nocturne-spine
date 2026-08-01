@@ -1,15 +1,26 @@
-FROM python:3.12-slim
+FROM python:3.12.13-slim@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de AS base
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-WORKDIR /app
+FROM base AS builder
+
+WORKDIR /build
 
 COPY pyproject.toml ./
+COPY Dockerfile ./
 COPY src ./src
-COPY alembic.ini ./
+COPY infra ./infra
 
-RUN pip install --no-cache-dir .
+RUN pip wheel --no-cache-dir --no-deps --wheel-dir /wheels .
+
+FROM base AS runtime
+
+WORKDIR /app
+
+COPY --from=builder /wheels /wheels
+
+RUN pip install --no-cache-dir /wheels/nocturne_spine-*.whl && rm -rf /wheels
 
 EXPOSE 8000
 

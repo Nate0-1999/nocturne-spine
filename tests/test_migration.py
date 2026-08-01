@@ -1,9 +1,22 @@
 """Integration proof for the authoritative C.2 migration and C.3 seed."""
 
 import pytest
+from alembic.script import ScriptDirectory
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import create_async_engine
+
+from spine.db.migrate import DATABASE_URL_ATTRIBUTE, make_alembic_config
+
+
+def test_packaged_migration_tree_has_one_expected_head() -> None:
+    database_url = "postgresql+asyncpg://spine:percent%25@localhost/spine"
+    config = make_alembic_config(database_url)
+    scripts = ScriptDirectory.from_config(config)
+
+    assert config.attributes[DATABASE_URL_ATTRIBUTE] == database_url
+    assert scripts.get_base() == "0001"
+    assert scripts.get_heads() == ["0002"]
 
 
 async def test_c2_migration_and_v0_seed(migrated_database_url: str) -> None:

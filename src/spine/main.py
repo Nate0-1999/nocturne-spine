@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from spine import __version__
 from spine.auth import StaticBearerAuthMiddleware
 from spine.config import Settings
 from spine.db.engine import make_engine
@@ -84,7 +85,7 @@ def create_app(
     bearer_contract = HTTPBearer(auto_error=False, scheme_name="StaticBearer")
     app = FastAPI(
         title="N8 Spine",
-        version=resolved.version,
+        version=__version__,
         dependencies=[Depends(bearer_contract)],
         lifespan=lifespan,
     )
@@ -153,7 +154,7 @@ def create_app(
         responses={401: problem_openapi("Bearer token missing or invalid")},
     )
     async def healthz() -> HealthResponse:
-        return HealthResponse(ok=True, version=resolved.version)
+        return HealthResponse(ok=True, version=__version__)
 
     app.include_router(inject_router)
     app.include_router(memory_router)

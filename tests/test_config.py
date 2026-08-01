@@ -28,6 +28,15 @@ def test_c5_dedup_and_embedding_defaults_are_exact() -> None:
     assert settings.embed_dim == 1536
 
 
+def test_runtime_environment_cannot_override_artifact_version(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SPINE_VERSION", "not-the-installed-version")
+
+    assert "version" not in Settings.model_fields
+    assert not hasattr(_settings(), "version")
+
+
 def test_config_rejects_overlapping_bands_and_wrong_storage_dimension() -> None:
     with pytest.raises(ValidationError, match="dedup_sim must be less than dedup_dup"):
         _settings(dedup_sim=0.92, dedup_dup=0.92)

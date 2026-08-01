@@ -8,6 +8,8 @@ from conftest import TOKEN
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
+from spine import __version__
+
 ROOT = Path(__file__).resolve().parents[1]
 MEMORY_ID = "00000000-0000-0000-0000-000000000001"
 INJECTION_ID = "00000000-0000-0000-0000-000000000002"
@@ -48,7 +50,7 @@ async def test_health_endpoints_and_auth_are_live(app: FastAPI) -> None:
     assert unauthorized_health.headers["www-authenticate"] == "Bearer"
     assert healthy_healthz.status_code == 200
     assert healthy_health.status_code == 200
-    assert healthy_healthz.json() == {"ok": True, "version": "0.1.0"}
+    assert healthy_healthz.json() == {"ok": True, "version": __version__}
     assert healthy_health.json() == healthy_healthz.json()
     assert "/health" not in app.openapi()["paths"]
 

@@ -1,10 +1,6 @@
 """Shared API and live-Postgres test fixtures."""
 
-import os
-import subprocess
-import sys
 from collections.abc import AsyncIterator, Iterator, Sequence
-from pathlib import Path
 from typing import Self, cast
 
 import pytest
@@ -15,10 +11,10 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from testcontainers.postgres import PostgresContainer
 
 from spine.config import Settings
+from spine.db.migrate import upgrade_head
 from spine.db.session import make_session_factory
 from spine.main import create_app
 
-ROOT = Path(__file__).resolve().parents[1]
 TOKEN = "p0-test-token"
 EMBED_DIM = 1536
 
@@ -85,17 +81,7 @@ def migrated_database_url() -> Iterator[str]:
         dbname="spine",
     ) as postgres:
         database_url = _asyncpg_url(postgres.get_connection_url())
-        environment = {
-            **os.environ,
-            "SPINE_DATABASE_URL": database_url,
-            "SPINE_TOKEN": TOKEN,
-        }
-        subprocess.run(
-            [sys.executable, "-m", "alembic", "-c", str(ROOT / "alembic.ini"), "upgrade", "head"],
-            cwd=ROOT,
-            env=environment,
-            check=True,
-        )
+        upgrade_head(database_url)
         yield database_url
 
 

@@ -3,9 +3,9 @@ requires = ["hatchling>=1.25"]
 build-backend = "hatchling.build"
 
 [project]
-name = "n8-spine"
-version = "0.1.0"
-description = "M1 memory spine scaffold"
+name = "nocturne-spine"
+dynamic = ["version"]
+description = "Nocturne memory spine"
 requires-python = ">=3.12,<3.13"
 dependencies = [
   "alembic>=1.13,<2",
@@ -30,6 +30,32 @@ dev = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/spine"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/Dockerfile",
+  "/pyproject.toml",
+  "/src/spine",
+  "/infra/billing-breaker/README.md",
+  "/infra/billing-breaker/billing_breaker.py",
+  "/infra/billing-breaker/deploy.sh",
+  "/infra/billing-breaker/deployment_checks.py",
+  "/infra/billing-breaker/main.py",
+  "/infra/billing-breaker/requirements.txt",
+]
+
+[tool.hatch.build.targets.wheel.force-include]
+"pyproject.toml" = "spine/_deploy/pyproject.toml"
+"Dockerfile" = "spine/_deploy/Dockerfile"
+"infra/billing-breaker/README.md" = "spine/_deploy/billing-breaker/README.md"
+"infra/billing-breaker/billing_breaker.py" = "spine/_deploy/billing-breaker/billing_breaker.py"
+"infra/billing-breaker/deploy.sh" = "spine/_deploy/billing-breaker/deploy.sh"
+"infra/billing-breaker/deployment_checks.py" = "spine/_deploy/billing-breaker/deployment_checks.py"
+"infra/billing-breaker/main.py" = "spine/_deploy/billing-breaker/main.py"
+"infra/billing-breaker/requirements.txt" = "spine/_deploy/billing-breaker/requirements.txt"
+
+[tool.hatch.version]
+path = "src/spine/__init__.py"
 
 [tool.pytest.ini_options]
 addopts = "-ra"

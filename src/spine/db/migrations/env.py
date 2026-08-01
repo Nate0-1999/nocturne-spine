@@ -1,6 +1,7 @@
 """Alembic environment for the async C.1 database stack."""
 
 import asyncio
+import os
 from logging.config import fileConfig
 
 from alembic import context
@@ -8,7 +9,7 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-from spine.config import Settings
+from spine.db.migrate import DATABASE_URL_ATTRIBUTE
 from spine.db.models import Base
 
 config = context.config
@@ -16,8 +17,10 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-settings = Settings()  # type: ignore[call-arg]
-config.set_main_option("sqlalchemy.url", settings.database_url.replace("%", "%%"))
+database_url = config.attributes.get(DATABASE_URL_ATTRIBUTE) or os.environ.get("SPINE_DATABASE_URL")
+if not isinstance(database_url, str) or not database_url:
+    raise RuntimeError("SPINE_DATABASE_URL is required for migrations")
+config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
 target_metadata = Base.metadata
 
 
