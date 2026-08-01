@@ -1,4 +1,4 @@
-"""FastAPI application factory for the M1 spine service."""
+"""FastAPI application factory for the Spine service."""
 
 import logging
 from collections.abc import AsyncIterator
@@ -25,6 +25,9 @@ from spine.inject.service import PrepareService
 from spine.memory.router import router as memory_router
 from spine.memory.service import MemoryService
 from spine.problems import ProblemJSONResponse, problem_openapi, problem_response
+from spine.spend.router import router as spend_router
+from spine.spend.service import SpendService
+from spine.spend.views import SpendViewRefresher
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +51,8 @@ def create_app(
         owned_engine = make_engine(resolved.database_url)
         session_factory = make_session_factory(owned_engine)
 
+    spend_service = SpendService(session_factory)
+
     owned_provider = None
     if embedding_provider is None:
         configured_key = (
@@ -58,6 +63,7 @@ def create_app(
             model=resolved.embed_model,
             dimensions=resolved.embed_dim,
             base_url=resolved.embed_base_url,
+            receipt_sink=spend_service,
         )
         embedding_provider = owned_provider
 
@@ -71,12 +77,20 @@ def create_app(
     )
     prepare_service = PrepareService(session_factory, embedding_provider)
     decision_service = DecisionService(session_factory)
+    spend_view_refresher = SpendViewRefresher(
+        session_factory,
+        interval_seconds=resolved.spend_view_refresh_seconds,
+    )
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        if owned_engine is not None:
+            spend_view_refresher.start()
         try:
             yield
         finally:
+            if owned_engine is not None:
+                await spend_view_refresher.stop()
             if owned_provider is not None:
                 await owned_provider.aclose()
             if owned_engine is not None:
@@ -93,6 +107,8 @@ def create_app(
     app.state.memory_service = memory_service
     app.state.prepare_service = prepare_service
     app.state.decision_service = decision_service
+    app.state.spend_service = spend_service
+    app.state.spend_view_refresher = spend_view_refresher
     app.add_middleware(
         StaticBearerAuthMiddleware,
         token=resolved.token.get_secret_value(),
@@ -158,4 +174,5 @@ def create_app(
 
     app.include_router(inject_router)
     app.include_router(memory_router)
+    app.include_router(spend_router)
     return app

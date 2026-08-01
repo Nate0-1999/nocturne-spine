@@ -8,6 +8,7 @@ FROM base AS builder
 WORKDIR /build
 
 COPY pyproject.toml ./
+COPY README.md ./
 COPY Dockerfile ./
 COPY src ./src
 COPY infra ./infra

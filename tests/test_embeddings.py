@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import json
 import math
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
+from uuid import UUID
 
 import httpx
 import pytest
@@ -13,11 +14,14 @@ from spine.embeddings import (
     EmbeddingAPIError,
     EmbeddingConfigurationError,
     EmbeddingInputError,
+    EmbeddingReceiptContext,
+    EmbeddingReceiptError,
     EmbeddingResponseError,
     EmbeddingTransportError,
     OpenAIEmbeddingProvider,
     embed_one,
 )
+from spine.spend.contracts import SpendEventInput
 
 
 def _client(handler: Callable[[httpx.Request], httpx.Response]) -> httpx.AsyncClient:
@@ -34,6 +38,18 @@ class _InjectedProvider:
     async def embed(self, texts: object) -> list[list[object]]:
         assert texts == ["memory"]
         return self.vectors
+
+
+class _RecordingReceiptSink:
+    def __init__(self, *, fail: bool = False) -> None:
+        self.events: list[SpendEventInput] = []
+        self.fail = fail
+
+    async def append(self, events: Sequence[SpendEventInput]) -> int:
+        if self.fail:
+            raise RuntimeError("ledger unavailable")
+        self.events.extend(events)
+        return len(events)
 
 
 async def test_embed_one_normalizes_and_validates_an_injected_provider() -> None:
@@ -84,6 +100,73 @@ async def test_openai_request_and_response_order_follow_the_provider_contract() 
     assert provider.model == "text-embedding-test"
     assert provider.dimensions == 3
     assert vectors == [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]
+
+
+async def test_production_embedding_is_receipted_before_vector_return() -> None:
+    sink = _RecordingReceiptSink()
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "id": "embedding-generation-1",
+                "model": "openai/text-embedding-3-small",
+                "provider": "openai",
+                "usage": {"prompt_tokens": 7, "cost": 0.00007},
+                "data": [{"index": 0, "embedding": [1.0, 2.0, 3.0]}],
+            },
+        )
+
+    async with _client(handler) as client:
+        provider = OpenAIEmbeddingProvider(
+            api_key="test-key",
+            dimensions=3,
+            base_url="https://openrouter.ai/api/v1",
+            client=client,
+            receipt_sink=sink,
+        )
+        vector = await embed_one(
+            provider,
+            "memory",
+            receipt_context=EmbeddingReceiptContext(
+                principal_id="owner",
+                machine_id="workstation",
+                origin_agent="harness-chat",
+                thread_id=UUID("11111111-1111-4111-8111-111111111111"),
+            ),
+        )
+
+    assert vector == [1.0, 2.0, 3.0]
+    assert len(sink.events) == 1
+    event = sink.events[0]
+    assert event.product_type == "llm.embedding"
+    assert event.quantity_type == "input_fresh"
+    assert event.quantity == 7
+    assert str(event.cost_usd) == "0.00007"
+    assert event.purpose == "embedding"
+    assert event.provider == "openai"
+    assert event.ref == "embedding-generation-1"
+
+
+async def test_embedding_receipt_failure_does_not_release_vectors() -> None:
+    sink = _RecordingReceiptSink(fail=True)
+    payload = {
+        "usage": {"prompt_tokens": 1},
+        "data": [{"index": 0, "embedding": [1.0, 2.0, 3.0]}],
+    }
+    async with _client(lambda _: httpx.Response(200, json=payload)) as client:
+        provider = OpenAIEmbeddingProvider(
+            api_key="test-key",
+            dimensions=3,
+            client=client,
+            receipt_sink=sink,
+        )
+        with pytest.raises(EmbeddingReceiptError, match="could not be persisted"):
+            await embed_one(
+                provider,
+                "memory",
+                receipt_context=EmbeddingReceiptContext(principal_id="owner"),
+            )
 
 
 async def test_missing_api_key_fails_at_call_time_without_an_http_request() -> None:

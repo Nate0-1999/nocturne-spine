@@ -1,6 +1,7 @@
 """Literal SQLAlchemy mappings for the authoritative SPEC C.2 DDL."""
 
 from datetime import datetime
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
@@ -14,6 +15,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    Numeric,
     Text,
     UniqueConstraint,
     text,
@@ -24,7 +26,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
 class Base(DeclarativeBase):
-    """Declarative base for the five C.2 tables."""
+    """Declarative base for Spine-owned authoritative tables."""
 
 
 class MemoryUnit(Base):
@@ -194,6 +196,172 @@ class InjectionEvent(Base):
         DateTime(timezone=True),
         nullable=False,
         server_default=text("now()"),
+    )
+
+
+class SpendEvent(Base):
+    """One append-only receipt line in ADR-024 normal form."""
+
+    __tablename__ = "spend_event"
+    __table_args__ = (
+        CheckConstraint(
+            "product_type IN ("
+            "'llm.request','llm.embedding','llm.fee','infra.db.instance',"
+            "'infra.db.storage','infra.run.serve','infra.run.job',"
+            "'infra.observability','net.egress','fleet.lease','fleet.snapshot'"
+            ") OR product_type LIKE 'ext.api._%'",
+            name="spend_event_product_type_check",
+        ),
+        CheckConstraint(
+            "quantity_type = btrim(quantity_type) AND quantity_type <> ''",
+            name="spend_event_quantity_type_nonblank_check",
+        ),
+        CheckConstraint(
+            "unit_of_measure = btrim(unit_of_measure) AND unit_of_measure <> ''",
+            name="spend_event_unit_of_measure_nonblank_check",
+        ),
+        CheckConstraint("quantity > 0", name="spend_event_quantity_check"),
+        CheckConstraint(
+            "cost_usd IS NULL OR cost_usd >= 0",
+            name="spend_event_cost_usd_check",
+        ),
+        CheckConstraint(
+            "basis IN ('measured','allocated','estimated')",
+            name="spend_event_basis_check",
+        ),
+        CheckConstraint(
+            "behavior IN ('variable','fixed','step')",
+            name="spend_event_behavior_check",
+        ),
+        CheckConstraint(
+            "purpose IN "
+            "('building','extraction','curation','judge','remember','embedding','scout')",
+            name="spend_event_purpose_check",
+        ),
+        CheckConstraint(
+            "ref = btrim(ref) AND ref <> ''",
+            name="spend_event_ref_nonblank_check",
+        ),
+        Index("spend_event_ts_idx", "ts"),
+        Index("spend_event_ref_idx", "ref"),
+        Index("spend_event_thread_id_idx", "thread_id"),
+        Index("spend_event_run_id_idx", "run_id"),
+        Index("spend_event_memory_id_idx", "memory_id"),
+        {
+            "comment": (
+                "LEDGER receipt line: one immutable sentence for one purchased price class."
+            )
+        },
+    )
+
+    event_uid: Mapped[str] = mapped_column(
+        Text,
+        primary_key=True,
+        comment="ULID receipt identity; its leading bits carry the purchase timestamp.",
+    )
+    ts: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        comment="When the provider purchase completed, with timezone.",
+    )
+    product_type: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        comment="What was bought: in M2A, an LLM request or embedding.",
+    )
+    quantity_type: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        comment=(
+            "The price class bought: fresh input, cached input, cache write, output, "
+            "or reasoning."
+        ),
+    )
+    unit_of_measure: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        comment="The noun attached to quantity; M2A uses tokens.",
+    )
+    quantity: Mapped[Decimal] = mapped_column(
+        Numeric(30, 9),
+        nullable=False,
+        comment="How many units were bought; receipt lines never pad with zero units.",
+    )
+    cost_usd: Mapped[Decimal | None] = mapped_column(
+        Numeric(20, 12),
+        comment="Native broker dollars for this line, NULL when the bill has not supplied a cost.",
+    )
+    basis: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        comment=(
+            "Honesty column: measured, allocated, or estimated; allocation is never "
+            "measurement."
+        ),
+    )
+    behavior: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        comment="Cost lever: variable per action, fixed baseline, or step capacity jump.",
+    )
+    purpose: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        comment=(
+            "Why bought: building, extraction, curation, judge, remember, embedding, "
+            "or scout."
+        ),
+    )
+    principal_id: Mapped[str | None] = mapped_column(
+        Text,
+        comment="Human funding lineage, when known.",
+    )
+    machine_id: Mapped[str | None] = mapped_column(
+        Text,
+        comment="Machine lineage, when known.",
+    )
+    origin_agent: Mapped[str | None] = mapped_column(
+        Text,
+        comment="Agent path lineage; prefixes roll up a sub-agent subtree.",
+    )
+    thread_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        comment="Conversation grain; GROUP BY this column is thread cost.",
+    )
+    run_id: Mapped[str | None] = mapped_column(
+        Text,
+        comment="Run grain; GROUP BY this column is run cost.",
+    )
+    prompt_id: Mapped[str | None] = mapped_column(
+        Text,
+        comment="Query grain shared by its model and embedding purchases.",
+    )
+    memory_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        comment="Memory grain enabling future cost-per-citation economics.",
+    )
+    model: Mapped[str | None] = mapped_column(
+        Text,
+        comment="Executable model identity reported for the purchase.",
+    )
+    provider: Mapped[str | None] = mapped_column(
+        Text,
+        comment="Downstream inference provider when known; otherwise the direct provider.",
+    )
+    quantization: Mapped[str | None] = mapped_column(
+        Text,
+        comment="Endpoint precision when the broker reports it; NULL is honest unknown.",
+    )
+    ref: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        comment="Provider response or generation id joining every price class of one request.",
+    )
+    meta: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        server_default=text("'{}'::jsonb"),
+        comment="Replay-safe provider detail and allocation provenance not promoted to a column.",
     )
 
 

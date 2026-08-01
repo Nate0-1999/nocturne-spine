@@ -542,3 +542,62 @@ Allowing every removal reason on near misses would invent edit and relevance
 behavior the amendment does not authorize. Lowering the threshold, pinning
 the unit, or mutating it through a direct quarantine endpoint would manipulate
 selection merely to expose an already-recorded gate action.
+
+## 020 — One append-only receipt ledger with in-process embedding writes [P4]
+
+**Decision.** Implement ADR-024 and A-027 as one Spine-owned `spend_event`
+table at Alembic head 0003. The database permits every product family named by
+ADR-024, while the M2A HTTP contract admits only `llm.request` and
+`llm.embedding`; later packets can add producers without another ledger. A
+database trigger rejects UPDATE and DELETE. POST `/v1/spend/events` inserts a
+nonempty batch with `ON CONFLICT DO NOTHING`, reads every resulting row inside
+the same transaction, and treats normalized equality as idempotence and any
+field difference as an atomic 409. No update-shaped reconciliation seam exists.
+
+The five canonical materialized views keep their named grain and expose cost,
+quantity, receipt count, and unpriced-line count; `v_spend_rate` retains
+purpose/model/provider dimensions so M2C can derive all three lanes without a
+second view family. A production-only task refreshes the views in their frozen
+name order immediately and every configured minute. Refresh failure is logged
+and cannot make a derived lens authoritative or block ledger writes.
+
+The production OpenAI-compatible embedding adapter receives the in-process
+SpendService, retains the provider billing envelope, and appends one nonzero
+`llm.embedding` input receipt before returning vectors. It uses a provider
+response id, then `x-request-id`, then the receipt ULID as `ref`; absent usage
+or cost stays absent rather than estimated. Call sites pass only lineage they
+actually know. Existing injected deterministic providers remain ordinary
+vector seams and do not fabricate spend.
+
+**Motivation.** Spine already owns the database, auth boundary, and embedding
+HTTP call, so a second ledger service or a loopback HTTP call would add failure
+and configuration without authority. Keeping future product types in the DDL
+honors ADR-024 without building wave-2 ingestion; restricting the current wire
+prevents M2A from quietly becoming that ingestion packet. The unpriced count
+keeps NULL dollars visible instead of letting a dashboard mistake missing bills
+for free work.
+
+**Rejected alternatives.** Mutable cost rows violate perpetuity and make late
+bills overwrite history. Refresh-on-every-write couples authoritative latency
+to analytics. Concurrent refresh needs extra unique-index/null policy not
+required at this scale. A queue makes the explicitly synchronous broker seam
+best-effort. Teaching every fake embedding provider to mint receipts would turn
+test vectors into fictional purchases.
+
+## 021 — Retire the closed-M1 regex fence [P4]
+
+**Decision.** Remove the repository pre-commit hook and CI step from Decision
+002 now that Garden report 035 has closed M1. The hook encoded M1's forbidden
+feature ledger; it is not a general product-correctness check, and several of
+those feature families are now expressly scheduled M2 work. Packet scope stays
+governed by the current Garden board and focused packet law. Lint, tests,
+packaging checks, and contract evidence remain CI gates.
+
+**Motivation.** The closed-milestone regex rejected the enacted M2A spend
+contract. Leaving a stale guard in place makes lawful work indistinguishable
+from scope drift and invites bypassing a check whose premise no longer holds.
+
+**Rejected alternatives.** `--no-verify` would conceal the mismatch and still
+leave CI red. A milestone switch whose M2 branch does nothing is ceremonial
+machinery. Rewriting the regex for every packet duplicates Garden authority in
+two product repositories and cannot express packet dependencies reliably.

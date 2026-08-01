@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 MEMORY_ID = "00000000-0000-0000-0000-000000000001"
 INJECTION_ID = "00000000-0000-0000-0000-000000000002"
 
-C4_ROUTES = {
+SPINE_ROUTES = {
     ("POST", "/v1/inject/prepare"),
     ("POST", "/v1/inject/commit"),
     ("POST", "/v1/feedback"),
@@ -22,6 +22,7 @@ C4_ROUTES = {
     ("PATCH", "/v1/memories/{id}"),
     ("GET", "/v1/memories"),
     ("POST", "/v1/search"),
+    ("POST", "/v1/spend/events"),
 }
 
 
@@ -139,14 +140,14 @@ async def test_unexpected_service_errors_are_sanitized_rfc7807(app: FastAPI) -> 
     assert response.json()["detail"] == "The request could not be completed."
 
 
-def test_exactly_seven_c4_routes_are_registered(app: FastAPI) -> None:
+def test_exactly_the_lawful_spine_routes_are_registered(app: FastAPI) -> None:
     actual = {
         (method.upper(), path)
         for path, operations in app.openapi()["paths"].items()
         if path.startswith("/v1/")
         for method in operations
     }
-    assert actual == C4_ROUTES
+    assert actual == SPINE_ROUTES
 
 
 def test_committed_openapi_is_current(app: FastAPI) -> None:
@@ -157,6 +158,7 @@ def test_committed_openapi_is_current(app: FastAPI) -> None:
         "type": "http",
     }
     assert committed["components"]["schemas"]["SearchRequest"]["additionalProperties"] is False
+    assert committed["components"]["schemas"]["SpendEventsRequest"]["additionalProperties"] is False
 
     create_operation = committed["paths"]["/v1/memories"]["post"]
     create_request = committed["components"]["schemas"]["CreateMemoryRequest"]
@@ -221,6 +223,12 @@ def test_committed_openapi_is_current(app: FastAPI) -> None:
         "title": "K",
         "type": "integer",
     }
+    spend_operation = committed["paths"]["/v1/spend/events"]["post"]
+    assert {"200", "401", "409", "422", "500"} <= set(spend_operation["responses"])
+    spend_event = committed["components"]["schemas"]["SpendEventInput"]
+    assert {"event_uid", "product_type", "quantity_type", "purpose", "ref"} <= set(
+        spend_event["required"]
+    )
 
     memory_unit_fields = {
         "memory_id",

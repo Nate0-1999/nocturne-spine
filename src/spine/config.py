@@ -1,4 +1,4 @@
-"""Spine configuration and the authoritative M1 defaults from SPEC C.5."""
+"""Spine configuration and enacted runtime defaults."""
 
 from typing import Literal
 
@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     memory_max_tokens: int = Field(default=128, gt=0)
     label_max: int = Field(default=64, gt=0)
     chat_model: str = "anthropic:claude-sonnet-4-6"
+    spend_view_refresh_seconds: int = Field(default=60, gt=0)
 
     @model_validator(mode="after")
     def validate_dedup_bands(self) -> "Settings":

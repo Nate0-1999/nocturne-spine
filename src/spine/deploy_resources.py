@@ -84,6 +84,7 @@ def materialize_app_source(destination: str | Path) -> Path:
     package_root = files("spine")
 
     _copy_file(resources.joinpath("pyproject.toml"), target / "pyproject.toml")
+    _copy_file(resources.joinpath("README.md"), target / "README.md")
     _copy_file(resources.joinpath("Dockerfile"), target / "Dockerfile")
     _copy_tree(package_root, target / "src" / "spine", excludes=_SOURCE_EXCLUDES)
     _copy_d2_source(resources, target / "infra" / "billing-breaker")

@@ -33,6 +33,7 @@ def packaged_spine_resources(
     d2_root = deploy_root / "billing-breaker"
     d2_root.mkdir(parents=True)
     shutil.copy2(ROOT / "pyproject.toml", deploy_root / "pyproject.toml")
+    shutil.copy2(ROOT / "README.md", deploy_root / "README.md")
     shutil.copy2(ROOT / "Dockerfile", deploy_root / "Dockerfile")
     for filename in D2_FILES:
         shutil.copy2(ROOT / "infra" / "billing-breaker" / filename, d2_root / filename)
@@ -63,6 +64,7 @@ def test_materialize_app_source_is_an_allowlisted_rebuildable_context(
 
     assert {path.name for path in destination.iterdir()} == {
         "Dockerfile",
+        "README.md",
         "infra",
         "pyproject.toml",
         "src",

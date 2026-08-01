@@ -1,0 +1,234 @@
+"""M2A acceptance for receipt ingestion, append-only law, and views."""
+
+from __future__ import annotations
+
+import json
+from datetime import datetime
+from decimal import Decimal
+from uuid import UUID
+
+import pytest
+from httpx import AsyncClient
+from sqlalchemy import text
+from sqlalchemy.exc import DBAPIError
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+from spine.spend.views import CANONICAL_SPEND_VIEWS, SpendViewRefresher
+
+_EVENT_UID = "01K1M2A0000000000000000001"
+_SECOND_UID = "01K1M2A0000000000000000002"
+_THREAD_ID = "11111111-1111-4111-8111-111111111111"
+_MEMORY_ID = "22222222-2222-4222-8222-222222222222"
+
+
+def _event(
+    event_uid: str = _EVENT_UID,
+    *,
+    quantity_type: str = "input_fresh",
+    quantity: str = "125",
+    cost_usd: str | None = "0.000250",
+) -> dict[str, object]:
+    return {
+        "event_uid": event_uid,
+        "ts": "2026-08-01T12:34:56.789Z",
+        "product_type": "llm.request",
+        "quantity_type": quantity_type,
+        "unit_of_measure": "tokens",
+        "quantity": quantity,
+        "cost_usd": cost_usd,
+        "basis": "measured",
+        "behavior": "variable",
+        "purpose": "building",
+        "principal_id": "owner",
+        "machine_id": "workstation",
+        "origin_agent": "harness-chat",
+        "thread_id": _THREAD_ID,
+        "run_id": "01K1M2A0000000000000000003",
+        "prompt_id": "01K1M2A0000000000000000004",
+        "memory_id": _MEMORY_ID,
+        "model": "anthropic/claude-sonnet-4.6",
+        "provider": "anthropic",
+        "quantization": None,
+        "ref": "gen-test-1",
+        "meta": {"cost_source": "provider_details"},
+    }
+
+
+async def test_spend_route_is_atomic_idempotent_and_conflict_safe(
+    memory_client: AsyncClient,
+    memory_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    first = await memory_client.post("/v1/spend/events", json={"events": [_event()]})
+    replay = await memory_client.post("/v1/spend/events", json={"events": [_event()]})
+
+    assert first.status_code == 200
+    assert first.json() == {"accepted": 1}
+    assert replay.status_code == 200
+    assert replay.json() == {"accepted": 1}
+
+    conflict = _event(quantity="126")
+    new_line = _event(_SECOND_UID, quantity_type="output", quantity="40")
+    rejected = await memory_client.post(
+        "/v1/spend/events",
+        json={"events": [new_line, conflict]},
+    )
+
+    assert rejected.status_code == 409
+    assert rejected.headers["content-type"].startswith("application/problem+json")
+    assert _EVENT_UID in rejected.json()["detail"]
+    async with memory_session_factory() as session:
+        count = await session.scalar(text("SELECT count(*) FROM spend_event"))
+    assert count == 1
+
+
+async def test_spend_contract_rejects_zero_lines_bad_enums_and_duplicate_ids(
+    memory_client: AsyncClient,
+) -> None:
+    zero = _event(quantity="0")
+    duplicate = _event()
+    bad_purpose = _event()
+    bad_purpose["purpose"] = "misc"
+
+    for body in (
+        {"events": []},
+        {"events": [zero]},
+        {"events": [duplicate, duplicate]},
+        {"events": [bad_purpose]},
+    ):
+        response = await memory_client.post("/v1/spend/events", json=body)
+        assert response.status_code == 422
+
+
+async def test_spend_event_database_is_append_only(
+    memory_client: AsyncClient,
+    memory_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    response = await memory_client.post("/v1/spend/events", json={"events": [_event()]})
+    assert response.status_code == 200
+
+    for statement in (
+        "UPDATE spend_event SET quantity = 1 WHERE event_uid = :event_uid",
+        "DELETE FROM spend_event WHERE event_uid = :event_uid",
+    ):
+        async with memory_session_factory() as session:
+            with pytest.raises(DBAPIError, match="spend_event is append-only"):
+                async with session.begin():
+                    await session.execute(text(statement), {"event_uid": _EVENT_UID})
+
+
+async def test_canonical_views_are_double_run_deterministic_and_sentence_readable(
+    memory_client: AsyncClient,
+    memory_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    cached = _event(
+        _SECOND_UID,
+        quantity_type="input_cached",
+        quantity="375",
+        cost_usd="0.000075",
+    )
+    response = await memory_client.post(
+        "/v1/spend/events",
+        json={"events": [_event(), cached]},
+    )
+    assert response.status_code == 200
+
+    refresher = SpendViewRefresher(memory_session_factory)
+    snapshots: list[bytes] = []
+    for _ in range(2):
+        await refresher.refresh_once()
+        snapshots.append(await _view_snapshot(memory_session_factory))
+
+    assert snapshots[0] == snapshots[1]
+    decoded = json.loads(snapshots[0])
+    assert set(decoded) == set(CANONICAL_SPEND_VIEWS)
+    efficiency = decoded["v_cache_efficiency"][0]
+    assert Decimal(efficiency["cache_efficiency"]) == Decimal("0.75")
+
+    async with memory_session_factory() as session:
+        row = (
+            (
+                await session.execute(
+                    text(
+                        "SELECT product_type, quantity, unit_of_measure, quantity_type, "
+                        "cost_usd, basis, purpose, model, provider, ref "
+                        "FROM spend_event WHERE event_uid = :event_uid"
+                    ),
+                    {"event_uid": _EVENT_UID},
+                )
+            )
+            .mappings()
+            .one()
+        )
+    sentence = (
+        f"{row['purpose']} bought {row['quantity']} {row['unit_of_measure']} of "
+        f"{row['quantity_type']} for {row['product_type']} on {row['model']} from "
+        f"{row['provider']}, costing ${row['cost_usd']} ({row['basis']}), ref {row['ref']}."
+    )
+    assert sentence == (
+        "building bought 125.000000000 tokens of input_fresh for llm.request on "
+        "anthropic/claude-sonnet-4.6 from anthropic, costing $0.000250000000 "
+        "(measured), ref gen-test-1."
+    )
+
+
+async def test_receipt_language_is_shipped_as_database_comments(
+    memory_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with memory_session_factory() as session:
+        table_comment = await session.scalar(
+            text("SELECT obj_description('spend_event'::regclass, 'pg_class')")
+        )
+        comments = dict(
+            (
+                await session.execute(
+                    text(
+                        "SELECT a.attname, col_description(a.attrelid, a.attnum) "
+                        "FROM pg_attribute a "
+                        "WHERE a.attrelid = 'spend_event'::regclass AND a.attnum > 0"
+                    )
+                )
+            ).all()
+        )
+
+    assert table_comment is not None and "receipt line" in table_comment
+    assert comments["basis"] is not None and "Honesty column" in comments["basis"]
+    assert comments["ref"] is not None and "price class" in comments["ref"]
+
+
+async def _view_snapshot(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> bytes:
+    result: dict[str, object] = {}
+    ordering = {
+        "v_spend_rate": "minute, purpose, model, provider",
+        "v_thread_cost": "thread_id",
+        "v_run_cost": "run_id, thread_id",
+        "v_memory_cost": "memory_id",
+        "v_cache_efficiency": "minute, model, provider",
+    }
+    async with session_factory() as session:
+        for view in CANONICAL_SPEND_VIEWS:
+            rows = (
+                (
+                    await session.execute(
+                        text(f"SELECT * FROM {view} ORDER BY {ordering[view]}")
+                    )
+                )
+                .mappings()
+                .all()
+            )
+            result[view] = [_json_row(dict(row)) for row in rows]
+    return json.dumps(result, sort_keys=True, separators=(",", ":")).encode()
+
+
+def _json_row(row: dict[str, object]) -> dict[str, object]:
+    return {
+        key: (
+            value.isoformat()
+            if isinstance(value, datetime)
+            else str(value)
+            if isinstance(value, (Decimal, UUID))
+            else value
+        )
+        for key, value in row.items()
+    }

@@ -131,6 +131,7 @@ async def test_models_match_authoritative_c2_schema(
         "memory_revision",
         "thread",
         "injection_event",
+        "spend_event",
         "scorer_config",
     )
 
@@ -197,6 +198,30 @@ async def test_models_match_authoritative_c2_schema(
             "outcome",
             "ts",
         ),
+        "spend_event": (
+            "event_uid",
+            "ts",
+            "product_type",
+            "quantity_type",
+            "unit_of_measure",
+            "quantity",
+            "cost_usd",
+            "basis",
+            "behavior",
+            "purpose",
+            "principal_id",
+            "machine_id",
+            "origin_agent",
+            "thread_id",
+            "run_id",
+            "prompt_id",
+            "memory_id",
+            "model",
+            "provider",
+            "quantization",
+            "ref",
+            "meta",
+        ),
         "scorer_config": ("version", "weights", "params", "created_at", "active"),
     }
     assert {
@@ -212,6 +237,19 @@ async def test_models_match_authoritative_c2_schema(
         "memory_revision": {"parent_uid", "revision"},
         "thread": {"project_key", "snapshot_ts"},
         "injection_event": {"project_key", "outcome"},
+        "spend_event": {
+            "cost_usd",
+            "principal_id",
+            "machine_id",
+            "origin_agent",
+            "thread_id",
+            "run_id",
+            "prompt_id",
+            "memory_id",
+            "model",
+            "provider",
+            "quantization",
+        },
         "scorer_config": set(),
     }
 
@@ -224,6 +262,7 @@ async def test_models_match_authoritative_c2_schema(
         "memory_revision": ("rev_uid",),
         "thread": ("id",),
         "injection_event": ("id",),
+        "spend_event": ("event_uid",),
         "scorer_config": ("version",),
     }
 
@@ -288,6 +327,28 @@ async def test_models_match_authoritative_c2_schema(
         "injection_event.shown_as": "TEXT",
         "injection_event.outcome": "TEXT",
         "injection_event.ts": "TIMESTAMP WITH TIME ZONE",
+        "spend_event.event_uid": "TEXT",
+        "spend_event.ts": "TIMESTAMP WITH TIME ZONE",
+        "spend_event.product_type": "TEXT",
+        "spend_event.quantity_type": "TEXT",
+        "spend_event.unit_of_measure": "TEXT",
+        "spend_event.quantity": "NUMERIC(30, 9)",
+        "spend_event.cost_usd": "NUMERIC(20, 12)",
+        "spend_event.basis": "TEXT",
+        "spend_event.behavior": "TEXT",
+        "spend_event.purpose": "TEXT",
+        "spend_event.principal_id": "TEXT",
+        "spend_event.machine_id": "TEXT",
+        "spend_event.origin_agent": "TEXT",
+        "spend_event.thread_id": "UUID",
+        "spend_event.run_id": "TEXT",
+        "spend_event.prompt_id": "TEXT",
+        "spend_event.memory_id": "UUID",
+        "spend_event.model": "TEXT",
+        "spend_event.provider": "TEXT",
+        "spend_event.quantization": "TEXT",
+        "spend_event.ref": "TEXT",
+        "spend_event.meta": "JSONB",
         "scorer_config.version": "TEXT",
         "scorer_config.weights": "JSONB",
         "scorer_config.params": "JSONB",
@@ -319,6 +380,7 @@ async def test_models_match_authoritative_c2_schema(
         "thread.created_at": "now()",
         "injection_event.agent_kind": "'general'",
         "injection_event.ts": "now()",
+        "spend_event.meta": "'{}'::jsonb",
         "scorer_config.created_at": "now()",
         "scorer_config.active": "false",
     }
@@ -348,6 +410,29 @@ async def test_models_match_authoritative_c2_schema(
         "thread": {},
         "injection_event": {
             "injection_event_shown_as_check": ("shown_as IN ('injected','near_miss','pinned')")
+        },
+        "spend_event": {
+            "spend_event_product_type_check": (
+                "product_type IN ('llm.request','llm.embedding','llm.fee',"
+                "'infra.db.instance','infra.db.storage','infra.run.serve',"
+                "'infra.run.job','infra.observability','net.egress','fleet.lease',"
+                "'fleet.snapshot') OR product_type LIKE 'ext.api._%'"
+            ),
+            "spend_event_quantity_type_nonblank_check": (
+                "quantity_type = btrim(quantity_type) AND quantity_type <> ''"
+            ),
+            "spend_event_unit_of_measure_nonblank_check": (
+                "unit_of_measure = btrim(unit_of_measure) AND unit_of_measure <> ''"
+            ),
+            "spend_event_quantity_check": "quantity > 0",
+            "spend_event_cost_usd_check": "cost_usd IS NULL OR cost_usd >= 0",
+            "spend_event_basis_check": "basis IN ('measured','allocated','estimated')",
+            "spend_event_behavior_check": "behavior IN ('variable','fixed','step')",
+            "spend_event_purpose_check": (
+                "purpose IN "
+                "('building','extraction','curation','judge','remember','embedding','scout')"
+            ),
+            "spend_event_ref_nonblank_check": "ref = btrim(ref) AND ref <> ''",
         },
         "scorer_config": {},
     }

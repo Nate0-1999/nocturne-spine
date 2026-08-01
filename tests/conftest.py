@@ -115,7 +115,8 @@ async def memory_session_factory(
     engine = create_async_engine(migrated_database_url)
     session_factory = make_session_factory(engine)
     truncate = text(
-        "TRUNCATE injection_event, thread, memory_revision, memory_unit RESTART IDENTITY CASCADE"
+        "TRUNCATE spend_event, injection_event, thread, memory_revision, memory_unit "
+        "RESTART IDENTITY CASCADE"
     )
     async with engine.begin() as connection:
         await connection.execute(truncate)

@@ -78,14 +78,16 @@ def test_embedding_runtime_wires_default_and_direct_provider_without_network(
         raise AssertionError("configuration test must not access Postgres")
 
     monkeypatch.setattr(spine_main, "OpenAIEmbeddingProvider", fake_adapter)
-    spine_main.create_app(
+    app = spine_main.create_app(
         _settings(openai_api_key="compatible-key"),
         session_factory=unused_session_factory,  # type: ignore[arg-type]
     )
 
-    fake_adapter.assert_called_once_with(
-        api_key="compatible-key",
-        model=expected_model,
-        dimensions=1536,
-        base_url=expected_base_url,
-    )
+    fake_adapter.assert_called_once()
+    assert fake_adapter.call_args.kwargs == {
+        "api_key": "compatible-key",
+        "model": expected_model,
+        "dimensions": 1536,
+        "base_url": expected_base_url,
+        "receipt_sink": app.state.spend_service,
+    }

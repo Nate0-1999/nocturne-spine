@@ -37,6 +37,7 @@ from spine.db.models import MemoryRevision, MemoryUnit
 from spine.embeddings import (
     EmbeddingConfigurationError,
     EmbeddingProvider,
+    EmbeddingReceiptContext,
     embed_one,
 )
 from spine.ids import mint_ulid
@@ -224,6 +225,12 @@ class MemoryService:
             self._embedding_provider,
             command.body,
             expected_dimensions=_EMBEDDING_DIMENSIONS,
+            receipt_context=EmbeddingReceiptContext(
+                principal_id=command.principal_id,
+                machine_id=command.machine_id,
+                origin_agent=_agent_from_editor(command.editor),
+                thread_id=_optional_uuid(command.thread_origin),
+            ),
         )
 
         async with self._session_factory() as session:
@@ -298,10 +305,10 @@ class MemoryService:
         # C.2 forbids hard deletion, so this preflight gives A-004's missing-ID
         # response precedence without weakening the later revision CAS.
         async with self._session_factory() as preflight_session:
-            exists = await preflight_session.scalar(
-                select(MemoryUnit.id).where(MemoryUnit.id == command.memory_id)
+            principal_id = await preflight_session.scalar(
+                select(MemoryUnit.principal_id).where(MemoryUnit.id == command.memory_id)
             )
-        if exists is None:
+        if principal_id is None:
             raise MemoryNotFoundError(command.memory_id)
 
         if _provided(command.body):
@@ -315,6 +322,12 @@ class MemoryService:
                 self._embedding_provider,
                 command.body,
                 expected_dimensions=_EMBEDDING_DIMENSIONS,
+                receipt_context=EmbeddingReceiptContext(
+                    principal_id=principal_id,
+                    machine_id=command.machine_id,
+                    origin_agent=_agent_from_editor(command.editor),
+                    memory_id=command.memory_id,
+                ),
             )
             change_values.update(
                 body=command.body,
@@ -420,6 +433,7 @@ class MemoryService:
             self._embedding_provider,
             query.query,
             expected_dimensions=_EMBEDDING_DIMENSIONS,
+            receipt_context=EmbeddingReceiptContext(principal_id=query.principal_id),
         )
         unit = MemoryUnit.__table__
         distance = unit.c.embedding.cosine_distance(list(embedding))
@@ -657,6 +671,23 @@ def _integrity_constraint_name(error: IntegrityError) -> str | None:
             return name
         candidate = getattr(candidate, "__cause__", None)
     return None
+
+
+def _agent_from_editor(editor: str) -> str | None:
+    prefix = "agent:"
+    if not editor.startswith(prefix):
+        return None
+    agent = editor[len(prefix) :].strip()
+    return agent or None
+
+
+def _optional_uuid(value: str | None) -> UUID | None:
+    if value is None:
+        return None
+    try:
+        return UUID(value)
+    except ValueError:
+        return None
 
 
 __all__ = [

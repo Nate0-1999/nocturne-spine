@@ -4,9 +4,17 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from decimal import Decimal, InvalidOperation
 from typing import Protocol
+from urllib.parse import urlparse
+from uuid import UUID
 
 import httpx
+
+from spine.ids import mint_ulid
+from spine.spend.contracts import SpendEventInput
 
 
 class EmbeddingProvider(Protocol):
@@ -17,6 +25,25 @@ class EmbeddingProvider(Protocol):
 
     async def embed(self, texts: Sequence[str]) -> list[list[float]]:
         """Embed ``texts`` while preserving their input order."""
+
+
+class SpendReceiptSink(Protocol):
+    """Spine-local append seam used before production vectors are released."""
+
+    async def append(self, events: Sequence[SpendEventInput]) -> int: ...
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class EmbeddingReceiptContext:
+    """Nullable ADR-024 lineage known at an embedding call site."""
+
+    principal_id: str | None = None
+    machine_id: str | None = None
+    origin_agent: str | None = None
+    thread_id: UUID | None = None
+    run_id: str | None = None
+    prompt_id: str | None = None
+    memory_id: UUID | None = None
 
 
 class EmbeddingProviderError(RuntimeError):
@@ -48,15 +75,24 @@ class EmbeddingResponseError(EmbeddingProviderError):
     """A successful provider response did not satisfy the vector contract."""
 
 
+class EmbeddingReceiptError(EmbeddingProviderError):
+    """A provider response could not be committed to the synchronous ledger."""
+
+
 async def embed_one(
     provider: EmbeddingProvider,
     text: str,
     *,
     expected_dimensions: int | None = None,
+    receipt_context: EmbeddingReceiptContext | None = None,
 ) -> list[float]:
     """Embed one text and validate any injected provider's vector response."""
 
-    vectors = await provider.embed([text])
+    receipt_method = getattr(provider, "embed_with_receipt", None)
+    if receipt_context is not None and callable(receipt_method):
+        vectors = await receipt_method([text], receipt_context)
+    else:
+        vectors = await provider.embed([text])
     if len(vectors) != 1:
         raise EmbeddingResponseError(
             f"embedding provider returned {len(vectors)} vectors for one input"
@@ -92,6 +128,7 @@ class OpenAIEmbeddingProvider:
         base_url: str = "https://api.openai.com/v1",
         timeout: float = 30.0,
         client: httpx.AsyncClient | None = None,
+        receipt_sink: SpendReceiptSink | None = None,
     ) -> None:
         if not model.strip():
             raise EmbeddingConfigurationError("embedding model must not be blank")
@@ -107,14 +144,56 @@ class OpenAIEmbeddingProvider:
         self._timeout = timeout
         self._client = client or httpx.AsyncClient()
         self._owns_client = client is None
+        self._receipt_sink = receipt_sink
+        self._provider_name = _configured_provider_name(base_url)
 
     async def embed(self, texts: Sequence[str]) -> list[list[float]]:
         """Return validated vectors in the same order as ``texts``."""
 
+        vectors, _, _ = await self._request(texts)
+        return vectors
+
+    async def embed_with_receipt(
+        self,
+        texts: Sequence[str],
+        context: EmbeddingReceiptContext,
+    ) -> list[list[float]]:
+        """Return vectors only after their nonzero provider usage is receipted."""
+
+        if self._receipt_sink is None:
+            raise EmbeddingConfigurationError(
+                "production embedding receipt context requires a spend receipt sink"
+            )
+        vectors, payload, response = await self._request(texts)
+        event = _embedding_receipt(
+            payload,
+            response=response,
+            context=context,
+            configured_model=self.model,
+            configured_provider=self._provider_name,
+        )
+        if event is not None:
+            try:
+                accepted = await self._receipt_sink.append([event])
+            except Exception as exc:
+                raise EmbeddingReceiptError(
+                    "embedding succeeded but its spend receipt could not be persisted"
+                ) from exc
+            if accepted != 1:  # pragma: no cover - exact SpendService contract
+                raise EmbeddingReceiptError("embedding spend receipt was not accepted")
+        return vectors
+
+    async def _request(
+        self,
+        texts: Sequence[str],
+    ) -> tuple[list[list[float]], object, httpx.Response]:
+        """Make one provider request and retain its billing envelope."""
+
         api_key = self._required_api_key()
         inputs = self._validate_inputs(texts)
         if not inputs:
-            return []
+            response = httpx.Response(200, json={"data": []})
+            return [], {"data": []}, response
 
         try:
             response = await self._client.post(
@@ -138,7 +217,12 @@ class OpenAIEmbeddingProvider:
             payload: object = response.json()
         except ValueError as exc:
             raise EmbeddingResponseError("OpenAI embeddings response was not valid JSON") from exc
-        return _validated_vectors(payload, expected_count=len(inputs), dimensions=self.dimensions)
+        vectors = _validated_vectors(
+            payload,
+            expected_count=len(inputs),
+            dimensions=self.dimensions,
+        )
+        return vectors, payload, response
 
     async def aclose(self) -> None:
         """Close the internally created HTTP client, if this provider owns it."""
@@ -246,14 +330,117 @@ def _validated_vectors(
     return [vectors_by_index[index] for index in range(expected_count)]
 
 
+def _embedding_receipt(
+    payload: object,
+    *,
+    response: httpx.Response,
+    context: EmbeddingReceiptContext,
+    configured_model: str,
+    configured_provider: str,
+) -> SpendEventInput | None:
+    if not isinstance(payload, Mapping):
+        return None
+    usage = payload.get("usage")
+    usage_map = usage if isinstance(usage, Mapping) else {}
+    quantity = _positive_int(usage_map.get("prompt_tokens"))
+    if quantity is None:
+        quantity = _positive_int(usage_map.get("input_tokens"))
+    if quantity is None:
+        return None
+
+    event_uid = mint_ulid()
+    ref = _optional_text(payload.get("id"))
+    ref_source = "provider_response_id"
+    if ref is None:
+        ref = _optional_text(response.headers.get("x-request-id"))
+        ref_source = "x-request-id"
+    if ref is None:
+        ref = event_uid
+        ref_source = "event_uid"
+
+    cost = _nonnegative_decimal(usage_map.get("cost"))
+    cost_source = "usage.cost"
+    if cost is None:
+        cost = _nonnegative_decimal(payload.get("cost"))
+        cost_source = "response.cost" if cost is not None else "unreported"
+    model = _optional_text(payload.get("model")) or configured_model
+    provider = _optional_text(payload.get("provider")) or configured_provider
+    quantization = _optional_text(payload.get("quantization"))
+    return SpendEventInput(
+        event_uid=event_uid,
+        ts=datetime.now(UTC),
+        product_type="llm.embedding",
+        quantity_type="input_fresh",
+        unit_of_measure="tokens",
+        quantity=Decimal(quantity),
+        cost_usd=cost,
+        basis="measured",
+        behavior="variable",
+        purpose="embedding",
+        principal_id=context.principal_id,
+        machine_id=context.machine_id,
+        origin_agent=context.origin_agent,
+        thread_id=context.thread_id,
+        run_id=context.run_id,
+        prompt_id=context.prompt_id,
+        memory_id=context.memory_id,
+        model=model,
+        provider=provider,
+        quantization=quantization,
+        ref=ref,
+        meta={
+            "cost_source": cost_source,
+            "ref_source": ref_source,
+            "provider_usage": dict(usage_map),
+        },
+    )
+
+
+def _configured_provider_name(base_url: str) -> str:
+    host = (urlparse(base_url).hostname or "").lower()
+    if host == "openrouter.ai" or host.endswith(".openrouter.ai"):
+        return "openrouter"
+    if host == "api.openai.com" or host.endswith(".openai.com"):
+        return "openai"
+    return "openai-compatible"
+
+
+def _positive_int(value: object) -> int | None:
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        return None
+    return value
+
+
+def _nonnegative_decimal(value: object) -> Decimal | None:
+    if isinstance(value, bool) or value is None:
+        return None
+    try:
+        result = Decimal(str(value))
+    except (InvalidOperation, ValueError):
+        return None
+    if not result.is_finite() or result < 0:
+        return None
+    return result
+
+
+def _optional_text(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    value = value.strip()
+    return value or None
+
+
 __all__ = [
     "EmbeddingAPIError",
     "EmbeddingConfigurationError",
     "EmbeddingInputError",
     "EmbeddingProvider",
     "EmbeddingProviderError",
+    "EmbeddingReceiptContext",
+    "EmbeddingReceiptError",
     "EmbeddingResponseError",
     "EmbeddingTransportError",
     "OpenAIEmbeddingProvider",
+    "SpendReceiptSink",
     "embed_one",
 ]

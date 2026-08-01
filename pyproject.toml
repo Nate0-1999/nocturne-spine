@@ -51,6 +51,7 @@ include = [
 ]
 
 [tool.hatch.build.targets.wheel.force-include]
+"README.md" = "spine/_deploy/README.md"
 "pyproject.toml" = "spine/_deploy/pyproject.toml"
 "Dockerfile" = "spine/_deploy/Dockerfile"
 "infra/billing-breaker/README.md" = "spine/_deploy/billing-breaker/README.md"

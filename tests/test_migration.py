@@ -16,7 +16,7 @@ def test_packaged_migration_tree_has_one_expected_head() -> None:
 
     assert config.attributes[DATABASE_URL_ATTRIBUTE] == database_url
     assert scripts.get_base() == "0001"
-    assert scripts.get_heads() == ["0002"]
+    assert scripts.get_heads() == ["0003"]
 
 
 async def test_c2_migration_and_v0_seed(migrated_database_url: str) -> None:
@@ -79,13 +79,14 @@ async def test_c2_migration_and_v0_seed(migrated_database_url: str) -> None:
                 )
             )
 
-        assert revision == "0002"
+        assert revision == "0003"
         expected_tables = {
             "memory_unit",
             "memory_revision",
             "thread",
             "injection_event",
             "scorer_config",
+            "spend_event",
         }
         assert expected_tables <= tables
         assert extension == "vector"

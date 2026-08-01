@@ -30,7 +30,12 @@ from spine.db.models import (
 from spine.db.models import (
     ScorerConfig as DatabaseScorerConfig,
 )
-from spine.embeddings import EmbeddingConfigurationError, EmbeddingProvider, embed_one
+from spine.embeddings import (
+    EmbeddingConfigurationError,
+    EmbeddingProvider,
+    EmbeddingReceiptContext,
+    embed_one,
+)
 from spine.ids import mint_ulid
 from spine.inject.scorer import (
     ScoredCandidate,
@@ -103,6 +108,12 @@ class PrepareService:
             self._embedding_provider,
             command.prompt,
             expected_dimensions=_EMBEDDING_DIMENSIONS,
+            receipt_context=EmbeddingReceiptContext(
+                principal_id=command.principal_id,
+                machine_id=command.machine_id,
+                origin_agent=command.agent_id,
+                thread_id=command.thread_id,
+            ),
         )
 
         for attempt in range(_MAX_TRANSACTION_ATTEMPTS):
