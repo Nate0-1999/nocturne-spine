@@ -708,3 +708,35 @@ invisible. Treating a lock as a score boost permits demotion. Reopening the gate
 on every turn violates the product experience. Updating one durable event in
 place would erase replay provenance; storing daemon-only entry/exit state would
 make learning and trace evidence unverifiable.
+
+## 025 — Whole-log convex proposals over the existing event authority [P1.2]
+
+**Decision.** Adopt Garden A-031 as the M2F executable boundary. Build one pure,
+deterministic learner over detached event examples and one Spine service that
+loads a repeatable-read log snapshot, serializes retrains with a PostgreSQL
+advisory transaction lock, and inserts only an inactive proposal when the
+binary holdout scoreboard says it wins. Fit squared pairwise hinge loss by
+deterministic projected gradient over the six-weight simplex, with L2-shrunk
+per-memory offsets. Store those offsets and the full reproducibility manifest
+inside the proposal's existing params JSON; active config loading treats old
+versions as an empty offset map.
+
+Use whole injection batches for the chronological split so one gate never
+leaks across training and holdout. The incumbent baseline is the disposition's
+recorded shown class—the decision that actually served—while the challenger is
+graded from its recomputed score and unchanged tau. Preserve every other manual
+parameter verbatim. Run the identical service from authenticated POST
+`/retrain` and an opt-in periodic task; neither path activates a proposal.
+
+**Motivation.** The event log already owns features, outcomes, actor class,
+source version, and frozen bodies. A full refit makes that log—not mutable
+process state—the learner authority, while an inactive, content-addressed row
+keeps owner activation and exact replay visible. Six constrained weights do not
+justify a heavyweight solver dependency in the owner service; the deterministic
+convex routine is small enough to audit and test from hand-built fixtures.
+
+**Rejected alternatives.** Online SGD contradicts the resolved batch method and
+makes order an accidental authority. SciPy/CVXPY would add a large runtime
+dependency for a six-weight convex problem. A new training table duplicates the
+event log. Mutating `memory_unit.bias` during retrain would activate a challenger
+before the owner acts and overwrite the online never-kill safety response.

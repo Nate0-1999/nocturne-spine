@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 import struct
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from fractions import Fraction
 from typing import Any
@@ -94,6 +94,7 @@ class ScorerConfig:
     version: str
     weights: ScorerWeights
     params: ScorerParams
+    bias_offsets: Mapping[UUID, float] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not self.version.strip():
@@ -108,6 +109,8 @@ class ScorerConfig:
         )
         if not all(math.isfinite(value) for value in values):
             raise ValueError("scorer weights must be finite")
+        if any(not math.isfinite(value) for value in self.bias_offsets.values()):
+            raise ValueError("scorer bias offsets must be finite")
 
     @classmethod
     def from_mappings(
@@ -118,6 +121,20 @@ class ScorerConfig:
         params: Mapping[str, Any],
     ) -> ScorerConfig:
         """Build the typed pure boundary from the two JSONB config objects."""
+
+        learner = params.get("_learner", {})
+        if not isinstance(learner, Mapping):
+            raise ValueError("scorer _learner metadata must be an object")
+        raw_bias_offsets = learner.get("bias_offsets", {})
+        if not isinstance(raw_bias_offsets, Mapping):
+            raise ValueError("scorer learner bias_offsets must be an object")
+        bias_offsets: dict[UUID, float] = {}
+        for memory_id, value in raw_bias_offsets.items():
+            try:
+                parsed_id = UUID(str(memory_id))
+            except (TypeError, ValueError) as error:
+                raise ValueError("scorer learner bias offset key must be a UUID") from error
+            bias_offsets[parsed_id] = _finite_number(value, "bias offset")
 
         return cls(
             version=version,
@@ -139,7 +156,13 @@ class ScorerConfig:
                 half_life_hist_days=_number(params, "half_life_hist_days"),
                 candidate_pool=_integer(params, "candidate_pool"),
             ),
+            bias_offsets=bias_offsets,
         )
+
+    def bias_offset(self, memory_id: UUID) -> float:
+        """Return this immutable version's learned per-memory score offset."""
+
+        return self.bias_offsets.get(memory_id, 0.0)
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -240,6 +263,7 @@ def score_and_select(
             thread_project_key=thread_project_key,
             weights=config.weights,
             params=config.params,
+            learned_bias=config.bias_offset(candidate.memory_id),
         )
         for candidate in pins
     ]
@@ -256,6 +280,7 @@ def score_and_select(
             thread_project_key=thread_project_key,
             weights=config.weights,
             params=config.params,
+            learned_bias=config.bias_offset(candidate.memory_id),
         )
         for candidate in regular
     ]
@@ -332,6 +357,7 @@ def _score_candidate(
     thread_project_key: str | None,
     weights: ScorerWeights,
     params: ScorerParams,
+    learned_bias: float = 0.0,
 ) -> _UnrankedCandidate:
     memory_keywords = set(_tokens(candidate.label))
     for keyword in candidate.keywords:
@@ -372,6 +398,7 @@ def _score_candidate(
             weights.freq * features.freq,
             weights.hist * features.hist,
             candidate.bias,
+            learned_bias,
         )
     )
     if not math.isfinite(score):
@@ -501,6 +528,15 @@ def _number(mapping: Mapping[str, Any], key: str) -> float:
     normalized = float(value)
     if not math.isfinite(normalized):
         raise ValueError(f"scorer config {key} must be finite")
+    return normalized
+
+
+def _finite_number(value: Any, name: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"scorer {name} must be numeric")
+    normalized = float(value)
+    if not math.isfinite(normalized):
+        raise ValueError(f"scorer {name} must be finite")
     return normalized
 
 

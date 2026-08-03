@@ -26,6 +26,13 @@ def test_c5_dedup_and_embedding_defaults_are_exact() -> None:
     assert settings.embed_base_url == "https://openrouter.ai/api/v1"
     assert settings.embed_model == "openai/text-embedding-3-small"
     assert settings.embed_dim == 1536
+    assert settings.learner_min_dispositions == 25
+    assert settings.learner_holdout_fraction == 0.20
+    assert settings.learner_passive_discount == 0.25
+    assert settings.learner_pair_margin == 0.05
+    assert settings.learner_bias_l2 == 1.0
+    assert settings.learner_win_margin == 1.0
+    assert settings.learner_schedule_hours is None
 
 
 def test_runtime_environment_cannot_override_artifact_version(
@@ -43,6 +50,12 @@ def test_config_rejects_overlapping_bands_and_wrong_storage_dimension() -> None:
 
     with pytest.raises(ValidationError):
         _settings(embed_dim=512)
+    with pytest.raises(ValidationError):
+        _settings(learner_holdout_fraction=0.5)
+    with pytest.raises(ValidationError):
+        _settings(learner_passive_discount=0.0)
+    with pytest.raises(ValidationError):
+        _settings(learner_schedule_hours=0.0)
 
 
 @pytest.mark.parametrize(

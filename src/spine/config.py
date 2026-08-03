@@ -38,6 +38,13 @@ class Settings(BaseSettings):
     label_max: int = Field(default=64, gt=0)
     chat_model: str = "anthropic:claude-sonnet-4-6"
     spend_view_refresh_seconds: int = Field(default=60, gt=0)
+    learner_min_dispositions: int = Field(default=25, gt=0)
+    learner_holdout_fraction: float = Field(default=0.20, gt=0.0, lt=0.5)
+    learner_passive_discount: float = Field(default=0.25, gt=0.0, le=1.0)
+    learner_pair_margin: float = Field(default=0.05, gt=0.0)
+    learner_bias_l2: float = Field(default=1.0, gt=0.0)
+    learner_win_margin: float = Field(default=1.0, gt=0.0)
+    learner_schedule_hours: float | None = Field(default=None, gt=0.0)
 
     @model_validator(mode="after")
     def validate_dedup_bands(self) -> "Settings":

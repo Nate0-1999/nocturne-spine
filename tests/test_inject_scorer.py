@@ -367,3 +367,38 @@ def test_config_json_boundary_uses_only_the_scoring_fields() -> None:
     )
 
     assert config == _config()
+
+
+def test_active_learner_version_adds_immutable_offset_to_online_head_bias() -> None:
+    memory_id = UUID(int=1)
+    config = ScorerConfig.from_mappings(
+        version="m2f-proposal",
+        weights={"sem": 0.42, "kw": 0.16, "time": 0.11, "proj": 0.16, "freq": 0.08, "hist": 0.07},
+        params={
+            "tau": 0.55,
+            "top_k": 8,
+            "near_miss_k": 3,
+            "budget_tokens": 3000,
+            "budget_pct": 0.05,
+            "half_life_time_days": 14,
+            "half_life_hist_days": 7,
+            "candidate_pool": 50,
+            "_learner": {"bias_offsets": {str(memory_id): 0.2}},
+        },
+    )
+    candidate = _candidate(1, bias=-0.1)
+
+    result = score_and_select(
+        prompt="the",
+        query_embedding=(1.0, 0.0),
+        snapshot_ts=SNAPSHOT,
+        thread_project_key=None,
+        pinned_candidates=(),
+        regular_candidates=(candidate,),
+        model_context_tokens=10_000,
+        config=config,
+    )
+
+    # Base .61 + online safety bias -.10 + version offset +.20 = .71.
+    assert result.injected[0].score == pytest.approx(0.71)
+    assert config.bias_offset(memory_id) == 0.2

@@ -57,6 +57,13 @@ async def test_health_endpoints_and_auth_are_live(app: FastAPI) -> None:
     assert "/health" not in app.openapi()["paths"]
 
 
+async def test_retrain_is_bearer_protected_before_any_training_work(app: FastAPI) -> None:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post("/retrain")
+
+    _assert_problem(response, status=401, endpoint="POST /retrain")
+
+
 async def test_validation_errors_are_rfc7807(app: FastAPI) -> None:
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(
@@ -160,6 +167,10 @@ def test_committed_openapi_is_current(app: FastAPI) -> None:
     }
     assert committed["components"]["schemas"]["SearchRequest"]["additionalProperties"] is False
     assert committed["components"]["schemas"]["SpendEventsRequest"]["additionalProperties"] is False
+    assert "requestBody" not in committed["paths"]["/retrain"]["post"]
+    assert committed["paths"]["/retrain"]["post"]["responses"]["200"]["content"][
+        "application/json"
+    ]["schema"] == {"$ref": "#/components/schemas/RetrainResponse"}
 
     create_operation = committed["paths"]["/v1/memories"]["post"]
     create_request = committed["components"]["schemas"]["CreateMemoryRequest"]

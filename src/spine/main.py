@@ -22,6 +22,9 @@ from spine.embeddings import EmbeddingProvider, OpenAIEmbeddingProvider
 from spine.inject.decisions import DecisionService
 from spine.inject.router import router as inject_router
 from spine.inject.service import PrepareService
+from spine.learner.router import router as learner_router
+from spine.learner.scheduler import LearnerScheduler
+from spine.learner.service import LearnerService, LearnerSettings
 from spine.memory.router import router as memory_router
 from spine.memory.service import MemoryService
 from spine.problems import ProblemJSONResponse, problem_openapi, problem_response
@@ -84,15 +87,38 @@ def create_app(
         session_factory,
         interval_seconds=resolved.spend_view_refresh_seconds,
     )
+    learner_service = LearnerService(
+        session_factory,
+        settings=LearnerSettings(
+            min_dispositions=resolved.learner_min_dispositions,
+            holdout_fraction=resolved.learner_holdout_fraction,
+            passive_discount=resolved.learner_passive_discount,
+            pair_margin=resolved.learner_pair_margin,
+            bias_l2=resolved.learner_bias_l2,
+            win_margin=resolved.learner_win_margin,
+        ),
+    )
+    learner_scheduler = (
+        None
+        if resolved.learner_schedule_hours is None
+        else LearnerScheduler(
+            learner_service,
+            interval_seconds=resolved.learner_schedule_hours * 3600,
+        )
+    )
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         if owned_engine is not None:
             spend_view_refresher.start()
+            if learner_scheduler is not None:
+                learner_scheduler.start()
         try:
             yield
         finally:
             if owned_engine is not None:
+                if learner_scheduler is not None:
+                    await learner_scheduler.stop()
                 await spend_view_refresher.stop()
             if owned_provider is not None:
                 await owned_provider.aclose()
@@ -113,6 +139,8 @@ def create_app(
     app.state.spend_service = spend_service
     app.state.spend_view_refresher = spend_view_refresher
     app.state.vitals_service = vitals_service
+    app.state.learner_service = learner_service
+    app.state.learner_scheduler = learner_scheduler
     app.add_middleware(
         StaticBearerAuthMiddleware,
         token=resolved.token.get_secret_value(),
@@ -177,6 +205,7 @@ def create_app(
         return HealthResponse(ok=True, version=__version__)
 
     app.include_router(inject_router)
+    app.include_router(learner_router)
     app.include_router(memory_router)
     app.include_router(spend_router)
     app.include_router(vitals_router)
