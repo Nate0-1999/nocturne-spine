@@ -1,5 +1,7 @@
 """Bearer-protected live read boundary for A-028 Palace Vitals."""
 
+from uuid import UUID
+
 from fastapi import APIRouter, Request
 
 from spine.problems import ProblemJSONResponse, problem_openapi, problem_response
@@ -28,6 +30,30 @@ async def get_vitals(request: Request) -> VitalsSnapshot | ProblemJSONResponse:
             endpoint=f"{request.method} {request.url.path}",
         )
     return await _service(request).snapshot()
+
+
+@router.get(
+    "/v1/vitals/threads/{thread_id}",
+    response_model=VitalsSnapshot,
+    responses={
+        401: problem_openapi("Bearer token missing or invalid"),
+        422: problem_openapi("Query parameters are not accepted"),
+        500: problem_openapi("Unexpected service failure"),
+    },
+)
+async def get_thread_vitals(
+    thread_id: UUID,
+    request: Request,
+) -> VitalsSnapshot | ProblemJSONResponse:
+    if request.query_params:
+        return problem_response(
+            status=422,
+            title="Unprocessable Content",
+            detail="Thread Vitals does not accept query parameters.",
+            instance=request.url.path,
+            endpoint=f"{request.method} {request.url.path}",
+        )
+    return await _service(request).snapshot(thread_id=thread_id)
 
 
 def _service(request: Request) -> VitalsService:

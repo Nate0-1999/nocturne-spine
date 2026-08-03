@@ -5,7 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal
+from uuid import UUID
 
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -24,7 +25,6 @@ from spine.vitals.contracts import (
 
 _WINDOW_MINUTES = 60
 _WINDOW = timedelta(minutes=_WINDOW_MINUTES)
-_SPEND_SOURCE = "v_spend_rate"
 _UNREPORTED_MODEL_KEY = "unreported"
 _MODEL_KEY_ESCAPE = "~"
 
@@ -64,7 +64,7 @@ class VitalsService:
     def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         self._session_factory = session_factory
 
-    async def snapshot(self) -> VitalsSnapshot:
+    async def snapshot(self, *, thread_id: UUID | None = None) -> VitalsSnapshot:
         """Return one repeatable-read trailing-hour snapshot without refreshing views."""
 
         async with self._session_factory() as session:
@@ -76,21 +76,11 @@ class VitalsService:
                 if not isinstance(as_of, datetime) or as_of.tzinfo is None:
                     raise RuntimeError("Postgres returned an invalid snapshot timestamp")
                 window_start = as_of - _WINDOW
-                spend_rows = (
-                    (
-                        await session.execute(
-                            text(
-                                "SELECT minute, purpose, model, provider, receipt_lines, "
-                                "cost_usd, unpriced_lines FROM v_spend_rate "
-                                "WHERE minute > :window_start AND minute <= :as_of "
-                                "ORDER BY minute ASC, purpose ASC, model ASC NULLS FIRST, "
-                                "provider ASC NULLS FIRST"
-                            ),
-                            {"window_start": window_start, "as_of": as_of},
-                        )
-                    )
-                    .mappings()
-                    .all()
+                spend_rows = await _spend_rows(
+                    session,
+                    window_start=window_start,
+                    as_of=as_of,
+                    thread_id=thread_id,
                 )
                 created_per_hour = await session.scalar(
                     select(func.count())
@@ -130,7 +120,10 @@ class VitalsService:
         return VitalsSnapshot(
             as_of=as_of,
             window_minutes=_WINDOW_MINUTES,
-            spend=_spend_snapshot(spend_rows),
+            spend=_spend_snapshot(
+                spend_rows,
+                source="spend_event" if thread_id is not None else "v_spend_rate",
+            ),
             lifecycle_rates=[
                 LifecycleRate(
                     metric="created",
@@ -192,7 +185,46 @@ class VitalsService:
         )
 
 
-def _spend_snapshot(rows: list[Any]) -> SpendSnapshot:
+async def _spend_rows(
+    session: AsyncSession,
+    *,
+    window_start: datetime,
+    as_of: datetime,
+    thread_id: UUID | None,
+) -> list[Any]:
+    if thread_id is None:
+        statement = text(
+            "SELECT minute, purpose, model, provider, receipt_lines, "
+            "cost_usd, unpriced_lines FROM v_spend_rate "
+            "WHERE minute > :window_start AND minute <= :as_of "
+            "ORDER BY minute ASC, purpose ASC, model ASC NULLS FIRST, "
+            "provider ASC NULLS FIRST"
+        )
+        parameters = {"window_start": window_start, "as_of": as_of}
+    else:
+        statement = text(
+            "SELECT date_trunc('minute', ts) AS minute, purpose, model, provider, "
+            "count(*)::bigint AS receipt_lines, sum(cost_usd) AS cost_usd, "
+            "count(*) FILTER (WHERE cost_usd IS NULL)::bigint AS unpriced_lines "
+            "FROM spend_event WHERE thread_id = :thread_id "
+            "AND ts > :window_start AND ts <= :as_of "
+            "GROUP BY minute, purpose, model, provider "
+            "ORDER BY minute ASC, purpose ASC, model ASC NULLS FIRST, "
+            "provider ASC NULLS FIRST"
+        )
+        parameters = {
+            "thread_id": thread_id,
+            "window_start": window_start,
+            "as_of": as_of,
+        }
+    return (await session.execute(statement, parameters)).mappings().all()
+
+
+def _spend_snapshot(
+    rows: list[Any],
+    *,
+    source: Literal["v_spend_rate", "spend_event"] = "v_spend_rate",
+) -> SpendSnapshot:
     total: dict[datetime, _PointTotal] = {}
     purposes: dict[str, dict[datetime, _PointTotal]] = {}
     models: dict[str, dict[datetime, _PointTotal]] = {}
@@ -240,7 +272,7 @@ def _spend_snapshot(rows: list[Any]) -> SpendSnapshot:
         for model_key in sorted(models)
     )
     return SpendSnapshot(
-        source_view=_SPEND_SOURCE,
+        source_view=source,
         latest_minute=latest_minute,
         lanes=lanes,
     )

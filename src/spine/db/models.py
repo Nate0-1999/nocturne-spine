@@ -494,6 +494,14 @@ class ScorerConfig(Base):
     """Versioned scorer weights and parameters."""
 
     __tablename__ = "scorer_config"
+    __table_args__ = (
+        Index(
+            "scorer_config_one_active_idx",
+            "active",
+            unique=True,
+            postgresql_where=text("active"),
+        ),
+    )
 
     version: Mapped[str] = mapped_column(Text, primary_key=True)
     weights: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
@@ -504,3 +512,35 @@ class ScorerConfig(Base):
         server_default=text("now()"),
     )
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+
+
+class ScorerActivation(Base):
+    """Append-only authority log for active scorer version changes."""
+
+    __tablename__ = "scorer_activation"
+    __table_args__ = (
+        CheckConstraint(
+            "actor_class IN ('human','passive')",
+            name="scorer_activation_actor_class_check",
+        ),
+        CheckConstraint(
+            "reason IN ('human_control','learner_proposal')",
+            name="scorer_activation_reason_check",
+        ),
+        Index("scorer_activation_ts_idx", "ts", "event_uid"),
+    )
+
+    event_uid: Mapped[str] = mapped_column(Text, primary_key=True)
+    version: Mapped[str] = mapped_column(
+        Text, ForeignKey("scorer_config.version"), nullable=False
+    )
+    previous_version: Mapped[str] = mapped_column(
+        Text, ForeignKey("scorer_config.version"), nullable=False
+    )
+    actor_class: Mapped[str] = mapped_column(Text, nullable=False)
+    machine_id: Mapped[str] = mapped_column(Text, nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    changes: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    ts: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )

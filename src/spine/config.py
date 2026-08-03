@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     learner_bias_l2: float = Field(default=1.0, gt=0.0)
     learner_win_margin: float = Field(default=1.0, gt=0.0)
     learner_schedule_hours: float | None = Field(default=None, gt=0.0)
+    graph_edge_sim: float = Field(default=0.75, ge=0.0, le=1.0)
 
     @model_validator(mode="after")
     def validate_dedup_bands(self) -> "Settings":

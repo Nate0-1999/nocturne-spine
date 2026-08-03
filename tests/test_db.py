@@ -153,6 +153,7 @@ async def test_models_match_authoritative_c2_schema(
         "injection_event",
         "spend_event",
         "scorer_config",
+        "scorer_activation",
     )
 
     expected_columns = {
@@ -276,6 +277,16 @@ async def test_models_match_authoritative_c2_schema(
             "meta",
         ),
         "scorer_config": ("version", "weights", "params", "created_at", "active"),
+        "scorer_activation": (
+            "event_uid",
+            "version",
+            "previous_version",
+            "actor_class",
+            "machine_id",
+            "reason",
+            "changes",
+            "ts",
+        ),
     }
     assert {
         name: tuple(table.c.keys()) for name, table in Base.metadata.tables.items()
@@ -313,6 +324,7 @@ async def test_models_match_authoritative_c2_schema(
             "quantization",
         },
         "scorer_config": set(),
+        "scorer_activation": set(),
     }
 
     primary_keys = {
@@ -329,6 +341,7 @@ async def test_models_match_authoritative_c2_schema(
         "injection_event": ("id",),
         "spend_event": ("event_uid",),
         "scorer_config": ("version",),
+        "scorer_activation": ("event_uid",),
     }
 
     dialect = postgresql.dialect()
@@ -446,6 +459,14 @@ async def test_models_match_authoritative_c2_schema(
         "scorer_config.params": "JSONB",
         "scorer_config.created_at": "TIMESTAMP WITH TIME ZONE",
         "scorer_config.active": "BOOLEAN",
+        "scorer_activation.event_uid": "TEXT",
+        "scorer_activation.version": "TEXT",
+        "scorer_activation.previous_version": "TEXT",
+        "scorer_activation.actor_class": "TEXT",
+        "scorer_activation.machine_id": "TEXT",
+        "scorer_activation.reason": "TEXT",
+        "scorer_activation.changes": "JSONB",
+        "scorer_activation.ts": "TIMESTAMP WITH TIME ZONE",
     }
 
     defaults = {
@@ -481,6 +502,7 @@ async def test_models_match_authoritative_c2_schema(
         "spend_event.meta": "'{}'::jsonb",
         "scorer_config.created_at": "now()",
         "scorer_config.active": "false",
+        "scorer_activation.ts": "now()",
     }
     memory_unit_ddl = str(CreateTable(Base.metadata.tables["memory_unit"]).compile(dialect=dialect))
     assert (
@@ -560,6 +582,10 @@ async def test_models_match_authoritative_c2_schema(
             "spend_event_ref_nonblank_check": "ref = btrim(ref) AND ref <> ''",
         },
         "scorer_config": {},
+        "scorer_activation": {
+            "scorer_activation_actor_class_check": ("actor_class IN ('human','passive')"),
+            "scorer_activation_reason_check": ("reason IN ('human_control','learner_proposal')"),
+        },
     }
 
     unit = Base.metadata.tables["memory_unit"]

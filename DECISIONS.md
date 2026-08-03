@@ -740,3 +740,30 @@ makes order an accidental authority. SciPy/CVXPY would add a large runtime
 dependency for a six-weight convex problem. A new training table duplicates the
 event log. Mutating `memory_unit.bias` during retrain would activate a challenger
 before the owner acts and overwrite the online never-kill safety response.
+
+## 026 — One graph snapshot and append-only scorer activation authority [P1.2, P2.5]
+
+**Decision.** Adopt Garden A-035. Serve Memory Graph snapshots from the
+non-candidate corpus under repeatable read, with exact similarity, lineage, edit
+trail, revision, and CURRENT-membership evidence. Serve the Injection Console
+from scorer versions, immutable injection events, and a new append-only
+`scorer_activation` journal. Every contribution is serialized as an exact
+decimal string; bias is the explicit residual so the seven values conserve the
+recorded score.
+
+Human controls create a new active version under one advisory transaction lock
+and record the prior version, changed law-bound descriptors, actor, machine,
+reason, and event UID. Learner rows remain proposals until the separate
+proposal-activation operation validates their provenance. Thread Vitals reads
+authoritative `spend_event` receipts directly; the existing global materialized
+view remains the global path.
+
+**Motivation.** The graph and console are instruments over existing truth, not
+new authorities. A version plus activation journal makes owner control
+replayable without rewriting learner history or pretending JSON configuration
+diffs are an audit log.
+
+**Rejected alternatives.** Browser-side graph inference or score arithmetic
+would duplicate authority. Updating an active scorer row in place would erase
+history. Reusing global spend lanes for CURRENT would misstate thread scope.
+What-if and audition remain M2P rather than being smuggled into M2K controls.

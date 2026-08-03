@@ -248,7 +248,6 @@ async def test_vitals_snapshot_is_canonical_conserving_and_honest(
             for point in dimension_points
             if point["cost_usd"] is not None
         ) == Decimal("1.700000000000")
-
     assert snapshot["lifecycle_rates"] == [
         {
             "metric": "created",
@@ -301,6 +300,44 @@ async def test_vitals_snapshot_is_canonical_conserving_and_honest(
             "source": "approval_queue_item.state",
         },
     ]
+
+
+async def test_thread_vitals_reads_only_authoritative_receipts_for_that_thread(
+    memory_client: AsyncClient,
+) -> None:
+    now = datetime.now(UTC).replace(second=0, microsecond=0)
+    selected = UUID(int=8801)
+    other = UUID(int=8802)
+    selected_event = _event(
+        81,
+        timestamp=now,
+        purpose="building",
+        model="model-current",
+        provider="provider-a",
+        cost_usd="0.250000000000",
+    )
+    selected_event["thread_id"] = str(selected)
+    other_event = _event(
+        82,
+        timestamp=now,
+        purpose="judge",
+        model="model-other",
+        provider="provider-a",
+        cost_usd="8.000000000000",
+    )
+    other_event["thread_id"] = str(other)
+    inserted = await memory_client.post(
+        "/v1/spend/events", json={"events": [selected_event, other_event]}
+    )
+    assert inserted.status_code == 200
+
+    response = await memory_client.get(f"/v1/vitals/threads/{selected}")
+
+    assert response.status_code == 200
+    spend = response.json()["spend"]
+    assert spend["source_view"] == "spend_event"
+    assert spend["lanes"][0]["points"][0]["cost_usd"] == "0.250000000000"
+    assert all(lane["key"] != "judge" for lane in spend["lanes"])
 
 
 async def test_vitals_has_an_empty_total_lane_and_rejects_query_parameters(

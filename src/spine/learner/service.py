@@ -188,6 +188,7 @@ class LearnerService:
                     "source_digest": digest,
                     "source_boundary": max(example.event_uid for example in examples),
                     "training_cutoff": cutoff.isoformat(),
+                    "holdout_dispositions": len(holdout),
                     "settings": settings_manifest,
                     "fit": {
                         "iterations": fit.iterations,
@@ -217,9 +218,15 @@ class LearnerService:
                         )
                     )
                 elif existing.weights != proposal_weights or existing.params != proposal_params:
-                    raise LearnerDataError(
-                        f"content-addressed scorer proposal {version} does not match stored content"
-                    )
+                    legacy_params = deepcopy(proposal_params)
+                    legacy_learner = legacy_params.get("_learner")
+                    if isinstance(legacy_learner, dict):
+                        legacy_learner.pop("holdout_dispositions", None)
+                    if existing.weights != proposal_weights or existing.params != legacy_params:
+                        raise LearnerDataError(
+                            "content-addressed scorer proposal "
+                            f"{version} does not match stored content"
+                        )
                 return RetrainResponse(
                     status="proposed",
                     incumbent_version=incumbent.version,

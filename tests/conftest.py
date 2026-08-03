@@ -115,17 +115,22 @@ async def memory_session_factory(
     engine = create_async_engine(migrated_database_url)
     session_factory = make_session_factory(engine)
     truncate = text(
-        "TRUNCATE approval_decision, approval_queue_item, memory_edge, spend_event, "
+        "TRUNCATE scorer_activation, approval_decision, approval_queue_item, "
+        "memory_edge, spend_event, "
         "injection_event, thread, memory_revision, memory_unit "
         "RESTART IDENTITY CASCADE"
     )
     async with engine.begin() as connection:
         await connection.execute(truncate)
+        await connection.execute(text("DELETE FROM scorer_config WHERE version <> 'v0'"))
+        await connection.execute(text("UPDATE scorer_config SET active = (version = 'v0')"))
     try:
         yield session_factory
     finally:
         async with engine.begin() as connection:
             await connection.execute(truncate)
+            await connection.execute(text("DELETE FROM scorer_config WHERE version <> 'v0'"))
+            await connection.execute(text("UPDATE scorer_config SET active = (version = 'v0')"))
         await engine.dispose()
 
 

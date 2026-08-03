@@ -83,7 +83,7 @@ class SpendLane(VitalsContract):
 
 
 class SpendSnapshot(VitalsContract):
-    source_view: Literal["v_spend_rate"]
+    source_view: Literal["v_spend_rate", "spend_event"]
     latest_minute: AwareDatetime | None
     lanes: list[SpendLane]
 

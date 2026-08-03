@@ -25,6 +25,8 @@ from spine.inject.service import PrepareService
 from spine.learner.router import router as learner_router
 from spine.learner.scheduler import LearnerScheduler
 from spine.learner.service import LearnerService, LearnerSettings
+from spine.m2k.router import router as m2k_router
+from spine.m2k.service import M2KService
 from spine.memory.router import router as memory_router
 from spine.memory.service import MemoryService
 from spine.problems import ProblemJSONResponse, problem_openapi, problem_response
@@ -101,6 +103,10 @@ def create_app(
             win_margin=resolved.learner_win_margin,
         ),
     )
+    m2k_service = M2KService(
+        session_factory,
+        graph_edge_sim=resolved.graph_edge_sim,
+    )
     learner_scheduler = (
         None
         if resolved.learner_schedule_hours is None
@@ -144,6 +150,7 @@ def create_app(
     app.state.spend_view_refresher = spend_view_refresher
     app.state.vitals_service = vitals_service
     app.state.learner_service = learner_service
+    app.state.m2k_service = m2k_service
     app.state.learner_scheduler = learner_scheduler
     app.add_middleware(
         StaticBearerAuthMiddleware,
@@ -210,6 +217,7 @@ def create_app(
 
     app.include_router(inject_router)
     app.include_router(learner_router)
+    app.include_router(m2k_router)
     app.include_router(memory_router)
     app.include_router(queue_router)
     app.include_router(spend_router)
