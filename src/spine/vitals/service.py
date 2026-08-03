@@ -11,7 +11,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.sql import and_
 
-from spine.db.models import MemoryUnit
+from spine.db.models import ApprovalQueueItem, MemoryEdge, MemoryUnit
 from spine.vitals.contracts import (
     LifecycleRate,
     PalaceCount,
@@ -36,11 +36,7 @@ _NOT_RECORDED_LIFECYCLE = (
     "tombstoned",
     "add_backs",
 )
-_NOT_RECORDED_COUNTS = (
-    "candidates_pending",
-    "edges",
-    "staged_units",
-)
+_NOT_RECORDED_COUNTS = ("staged_units",)
 
 
 @dataclass(slots=True)
@@ -118,9 +114,18 @@ class VitalsService:
                                 )
                             )
                             .label("pinned_units"),
+                            func.count()
+                            .filter(MemoryUnit.status == "candidate")
+                            .label("candidates_pending"),
                         )
                     )
                 ).one()
+                edge_count = await session.scalar(select(func.count()).select_from(MemoryEdge))
+                queue_depth = await session.scalar(
+                    select(func.count())
+                    .select_from(ApprovalQueueItem)
+                    .where(ApprovalQueueItem.state == "pending")
+                )
 
         return VitalsSnapshot(
             as_of=as_of,
@@ -156,6 +161,18 @@ class VitalsService:
                     count=_nonnegative_count(counts.pinned_units, "pinned_units"),
                     source="memory_unit.status+pin",
                 ),
+                PalaceCount(
+                    metric="candidates_pending",
+                    status="measured",
+                    count=_nonnegative_count(counts.candidates_pending, "candidates_pending"),
+                    source="memory_unit.status",
+                ),
+                PalaceCount(
+                    metric="edges",
+                    status="measured",
+                    count=_nonnegative_count(edge_count, "edges"),
+                    source="memory_edge",
+                ),
                 *[
                     PalaceCount(
                         metric=metric,
@@ -167,9 +184,9 @@ class VitalsService:
                 ],
                 PalaceCount(
                     metric="queue_depth",
-                    status="placeholder",
-                    count=None,
-                    source=None,
+                    status="measured",
+                    count=_nonnegative_count(queue_depth, "queue_depth"),
+                    source="approval_queue_item.state",
                 ),
             ],
         )

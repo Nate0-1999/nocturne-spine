@@ -28,6 +28,8 @@ from spine.learner.service import LearnerService, LearnerSettings
 from spine.memory.router import router as memory_router
 from spine.memory.service import MemoryService
 from spine.problems import ProblemJSONResponse, problem_openapi, problem_response
+from spine.queue.router import router as queue_router
+from spine.queue.service import QueueService
 from spine.spend.router import router as spend_router
 from spine.spend.service import SpendService
 from spine.spend.views import SpendViewRefresher
@@ -81,6 +83,7 @@ def create_app(
         label_max=resolved.label_max,
         memory_max_tokens=resolved.memory_max_tokens,
     )
+    queue_service = QueueService(session_factory, memory_service)
     prepare_service = PrepareService(session_factory, embedding_provider)
     decision_service = DecisionService(session_factory)
     spend_view_refresher = SpendViewRefresher(
@@ -134,6 +137,7 @@ def create_app(
     )
     app.state.settings = resolved
     app.state.memory_service = memory_service
+    app.state.queue_service = queue_service
     app.state.prepare_service = prepare_service
     app.state.decision_service = decision_service
     app.state.spend_service = spend_service
@@ -207,6 +211,7 @@ def create_app(
     app.include_router(inject_router)
     app.include_router(learner_router)
     app.include_router(memory_router)
+    app.include_router(queue_router)
     app.include_router(spend_router)
     app.include_router(vitals_router)
     return app

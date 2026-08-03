@@ -146,6 +146,9 @@ async def test_models_match_authoritative_c2_schema(
     assert tuple(Base.metadata.tables) == (
         "memory_unit",
         "memory_revision",
+        "memory_edge",
+        "approval_queue_item",
+        "approval_decision",
         "thread",
         "injection_event",
         "spend_event",
@@ -185,6 +188,33 @@ async def test_models_match_authoritative_c2_schema(
             "origin_machine_id",
             "reason",
             "ts",
+        ),
+        "memory_edge": (
+            "edge_uid",
+            "from_memory_id",
+            "to_memory_id",
+            "edge_type",
+            "created_at",
+        ),
+        "approval_queue_item": (
+            "item_uid",
+            "candidate_memory_id",
+            "principal_id",
+            "birthplace_thread_id",
+            "verdict",
+            "neighbor_ids",
+            "target_ids",
+            "state",
+            "created_at",
+            "decided_at",
+        ),
+        "approval_decision": (
+            "decision_uid",
+            "item_uid",
+            "decision",
+            "approval_mode",
+            "actor_class",
+            "created_at",
         ),
         "thread": (
             "id",
@@ -254,6 +284,9 @@ async def test_models_match_authoritative_c2_schema(
     assert nullable == {
         "memory_unit": {"project_key", "thread_origin", "origin_path"},
         "memory_revision": {"parent_uid", "revision"},
+        "memory_edge": set(),
+        "approval_queue_item": {"decided_at"},
+        "approval_decision": set(),
         "thread": {"project_key", "snapshot_ts"},
         "injection_event": {"project_key", "outcome"},
         "spend_event": {
@@ -279,6 +312,9 @@ async def test_models_match_authoritative_c2_schema(
     assert primary_keys == {
         "memory_unit": ("id",),
         "memory_revision": ("rev_uid",),
+        "memory_edge": ("edge_uid",),
+        "approval_queue_item": ("item_uid",),
+        "approval_decision": ("decision_uid",),
         "thread": ("id",),
         "injection_event": ("id",),
         "spend_event": ("event_uid",),
@@ -321,6 +357,27 @@ async def test_models_match_authoritative_c2_schema(
         "memory_revision.origin_machine_id": "TEXT",
         "memory_revision.reason": "TEXT",
         "memory_revision.ts": "TIMESTAMP WITH TIME ZONE",
+        "memory_edge.edge_uid": "TEXT",
+        "memory_edge.from_memory_id": "UUID",
+        "memory_edge.to_memory_id": "UUID",
+        "memory_edge.edge_type": "TEXT",
+        "memory_edge.created_at": "TIMESTAMP WITH TIME ZONE",
+        "approval_queue_item.item_uid": "TEXT",
+        "approval_queue_item.candidate_memory_id": "UUID",
+        "approval_queue_item.principal_id": "TEXT",
+        "approval_queue_item.birthplace_thread_id": "UUID",
+        "approval_queue_item.verdict": "TEXT",
+        "approval_queue_item.neighbor_ids": "JSONB",
+        "approval_queue_item.target_ids": "JSONB",
+        "approval_queue_item.state": "TEXT",
+        "approval_queue_item.created_at": "TIMESTAMP WITH TIME ZONE",
+        "approval_queue_item.decided_at": "TIMESTAMP WITH TIME ZONE",
+        "approval_decision.decision_uid": "TEXT",
+        "approval_decision.item_uid": "TEXT",
+        "approval_decision.decision": "TEXT",
+        "approval_decision.approval_mode": "TEXT",
+        "approval_decision.actor_class": "TEXT",
+        "approval_decision.created_at": "TIMESTAMP WITH TIME ZONE",
         "thread.id": "UUID",
         "thread.principal_id": "TEXT",
         "thread.agent_id": "TEXT",
@@ -398,6 +455,10 @@ async def test_models_match_authoritative_c2_schema(
         "memory_unit.updated_at": "now()",
         "memory_revision.reason": "''",
         "memory_revision.ts": "now()",
+        "memory_edge.created_at": "now()",
+        "approval_queue_item.state": "'pending'",
+        "approval_queue_item.created_at": "now()",
+        "approval_decision.created_at": "now()",
         "thread.created_at": "now()",
         "injection_event.agent_kind": "'general'",
         "injection_event.actor_class": "'human'",
@@ -426,17 +487,29 @@ async def test_models_match_authoritative_c2_schema(
             "memory_unit_kind_check": (
                 "kind IN ('fact','preference','procedure','project_note','persona','pinned')"
             ),
-            "memory_unit_status_check": ("status IN ('active','quarantined','tombstoned')"),
+            "memory_unit_status_check": (
+                "status IN ('active','candidate','quarantined','tombstoned')"
+            ),
         },
         "memory_revision": {},
+        "memory_edge": {
+            "memory_edge_type_check": ("edge_type IN ('merged_from','supersedes','contradicts')")
+        },
+        "approval_queue_item": {
+            "approval_queue_item_state_check": ("state IN ('pending','approved','rejected')"),
+            "approval_queue_item_verdict_check": (
+                "verdict IN ('new','merge','supersede','contradict')"
+            ),
+        },
+        "approval_decision": {
+            "approval_decision_actor_check": "actor_class IN ('human','passive')",
+            "approval_decision_mode_check": ("approval_mode IN ('explicit','passive')"),
+            "approval_decision_value_check": "decision IN ('approve','deny')",
+        },
         "thread": {},
         "injection_event": {
-            "injection_event_actor_class_check": (
-                "actor_class IN ('human','passive')"
-            ),
-            "injection_event_shown_as_check": (
-                "shown_as IN ('injected','near_miss','pinned')"
-            ),
+            "injection_event_actor_class_check": ("actor_class IN ('human','passive')"),
+            "injection_event_shown_as_check": ("shown_as IN ('injected','near_miss','pinned')"),
         },
         "spend_event": {
             "spend_event_product_type_check": (
@@ -489,6 +562,22 @@ async def test_models_match_authoritative_c2_schema(
     }
     assert {foreign_key.target_fullname for foreign_key in revision.c.memory_id.foreign_keys} == {
         "memory_unit.id"
+    }
+
+    edge = Base.metadata.tables["memory_edge"]
+    assert {foreign_key.target_fullname for foreign_key in edge.c.from_memory_id.foreign_keys} == {
+        "memory_unit.id"
+    }
+    assert {foreign_key.target_fullname for foreign_key in edge.c.to_memory_id.foreign_keys} == {
+        "memory_unit.id"
+    }
+    queue_item = Base.metadata.tables["approval_queue_item"]
+    assert {
+        foreign_key.target_fullname for foreign_key in queue_item.c.candidate_memory_id.foreign_keys
+    } == {"memory_unit.id"}
+    decision = Base.metadata.tables["approval_decision"]
+    assert {foreign_key.target_fullname for foreign_key in decision.c.item_uid.foreign_keys} == {
+        "approval_queue_item.item_uid"
     }
 
 

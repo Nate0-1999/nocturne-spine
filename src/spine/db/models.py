@@ -39,7 +39,7 @@ class MemoryUnit(Base):
             name="memory_unit_kind_check",
         ),
         CheckConstraint(
-            "status IN ('active','quarantined','tombstoned')",
+            "status IN ('active','candidate','quarantined','tombstoned')",
             name="memory_unit_status_check",
         ),
         Index(
@@ -146,6 +146,94 @@ class MemoryRevision(Base):
         DateTime(timezone=True),
         nullable=False,
         server_default=text("now()"),
+    )
+
+
+class MemoryEdge(Base):
+    """Append-only M2H verdict lineage between memory heads."""
+
+    __tablename__ = "memory_edge"
+    __table_args__ = (
+        CheckConstraint(
+            "edge_type IN ('merged_from','supersedes','contradicts')",
+            name="memory_edge_type_check",
+        ),
+        UniqueConstraint("from_memory_id", "to_memory_id", "edge_type"),
+    )
+
+    edge_uid: Mapped[str] = mapped_column(Text, primary_key=True)
+    from_memory_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("memory_unit.id"), nullable=False
+    )
+    to_memory_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("memory_unit.id"), nullable=False
+    )
+    edge_type: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class ApprovalQueueItem(Base):
+    """One durable typed consent card for a candidate memory."""
+
+    __tablename__ = "approval_queue_item"
+    __table_args__ = (
+        CheckConstraint(
+            "verdict IN ('new','merge','supersede','contradict')",
+            name="approval_queue_item_verdict_check",
+        ),
+        CheckConstraint(
+            "state IN ('pending','approved','rejected')",
+            name="approval_queue_item_state_check",
+        ),
+        UniqueConstraint("candidate_memory_id"),
+        Index("approval_queue_item_principal_state_idx", "principal_id", "state"),
+        Index("approval_queue_item_thread_state_idx", "birthplace_thread_id", "state"),
+    )
+
+    item_uid: Mapped[str] = mapped_column(Text, primary_key=True)
+    candidate_memory_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("memory_unit.id"), nullable=False
+    )
+    principal_id: Mapped[str] = mapped_column(Text, nullable=False)
+    birthplace_thread_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    verdict: Mapped[str] = mapped_column(Text, nullable=False)
+    neighbor_ids: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    target_ids: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    state: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'pending'"))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ApprovalDecision(Base):
+    """Append-only owner/passive disposition for one queue card."""
+
+    __tablename__ = "approval_decision"
+    __table_args__ = (
+        CheckConstraint("decision IN ('approve','deny')", name="approval_decision_value_check"),
+        CheckConstraint(
+            "approval_mode IN ('explicit','passive')",
+            name="approval_decision_mode_check",
+        ),
+        CheckConstraint(
+            "actor_class IN ('human','passive')",
+            name="approval_decision_actor_check",
+        ),
+        UniqueConstraint("item_uid"),
+    )
+
+    decision_uid: Mapped[str] = mapped_column(Text, primary_key=True)
+    item_uid: Mapped[str] = mapped_column(
+        Text, ForeignKey("approval_queue_item.item_uid"), nullable=False
+    )
+    decision: Mapped[str] = mapped_column(Text, nullable=False)
+    approval_mode: Mapped[str] = mapped_column(Text, nullable=False)
+    actor_class: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
     )
 
 

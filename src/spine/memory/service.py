@@ -117,6 +117,12 @@ class SimilarMemories:
     similar: tuple[SimilarityMemoryCard, ...]
 
 
+@dataclass(frozen=True, slots=True, kw_only=True)
+class CandidateCreated:
+    memory: ContractMemoryUnit
+    neighbors: tuple[SimilarityMemoryCard, ...]
+
+
 class MemoryServiceError(RuntimeError):
     """Base class for expected memory-domain failures."""
 
@@ -285,6 +291,45 @@ class MemoryService:
 
                 return MemoryCreated(memory=contract_memory_from_row(row))
 
+    async def create_candidate(
+        self,
+        command: CreateMemoryCommand,
+    ) -> CandidateCreated | None:
+        """Admit one queue-only head, deduping against corpus and pending queue."""
+
+        self._validate_label(command.label)
+        self._validate_body(command.body)
+        embedding = await embed_one(
+            self._embedding_provider,
+            command.body,
+            expected_dimensions=_EMBEDDING_DIMENSIONS,
+            receipt_context=EmbeddingReceiptContext(
+                principal_id=command.principal_id,
+                machine_id=command.machine_id,
+                origin_agent=_agent_from_editor(command.editor),
+                thread_id=_optional_uuid(command.thread_origin),
+            ),
+        )
+        async with self._session_factory() as session:
+            async with session.begin():
+                await session.execute(
+                    text("SELECT pg_advisory_xact_lock(hashtextextended(:principal_id, 0))"),
+                    {"principal_id": command.principal_id},
+                )
+                matches = await self._dedup_matches(
+                    session,
+                    principal_id=command.principal_id,
+                    embedding=embedding,
+                    statuses=("active", "candidate"),
+                )
+                if matches and matches[0].score >= self._dedup_dup:
+                    return None
+                row = await self._insert_root(session, command, embedding, status="candidate")
+                return CandidateCreated(
+                    memory=contract_memory_from_row(row),
+                    neighbors=tuple(matches),
+                )
+
     async def patch(self, command: PatchMemoryCommand) -> ContractMemoryUnit:
         """CAS-update a head and append its resulting cloud revision."""
 
@@ -387,6 +432,8 @@ class MemoryService:
 
         unit = MemoryUnit.__table__
         filters = []
+        if query.status is None:
+            filters.append(unit.c.status != "candidate")
         if query.project_key is not None:
             filters.append(unit.c.project_key == query.project_key)
         if query.status is not None:
@@ -485,6 +532,7 @@ class MemoryService:
         *,
         principal_id: str,
         embedding: Sequence[float],
+        statuses: Sequence[str] = ("active",),
     ) -> list[SimilarityMemoryCard]:
         unit = MemoryUnit.__table__
         cosine_score = (1.0 - unit.c.embedding.cosine_distance(list(embedding))).label("score")
@@ -494,7 +542,7 @@ class MemoryService:
                     select(*unit.c, cosine_score)
                     .where(
                         unit.c.principal_id == principal_id,
-                        unit.c.status == "active",
+                        unit.c.status.in_(tuple(statuses)),
                         cosine_score >= self._dedup_sim,
                     )
                     .order_by(cosine_score.desc(), unit.c.id.asc())
@@ -510,6 +558,8 @@ class MemoryService:
         session: AsyncSession,
         command: CreateMemoryCommand,
         embedding: Sequence[float],
+        *,
+        status: str = "active",
     ) -> Mapping[str, Any]:
         unit = MemoryUnit.__table__
         row = (
@@ -527,8 +577,8 @@ class MemoryService:
                         project_key=command.project_key,
                         thread_origin=command.thread_origin,
                         origin_path=command.origin_path,
+                        status=status,
                         pin=False,
-                        status="active",
                         revision=1,
                     )
                     .returning(*unit.c)

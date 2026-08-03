@@ -1,6 +1,6 @@
 """HTTP boundary for the SPEC C.4 memory endpoints."""
 
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Query, Request
@@ -16,7 +16,6 @@ from spine.contracts import (
     LabelConflictResponse,
     MemoryKind,
     MemoryListResponse,
-    MemoryStatus,
     MemoryUnit,
     PatchMemoryConflictResponse,
     RevisionConflictResponse,
@@ -48,6 +47,7 @@ from spine.problems import (
 )
 
 router = APIRouter(tags=["memory"])
+PublicMemoryStatus = Literal["active", "quarantined", "tombstoned"]
 
 ERROR_RESPONSES = {
     401: problem_openapi("Bearer token missing or invalid"),
@@ -82,7 +82,7 @@ class PatchMemoryRequest(ContractRequest):
     kind: MemoryKind | None = None
     origin_path: str | None = None
     pin: bool | None = None
-    status: MemoryStatus | None = None
+    status: PublicMemoryStatus | None = None
     editor: str
     reason: str
     machine_id: str
@@ -212,7 +212,7 @@ async def patch_memory(
 async def list_memories(
     request: Request,
     project_key: str | None = None,
-    status: MemoryStatus | None = None,
+    status: PublicMemoryStatus | None = None,
     q: str | None = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,

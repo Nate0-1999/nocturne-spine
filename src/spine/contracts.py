@@ -7,7 +7,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, RootModel
 
 MemoryKind = Literal["fact", "preference", "procedure", "project_note", "persona", "pinned"]
-MemoryStatus = Literal["active", "quarantined", "tombstoned"]
+MemoryStatus = Literal["active", "candidate", "quarantined", "tombstoned"]
 
 
 class ContractModel(BaseModel):

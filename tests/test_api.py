@@ -24,6 +24,9 @@ SPINE_ROUTES = {
     ("POST", "/v1/search"),
     ("POST", "/v1/spend/events"),
     ("GET", "/v1/vitals"),
+    ("POST", "/v1/extractions"),
+    ("GET", "/v1/approval-queue"),
+    ("POST", "/v1/approval-queue/{item_uid}/decisions"),
 }
 
 
