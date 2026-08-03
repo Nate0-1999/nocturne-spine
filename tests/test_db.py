@@ -200,7 +200,11 @@ async def test_models_match_authoritative_c2_schema(
             "item_uid",
             "candidate_memory_id",
             "principal_id",
+            "birthplace",
             "birthplace_thread_id",
+            "batch_uid",
+            "source_name",
+            "source_sha256",
             "verdict",
             "neighbor_ids",
             "target_ids",
@@ -285,7 +289,13 @@ async def test_models_match_authoritative_c2_schema(
         "memory_unit": {"project_key", "thread_origin", "origin_path"},
         "memory_revision": {"parent_uid", "revision"},
         "memory_edge": set(),
-        "approval_queue_item": {"decided_at"},
+        "approval_queue_item": {
+            "birthplace_thread_id",
+            "batch_uid",
+            "source_name",
+            "source_sha256",
+            "decided_at",
+        },
         "approval_decision": set(),
         "thread": {"project_key", "snapshot_ts"},
         "injection_event": {"project_key", "outcome"},
@@ -365,7 +375,11 @@ async def test_models_match_authoritative_c2_schema(
         "approval_queue_item.item_uid": "TEXT",
         "approval_queue_item.candidate_memory_id": "UUID",
         "approval_queue_item.principal_id": "TEXT",
+        "approval_queue_item.birthplace": "TEXT",
         "approval_queue_item.birthplace_thread_id": "UUID",
+        "approval_queue_item.batch_uid": "UUID",
+        "approval_queue_item.source_name": "TEXT",
+        "approval_queue_item.source_sha256": "TEXT",
         "approval_queue_item.verdict": "TEXT",
         "approval_queue_item.neighbor_ids": "JSONB",
         "approval_queue_item.target_ids": "JSONB",
@@ -456,6 +470,7 @@ async def test_models_match_authoritative_c2_schema(
         "memory_revision.reason": "''",
         "memory_revision.ts": "now()",
         "memory_edge.created_at": "now()",
+        "approval_queue_item.birthplace": "'thread'",
         "approval_queue_item.state": "'pending'",
         "approval_queue_item.created_at": "now()",
         "approval_decision.created_at": "now()",
@@ -493,9 +508,19 @@ async def test_models_match_authoritative_c2_schema(
         },
         "memory_revision": {},
         "memory_edge": {
-            "memory_edge_type_check": ("edge_type IN ('merged_from','supersedes','contradicts')")
+            "memory_edge_type_check": (
+                "edge_type IN ('merged_from','supersedes','contradicts','relates_to')"
+            )
         },
         "approval_queue_item": {
+            "approval_queue_item_birthplace_check": "birthplace IN ('thread','seed')",
+            "approval_queue_item_birthplace_shape_check": (
+                "(birthplace = 'thread' AND birthplace_thread_id IS NOT NULL "
+                "AND batch_uid IS NULL AND source_name IS NULL AND source_sha256 IS NULL) OR "
+                "(birthplace = 'seed' AND birthplace_thread_id IS NULL "
+                "AND batch_uid IS NOT NULL AND source_name IS NOT NULL "
+                "AND source_sha256 IS NOT NULL)"
+            ),
             "approval_queue_item_state_check": ("state IN ('pending','approved','rejected')"),
             "approval_queue_item_verdict_check": (
                 "verdict IN ('new','merge','supersede','contradict')"

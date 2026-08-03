@@ -6,11 +6,14 @@ from fastapi import APIRouter, Query, Request
 
 from spine.problems import ProblemJSONResponse, problem_openapi, problem_response
 from spine.queue.contracts import (
+    BatchDecisionResponse,
     ExtractionRequest,
     ExtractionResponse,
     QueueDecisionRequest,
     QueueDecisionResponse,
     QueueResponse,
+    SeedRequest,
+    SeedResponse,
 )
 from spine.queue.service import QueueConflictError, QueueNotFoundError, QueueValidationError
 
@@ -31,13 +34,32 @@ async def extract(
         return _problem(request, 422, str(exc))
 
 
+@router.post(
+    "/v1/seeds",
+    response_model=SeedResponse,
+    responses=ERRORS | {409: problem_openapi("Seed batch conflict")},
+)
+async def ingest_seed(
+    body: SeedRequest, request: Request
+) -> SeedResponse | ProblemJSONResponse:
+    try:
+        return await request.app.state.queue_service.ingest_seed(body)
+    except QueueConflictError as exc:
+        return _problem(request, 409, str(exc))
+    except QueueValidationError as exc:
+        return _problem(request, 422, str(exc))
+
+
 @router.get("/v1/approval-queue", response_model=QueueResponse, responses=ERRORS)
 async def queue(
     request: Request,
     principal_id: str = Query(min_length=1),
     thread_id: UUID | None = None,
+    birthplace: str | None = Query(default=None, pattern="^(thread|seed)$"),
 ) -> QueueResponse:
-    return await request.app.state.queue_service.list_pending(principal_id, thread_id)
+    return await request.app.state.queue_service.list_pending(
+        principal_id, thread_id, birthplace
+    )
 
 
 @router.post(
@@ -53,6 +75,25 @@ async def decide(
         return await request.app.state.queue_service.decide(item_uid, body)
     except QueueNotFoundError:
         return _problem(request, 404, "Queue item does not exist.")
+    except QueueConflictError as exc:
+        return _problem(request, 409, str(exc))
+    except QueueValidationError as exc:
+        return _problem(request, 422, str(exc))
+
+
+@router.post(
+    "/v1/approval-queue/batches/{batch_uid}/decisions",
+    response_model=BatchDecisionResponse,
+    responses=ERRORS
+    | {404: problem_openapi("Seed batch missing"), 409: problem_openapi("Seed batch conflict")},
+)
+async def decide_batch(
+    batch_uid: UUID, body: QueueDecisionRequest, request: Request
+) -> BatchDecisionResponse | ProblemJSONResponse:
+    try:
+        return await request.app.state.queue_service.decide_batch(batch_uid, body)
+    except QueueNotFoundError:
+        return _problem(request, 404, "Seed batch does not exist.")
     except QueueConflictError as exc:
         return _problem(request, 409, str(exc))
     except QueueValidationError as exc:

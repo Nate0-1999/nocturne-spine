@@ -72,6 +72,8 @@ class CreateMemoryCommand:
     thread_origin: str | None = None
     origin_path: str | None = None
     force: bool = False
+    parent_uid: str | None = None
+    revision_reason: str = ""
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -121,6 +123,12 @@ class SimilarMemories:
 class CandidateCreated:
     memory: ContractMemoryUnit
     neighbors: tuple[SimilarityMemoryCard, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class SplitSourceCreated:
+    memory: ContractMemoryUnit
+    revision_uid: str
 
 
 class MemoryServiceError(RuntimeError):
@@ -328,6 +336,44 @@ class MemoryService:
                 return CandidateCreated(
                     memory=contract_memory_from_row(row),
                     neighbors=tuple(matches),
+                )
+
+    async def create_split_source(
+        self,
+        command: CreateMemoryCommand,
+    ) -> SplitSourceCreated:
+        """Persist one exact, queue-invisible source revision for semantic children."""
+
+        self._validate_label(command.label)
+        embedding = await embed_one(
+            self._embedding_provider,
+            command.body,
+            expected_dimensions=_EMBEDDING_DIMENSIONS,
+            receipt_context=EmbeddingReceiptContext(
+                principal_id=command.principal_id,
+                machine_id=command.machine_id,
+                origin_agent=_agent_from_editor(command.editor),
+                thread_id=None,
+            ),
+        )
+        async with self._session_factory() as session:
+            async with session.begin():
+                await session.execute(
+                    text("SELECT pg_advisory_xact_lock(hashtextextended(:principal_id, 0))"),
+                    {"principal_id": command.principal_id},
+                )
+                row = await self._insert_root(session, command, embedding, status="tombstoned")
+                revision_uid = await session.scalar(
+                    select(MemoryRevision.rev_uid).where(
+                        MemoryRevision.memory_id == row["id"],
+                        MemoryRevision.revision == 1,
+                    )
+                )
+                if revision_uid is None:  # pragma: no cover - same-transaction invariant
+                    raise RuntimeError("split source revision was not written")
+                return SplitSourceCreated(
+                    memory=contract_memory_from_row(row),
+                    revision_uid=revision_uid,
                 )
 
     async def patch(self, command: PatchMemoryCommand) -> ContractMemoryUnit:
@@ -590,14 +636,14 @@ class MemoryService:
         await session.execute(
             insert(MemoryRevision.__table__).values(
                 rev_uid=mint_ulid(),
-                parent_uid=None,
+                parent_uid=command.parent_uid,
                 memory_id=row["id"],
                 revision=1,
                 body=row["body"],
                 label=row["label"],
                 editor=command.editor,
                 origin_machine_id=command.machine_id,
-                reason="",
+                reason=command.revision_reason,
             )
         )
         return row

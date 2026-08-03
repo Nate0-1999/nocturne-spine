@@ -155,7 +155,7 @@ class MemoryEdge(Base):
     __tablename__ = "memory_edge"
     __table_args__ = (
         CheckConstraint(
-            "edge_type IN ('merged_from','supersedes','contradicts')",
+            "edge_type IN ('merged_from','supersedes','contradicts','relates_to')",
             name="memory_edge_type_check",
         ),
         UniqueConstraint("from_memory_id", "to_memory_id", "edge_type"),
@@ -187,9 +187,21 @@ class ApprovalQueueItem(Base):
             "state IN ('pending','approved','rejected')",
             name="approval_queue_item_state_check",
         ),
+        CheckConstraint(
+            "birthplace IN ('thread','seed')",
+            name="approval_queue_item_birthplace_check",
+        ),
+        CheckConstraint(
+            "(birthplace = 'thread' AND birthplace_thread_id IS NOT NULL "
+            "AND batch_uid IS NULL AND source_name IS NULL AND source_sha256 IS NULL) OR "
+            "(birthplace = 'seed' AND birthplace_thread_id IS NULL "
+            "AND batch_uid IS NOT NULL AND source_name IS NOT NULL AND source_sha256 IS NOT NULL)",
+            name="approval_queue_item_birthplace_shape_check",
+        ),
         UniqueConstraint("candidate_memory_id"),
         Index("approval_queue_item_principal_state_idx", "principal_id", "state"),
         Index("approval_queue_item_thread_state_idx", "birthplace_thread_id", "state"),
+        Index("approval_queue_item_batch_state_idx", "batch_uid", "state"),
     )
 
     item_uid: Mapped[str] = mapped_column(Text, primary_key=True)
@@ -197,7 +209,13 @@ class ApprovalQueueItem(Base):
         PGUUID(as_uuid=True), ForeignKey("memory_unit.id"), nullable=False
     )
     principal_id: Mapped[str] = mapped_column(Text, nullable=False)
-    birthplace_thread_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    birthplace: Mapped[str] = mapped_column(
+        Text, nullable=False, server_default=text("'thread'")
+    )
+    birthplace_thread_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    batch_uid: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    source_name: Mapped[str | None] = mapped_column(Text)
+    source_sha256: Mapped[str | None] = mapped_column(Text)
     verdict: Mapped[str] = mapped_column(Text, nullable=False)
     neighbor_ids: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
     target_ids: Mapped[list[str]] = mapped_column(JSONB, nullable=False)

@@ -43,10 +43,25 @@ class ExtractionRequest(ContractModel):
     candidates: list[ExtractionCandidate] = Field(max_length=5)
 
 
+class SeedRequest(ContractModel):
+    principal_id: str = Field(min_length=1)
+    batch_uid: UUID
+    source_name: str = Field(min_length=1, max_length=255)
+    source_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    markdown: str = Field(min_length=1)
+    machine_id: str = Field(min_length=1)
+    editor: str = Field(min_length=1)
+    candidates: list[ExtractionCandidate] = Field(min_length=1, max_length=64)
+
+
 class QueueCard(ContractModel):
     item_uid: str
     candidate: MemoryUnit
-    birthplace_thread_id: UUID
+    birthplace: Literal["thread", "seed"]
+    birthplace_thread_id: UUID | None
+    batch_uid: UUID | None
+    source_name: str | None
+    source_sha256: str | None
     verdict: Verdict
     neighbors: list[SimilarityMemoryCard]
     target_ids: list[UUID]
@@ -57,6 +72,10 @@ class QueueCard(ContractModel):
 class ExtractionResponse(ContractModel):
     cards: list[QueueCard]
     duplicate_count: int = Field(ge=0)
+
+
+class SeedResponse(ExtractionResponse):
+    batch_uid: UUID
 
 
 class QueueResponse(ContractModel):
@@ -88,3 +107,9 @@ class QueueDecisionResponse(ContractModel):
     approval_mode: Literal["explicit", "passive"]
     actor_class: Literal["human", "passive"]
     decision_uid: str
+
+
+class BatchDecisionResponse(ContractModel):
+    batch_uid: UUID
+    decision: Literal["approve", "deny"]
+    cards: list[QueueCard]

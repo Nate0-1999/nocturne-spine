@@ -1,6 +1,38 @@
 {
   "components": {
     "schemas": {
+      "BatchDecisionResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "batch_uid": {
+            "format": "uuid",
+            "title": "Batch Uid",
+            "type": "string"
+          },
+          "cards": {
+            "items": {
+              "$ref": "#/components/schemas/QueueCard"
+            },
+            "title": "Cards",
+            "type": "array"
+          },
+          "decision": {
+            "enum": [
+              "approve",
+              "deny"
+            ],
+            "title": "Decision",
+            "type": "string"
+          }
+        },
+        "required": [
+          "batch_uid",
+          "decision",
+          "cards"
+        ],
+        "title": "BatchDecisionResponse",
+        "type": "object"
+      },
       "CommitRequest": {
         "additionalProperties": false,
         "properties": {
@@ -1043,10 +1075,37 @@
       "QueueCard": {
         "additionalProperties": false,
         "properties": {
-          "birthplace_thread_id": {
-            "format": "uuid",
-            "title": "Birthplace Thread Id",
+          "batch_uid": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Batch Uid"
+          },
+          "birthplace": {
+            "enum": [
+              "thread",
+              "seed"
+            ],
+            "title": "Birthplace",
             "type": "string"
+          },
+          "birthplace_thread_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Birthplace Thread Id"
           },
           "candidate": {
             "$ref": "#/components/schemas/MemoryUnit"
@@ -1066,6 +1125,28 @@
             },
             "title": "Neighbors",
             "type": "array"
+          },
+          "source_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Name"
+          },
+          "source_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Sha256"
           },
           "state": {
             "enum": [
@@ -1098,7 +1179,11 @@
         "required": [
           "item_uid",
           "candidate",
+          "birthplace",
           "birthplace_thread_id",
+          "batch_uid",
+          "source_name",
+          "source_sha256",
           "verdict",
           "neighbors",
           "target_ids",
@@ -1465,6 +1550,97 @@
           "results"
         ],
         "title": "SearchResponse",
+        "type": "object"
+      },
+      "SeedRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "batch_uid": {
+            "format": "uuid",
+            "title": "Batch Uid",
+            "type": "string"
+          },
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/ExtractionCandidate"
+            },
+            "maxItems": 64,
+            "minItems": 1,
+            "title": "Candidates",
+            "type": "array"
+          },
+          "editor": {
+            "minLength": 1,
+            "title": "Editor",
+            "type": "string"
+          },
+          "machine_id": {
+            "minLength": 1,
+            "title": "Machine Id",
+            "type": "string"
+          },
+          "markdown": {
+            "minLength": 1,
+            "title": "Markdown",
+            "type": "string"
+          },
+          "principal_id": {
+            "minLength": 1,
+            "title": "Principal Id",
+            "type": "string"
+          },
+          "source_name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Source Name",
+            "type": "string"
+          },
+          "source_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Source Sha256",
+            "type": "string"
+          }
+        },
+        "required": [
+          "principal_id",
+          "batch_uid",
+          "source_name",
+          "source_sha256",
+          "markdown",
+          "machine_id",
+          "editor",
+          "candidates"
+        ],
+        "title": "SeedRequest",
+        "type": "object"
+      },
+      "SeedResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "batch_uid": {
+            "format": "uuid",
+            "title": "Batch Uid",
+            "type": "string"
+          },
+          "cards": {
+            "items": {
+              "$ref": "#/components/schemas/QueueCard"
+            },
+            "title": "Cards",
+            "type": "array"
+          },
+          "duplicate_count": {
+            "minimum": 0.0,
+            "title": "Duplicate Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "cards",
+          "duplicate_count",
+          "batch_uid"
+        ],
+        "title": "SeedResponse",
         "type": "object"
       },
       "SimilarMemoryResponse": {
@@ -2218,6 +2394,23 @@
               ],
               "title": "Thread Id"
             }
+          },
+          {
+            "in": "query",
+            "name": "birthplace",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(thread|seed)$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Birthplace"
+            }
           }
         ],
         "responses": {
@@ -2344,6 +2537,266 @@
           }
         ],
         "summary": "Queue",
+        "tags": [
+          "approval-queue"
+        ]
+      }
+    },
+    "/v1/approval-queue/batches/{batch_uid}/decisions": {
+      "post": {
+        "operationId": "decide_batch_v1_approval_queue_batches__batch_uid__decisions_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batch_uid",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Batch Uid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueueDecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchDecisionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "description": "RFC 7807 problem details with an optional endpoint extension.",
+                  "properties": {
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    },
+                    "endpoint": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Endpoint"
+                    },
+                    "instance": {
+                      "title": "Instance",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "title": "ProblemDetail",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bearer token missing or invalid"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "description": "RFC 7807 problem details with an optional endpoint extension.",
+                  "properties": {
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    },
+                    "endpoint": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Endpoint"
+                    },
+                    "instance": {
+                      "title": "Instance",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "title": "ProblemDetail",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Seed batch missing"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "description": "RFC 7807 problem details with an optional endpoint extension.",
+                  "properties": {
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    },
+                    "endpoint": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Endpoint"
+                    },
+                    "instance": {
+                      "title": "Instance",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "title": "ProblemDetail",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Seed batch conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "description": "RFC 7807 problem details with an optional endpoint extension.",
+                  "properties": {
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    },
+                    "endpoint": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Endpoint"
+                    },
+                    "instance": {
+                      "title": "Instance",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "title": "ProblemDetail",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid queue request"
+          }
+        },
+        "security": [
+          {
+            "StaticBearer": []
+          }
+        ],
+        "summary": "Decide Batch",
         "tags": [
           "approval-queue"
         ]
@@ -4750,6 +5203,201 @@
         "summary": "Search",
         "tags": [
           "memory"
+        ]
+      }
+    },
+    "/v1/seeds": {
+      "post": {
+        "operationId": "ingest_seed_v1_seeds_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SeedRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeedResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "description": "RFC 7807 problem details with an optional endpoint extension.",
+                  "properties": {
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    },
+                    "endpoint": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Endpoint"
+                    },
+                    "instance": {
+                      "title": "Instance",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "title": "ProblemDetail",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bearer token missing or invalid"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "description": "RFC 7807 problem details with an optional endpoint extension.",
+                  "properties": {
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    },
+                    "endpoint": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Endpoint"
+                    },
+                    "instance": {
+                      "title": "Instance",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "title": "ProblemDetail",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Seed batch conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "description": "RFC 7807 problem details with an optional endpoint extension.",
+                  "properties": {
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    },
+                    "endpoint": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Endpoint"
+                    },
+                    "instance": {
+                      "title": "Instance",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "title": "ProblemDetail",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid queue request"
+          }
+        },
+        "security": [
+          {
+            "StaticBearer": []
+          }
+        ],
+        "summary": "Ingest Seed",
+        "tags": [
+          "approval-queue"
         ]
       }
     },

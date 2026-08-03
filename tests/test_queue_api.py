@@ -1,6 +1,7 @@
 """Live-Postgres proof for M2H queue birth, invisibility, and decisions."""
 
-from uuid import uuid4
+from hashlib import sha256
+from uuid import UUID, uuid4
 
 import pytest
 from conftest import ScriptedEmbeddingProvider, basis_vector, vector_with_cosine
@@ -8,7 +9,13 @@ from httpx import AsyncClient
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from spine.db.models import ApprovalDecision, ApprovalQueueItem, MemoryEdge, MemoryUnit
+from spine.db.models import (
+    ApprovalDecision,
+    ApprovalQueueItem,
+    MemoryEdge,
+    MemoryRevision,
+    MemoryUnit,
+)
 
 
 def extraction(thread_id, candidate, *, verdict="new", target_ids=None):
@@ -161,3 +168,110 @@ async def test_contradiction_cannot_passively_approve(
         },
     )
     assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_seed_batch_preserves_split_lineage_and_decides_atomically(
+    memory_client: AsyncClient,
+    embedding_provider: ScriptedEmbeddingProvider,
+    memory_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    markdown = "# Durable notes\n\nAlpha stands alone. Beta stands alone."
+    batch_uid = uuid4()
+    embedding_provider.set(markdown, basis_vector(0))
+    embedding_provider.set("Alpha stands alone.", basis_vector(1))
+    embedding_provider.set("Beta stands alone.", basis_vector(2))
+    payload = {
+        "principal_id": "owner",
+        "batch_uid": str(batch_uid),
+        "source_name": "durable-notes.md",
+        "source_sha256": sha256(markdown.encode()).hexdigest(),
+        "markdown": markdown,
+        "machine_id": "mac",
+        "editor": "seed-splitter",
+        "candidates": [
+            {
+                "label": "Alpha",
+                "body": "Alpha stands alone.",
+                "kind": "fact",
+                "keywords": ["alpha", "standalone"],
+                "verdict": "new",
+                "target_ids": [],
+            },
+            {
+                "label": "Beta",
+                "body": "Beta stands alone.",
+                "kind": "fact",
+                "keywords": ["beta", "standalone"],
+                "verdict": "new",
+                "target_ids": [],
+            },
+        ],
+    }
+
+    born = await memory_client.post("/v1/seeds", json=payload)
+    replay = await memory_client.post("/v1/seeds", json=payload)
+
+    assert born.status_code == replay.status_code == 200
+    assert born.json() == replay.json()
+    cards = born.json()["cards"]
+    assert len(cards) == 2
+    assert {card["birthplace"] for card in cards} == {"seed"}
+    assert {card["batch_uid"] for card in cards} == {str(batch_uid)}
+    assert {card["birthplace_thread_id"] for card in cards} == {None}
+
+    thread_only = await memory_client.get(
+        "/v1/approval-queue",
+        params={"principal_id": "owner", "birthplace": "thread"},
+    )
+    seed_only = await memory_client.get(
+        "/v1/approval-queue",
+        params={"principal_id": "owner", "birthplace": "seed"},
+    )
+    assert thread_only.json()["cards"] == []
+    assert len(seed_only.json()["cards"]) == 2
+
+    decision = await memory_client.post(
+        f"/v1/approval-queue/batches/{batch_uid}/decisions",
+        json={
+            "decision": "approve",
+            "approval_mode": "explicit",
+            "actor_class": "human",
+            "machine_id": "mac",
+        },
+    )
+    assert decision.status_code == 200
+    assert {card["state"] for card in decision.json()["cards"]} == {"approved"}
+
+    child_ids = [UUID(card["candidate"]["memory_id"]) for card in cards]
+    async with memory_session_factory() as session:
+        source = (
+            await session.execute(
+                select(MemoryUnit).where(MemoryUnit.thread_origin == f"seed:{batch_uid}")
+            )
+        ).scalar_one()
+        source_revision = (
+            await session.execute(
+                select(MemoryRevision).where(MemoryRevision.memory_id == source.id)
+            )
+        ).scalar_one()
+        child_revisions = (
+            await session.execute(
+                select(MemoryRevision).where(
+                    MemoryRevision.memory_id.in_(child_ids),
+                    MemoryRevision.revision == 1,
+                )
+            )
+        ).scalars().all()
+        relates = (
+            await session.execute(
+                select(MemoryEdge).where(MemoryEdge.edge_type == "relates_to")
+            )
+        ).scalars().all()
+    assert source.status == "tombstoned"
+    assert source.body == markdown
+    assert {revision.parent_uid for revision in child_revisions} == {source_revision.rev_uid}
+    assert {(edge.from_memory_id, edge.to_memory_id) for edge in relates} == {
+        (child_ids[0], child_ids[1]),
+        (child_ids[1], child_ids[0]),
+    }

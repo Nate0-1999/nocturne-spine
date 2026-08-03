@@ -1,6 +1,8 @@
 """Transactional M2H queue birth and deterministic verdict mechanics."""
 
 from dataclasses import dataclass
+from hashlib import sha256
+from pathlib import PurePath
 from typing import Any
 from uuid import UUID
 
@@ -23,12 +25,15 @@ from spine.memory.service import (
     contract_memory_from_row,
 )
 from spine.queue.contracts import (
+    BatchDecisionResponse,
     ExtractionRequest,
     ExtractionResponse,
     QueueCard,
     QueueDecisionRequest,
     QueueDecisionResponse,
     QueueResponse,
+    SeedRequest,
+    SeedResponse,
 )
 
 
@@ -84,11 +89,74 @@ class QueueService:
             cards.append(await self._enqueue(request, draft.verdict, draft.target_ids, created))
         return ExtractionResponse(cards=cards, duplicate_count=duplicates)
 
-    async def list_pending(self, principal_id: str, thread_id: UUID | None = None) -> QueueResponse:
+    async def ingest_seed(self, request: SeedRequest) -> SeedResponse:
+        self._validate_seed(request)
+        existing = await self._seed_batch(request)
+        if existing is not None:
+            return SeedResponse(
+                batch_uid=request.batch_uid,
+                cards=existing,
+                duplicate_count=len(request.candidates) - len(existing),
+            )
+        source = await self._memory_service.create_split_source(
+            CreateMemoryCommand(
+                principal_id=request.principal_id,
+                label=f"Seed source · {request.source_name}"[:120],
+                body=request.markdown,
+                kind="project_note",
+                keywords=("seed", "source"),
+                thread_origin=f"seed:{request.batch_uid}",
+                origin_path=request.source_name,
+                editor=request.editor,
+                machine_id=request.machine_id,
+                revision_reason="seed_source_split",
+            )
+        )
+        cards: list[QueueCard] = []
+        duplicates = 0
+        for draft in request.candidates:
+            created = await self._memory_service.create_candidate(
+                CreateMemoryCommand(
+                    principal_id=request.principal_id,
+                    label=draft.label,
+                    body=draft.body,
+                    kind=draft.kind,
+                    keywords=draft.keywords,
+                    project_key=draft.project_key,
+                    origin_path=request.source_name,
+                    editor=request.editor,
+                    machine_id=request.machine_id,
+                    parent_uid=source.revision_uid,
+                    revision_reason="seed_split_child",
+                )
+            )
+            if created is None:
+                duplicates += 1
+                continue
+            cards.append(
+                await self._enqueue_seed(
+                    request, draft.verdict, draft.target_ids, created
+                )
+            )
+        await self._relate_siblings([card.candidate.memory_id for card in cards])
+        return SeedResponse(
+            batch_uid=request.batch_uid,
+            cards=cards,
+            duplicate_count=duplicates,
+        )
+
+    async def list_pending(
+        self,
+        principal_id: str,
+        thread_id: UUID | None = None,
+        birthplace: str | None = None,
+    ) -> QueueResponse:
         queue = ApprovalQueueItem.__table__
         filters = [queue.c.principal_id == principal_id, queue.c.state == "pending"]
         if thread_id is not None:
             filters.append(queue.c.birthplace_thread_id == thread_id)
+        if birthplace is not None:
+            filters.append(queue.c.birthplace == birthplace)
         async with self._session_factory() as session:
             rows = (
                 (
@@ -106,7 +174,6 @@ class QueueService:
 
     async def decide(self, item_uid: str, request: QueueDecisionRequest) -> QueueDecisionResponse:
         queue = ApprovalQueueItem.__table__
-        decisions = ApprovalDecision.__table__
         async with self._session_factory() as session:
             async with session.begin():
                 row = (
@@ -120,89 +187,104 @@ class QueueService:
                 )
                 if row is None:
                     raise QueueNotFoundError(item_uid)
-                prior_row = (
-                    (
-                        await session.execute(
-                            select(*decisions.c).where(decisions.c.item_uid == item_uid)
-                        )
-                    )
-                    .mappings()
-                    .one_or_none()
-                )
-                if prior_row is not None:
-                    prior = _ExistingDecision(
-                        prior_row["decision_uid"],
-                        prior_row["decision"],
-                        prior_row["approval_mode"],
-                        prior_row["actor_class"],
-                    )
-                    if (prior.decision, prior.approval_mode, prior.actor_class) != (
-                        request.decision,
-                        request.approval_mode,
-                        request.actor_class,
-                    ):
-                        raise QueueConflictError("queue item already has a different decision")
-                    card = await self._card(session, row)
-                    return QueueDecisionResponse(
-                        card=card,
-                        decision=prior.decision,
-                        approval_mode=prior.approval_mode,
-                        actor_class=prior.actor_class,
-                        decision_uid=prior.decision_uid,
-                    )
-                if row["verdict"] == "contradict" and request.approval_mode == "passive":
-                    raise QueueValidationError("contradictions require explicit approval")
+                return await self._decide_row(session, row, request)
 
-                candidate = await self._locked_memory(session, row["candidate_memory_id"])
-                expected = "approved" if request.decision == "approve" else "rejected"
-                if candidate["status"] != "candidate":
-                    raise QueueConflictError("queue candidate is no longer pending")
-                await cas_update_memory_unit(
-                    session,
-                    CasUpdate(
-                        memory_id=candidate["id"],
-                        expected_revision=candidate["revision"],
-                        rev_uid=mint_ulid(),
-                        editor="human" if request.actor_class == "human" else "passive",
-                        origin_machine_id=request.machine_id,
-                        reason="approved" if request.decision == "approve" else "rejected",
-                        changes=MemoryUnitChanges(
-                            status="active" if request.decision == "approve" else "tombstoned"
-                        ),
-                    ),
-                )
-                if request.decision == "approve":
-                    await self._enact_targets(session, row, candidate, request.machine_id)
-                decision_uid = mint_ulid()
-                await session.execute(
-                    insert(decisions).values(
-                        decision_uid=decision_uid,
-                        item_uid=item_uid,
-                        decision=request.decision,
-                        approval_mode=request.approval_mode,
-                        actor_class=request.actor_class,
-                    )
-                )
-                updated = (
+    async def decide_batch(
+        self, batch_uid: UUID, request: QueueDecisionRequest
+    ) -> BatchDecisionResponse:
+        if request.approval_mode != "explicit" or request.actor_class != "human":
+            raise QueueValidationError("seed batches require an explicit human decision")
+        queue = ApprovalQueueItem.__table__
+        async with self._session_factory() as session:
+            async with session.begin():
+                rows = (
                     (
                         await session.execute(
-                            update(queue)
-                            .where(queue.c.item_uid == item_uid)
-                            .values(state=expected, decided_at=func.now())
-                            .returning(*queue.c)
+                            select(*queue.c)
+                            .where(queue.c.batch_uid == batch_uid, queue.c.birthplace == "seed")
+                            .order_by(queue.c.created_at, queue.c.item_uid)
+                            .with_for_update()
                         )
                     )
                     .mappings()
-                    .one()
+                    .all()
                 )
-                card = await self._card(session, updated)
-                return QueueDecisionResponse(
-                    card=card,
+                if not rows:
+                    raise QueueNotFoundError(str(batch_uid))
+                responses = [
+                    await self._decide_row(session, row, request) for row in rows
+                ]
+                return BatchDecisionResponse(
+                    batch_uid=batch_uid,
                     decision=request.decision,
-                    approval_mode=request.approval_mode,
-                    actor_class=request.actor_class,
-                    decision_uid=decision_uid,
+                    cards=[response.card for response in responses],
                 )
+
+    async def _decide_row(
+        self, session: AsyncSession, row: Any, request: QueueDecisionRequest
+    ) -> QueueDecisionResponse:
+        decisions = ApprovalDecision.__table__
+        queue = ApprovalQueueItem.__table__
+        prior_row = (
+            (
+                await session.execute(
+                    select(*decisions.c).where(decisions.c.item_uid == row["item_uid"])
+                )
+            ).mappings().one_or_none()
+        )
+        if prior_row is not None:
+            prior = _ExistingDecision(
+                prior_row["decision_uid"], prior_row["decision"],
+                prior_row["approval_mode"], prior_row["actor_class"],
+            )
+            if (prior.decision, prior.approval_mode, prior.actor_class) != (
+                request.decision, request.approval_mode, request.actor_class,
+            ):
+                raise QueueConflictError("queue item already has a different decision")
+            return QueueDecisionResponse(
+                card=await self._card(session, row), decision=prior.decision,
+                approval_mode=prior.approval_mode, actor_class=prior.actor_class,
+                decision_uid=prior.decision_uid,
+            )
+        if row["verdict"] == "contradict" and request.approval_mode == "passive":
+            raise QueueValidationError("contradictions require explicit approval")
+        candidate = await self._locked_memory(session, row["candidate_memory_id"])
+        expected = "approved" if request.decision == "approve" else "rejected"
+        if candidate["status"] != "candidate":
+            raise QueueConflictError("queue candidate is no longer pending")
+        await cas_update_memory_unit(
+            session,
+            CasUpdate(
+                memory_id=candidate["id"], expected_revision=candidate["revision"],
+                rev_uid=mint_ulid(),
+                editor="human" if request.actor_class == "human" else "passive",
+                origin_machine_id=request.machine_id,
+                reason="approved" if request.decision == "approve" else "rejected",
+                changes=MemoryUnitChanges(
+                    status="active" if request.decision == "approve" else "tombstoned"
+                ),
+            ),
+        )
+        if request.decision == "approve":
+            await self._enact_targets(session, row, candidate, request.machine_id)
+        decision_uid = mint_ulid()
+        await session.execute(insert(decisions).values(
+            decision_uid=decision_uid, item_uid=row["item_uid"], decision=request.decision,
+            approval_mode=request.approval_mode, actor_class=request.actor_class,
+        ))
+        updated = (
+            (
+                await session.execute(
+                    update(queue).where(queue.c.item_uid == row["item_uid"])
+                    .values(state=expected, decided_at=func.now()).returning(*queue.c)
+                )
+            ).mappings().one()
+        )
+        return QueueDecisionResponse(
+            card=await self._card(session, updated), decision=request.decision,
+            approval_mode=request.approval_mode, actor_class=request.actor_class,
+            decision_uid=decision_uid,
+        )
 
     async def _enqueue(
         self,
@@ -231,6 +313,7 @@ class QueueService:
                                 item_uid=item_uid,
                                 candidate_memory_id=created.memory.memory_id,
                                 principal_id=request.principal_id,
+                                birthplace="thread",
                                 birthplace_thread_id=request.thread_id,
                                 verdict=verdict,
                                 neighbor_ids=[str(item.memory_id) for item in active_neighbors],
@@ -244,6 +327,120 @@ class QueueService:
                     .one()
                 )
                 return await self._card(session, row, neighbors=active_neighbors)
+
+    async def _enqueue_seed(
+        self,
+        request: SeedRequest,
+        verdict: str,
+        target_ids: list[UUID],
+        created: CandidateCreated,
+    ) -> QueueCard:
+        active_neighbors = [
+            neighbor
+            for neighbor in created.neighbors
+            if await self._is_active(request.principal_id, neighbor.memory_id)
+        ]
+        neighbor_ids = {neighbor.memory_id for neighbor in active_neighbors}
+        if any(target not in neighbor_ids for target in target_ids):
+            await self._discard_candidate(created.memory.memory_id, request.machine_id)
+            raise QueueValidationError("verdict targets must be active machine-fetched neighbors")
+        async with self._session_factory() as session:
+            async with session.begin():
+                row = (
+                    (
+                        await session.execute(
+                            insert(ApprovalQueueItem.__table__)
+                            .values(
+                                item_uid=mint_ulid(),
+                                candidate_memory_id=created.memory.memory_id,
+                                principal_id=request.principal_id,
+                                birthplace="seed",
+                                birthplace_thread_id=None,
+                                batch_uid=request.batch_uid,
+                                source_name=request.source_name,
+                                source_sha256=request.source_sha256,
+                                verdict=verdict,
+                                neighbor_ids=[str(item.memory_id) for item in active_neighbors],
+                                target_ids=[str(item) for item in target_ids],
+                                state="pending",
+                            )
+                            .returning(*ApprovalQueueItem.__table__.c)
+                        )
+                    ).mappings().one()
+                )
+                return await self._card(session, row, neighbors=active_neighbors)
+
+    async def _seed_batch(self, request: SeedRequest) -> list[QueueCard] | None:
+        queue = ApprovalQueueItem.__table__
+        async with self._session_factory() as session:
+            rows = (
+                (
+                    await session.execute(
+                        select(*queue.c)
+                        .where(queue.c.batch_uid == request.batch_uid)
+                        .order_by(queue.c.created_at, queue.c.item_uid)
+                    )
+                ).mappings().all()
+            )
+            if rows:
+                first = rows[0]
+                if (
+                    first["principal_id"] != request.principal_id
+                    or first["source_name"] != request.source_name
+                    or first["source_sha256"] != request.source_sha256
+                ):
+                    raise QueueConflictError("seed batch UID already names a different document")
+                return [await self._card(session, row) for row in rows]
+            source = (
+                (
+                    await session.execute(
+                        select(*MemoryUnit.__table__.c).where(
+                            MemoryUnit.principal_id == request.principal_id,
+                            MemoryUnit.thread_origin == f"seed:{request.batch_uid}",
+                        )
+                    )
+                ).mappings().one_or_none()
+            )
+            if source is None:
+                return None
+            if (
+                source["origin_path"] != request.source_name
+                or sha256(source["body"].encode("utf-8")).hexdigest()
+                != request.source_sha256
+            ):
+                raise QueueConflictError("seed batch UID already names a different document")
+            return []
+
+    async def _relate_siblings(self, memory_ids: list[UUID]) -> None:
+        if len(memory_ids) < 2:
+            return
+        async with self._session_factory() as session:
+            async with session.begin():
+                for left in memory_ids:
+                    for right in memory_ids:
+                        if left == right:
+                            continue
+                        await session.execute(
+                            insert(MemoryEdge.__table__).values(
+                                edge_uid=mint_ulid(),
+                                from_memory_id=left,
+                                to_memory_id=right,
+                                edge_type="relates_to",
+                            )
+                        )
+
+    @staticmethod
+    def _validate_seed(request: SeedRequest) -> None:
+        valid_basename = PurePath(request.source_name).name == request.source_name
+        valid_extension = request.source_name.lower().endswith((".md", ".markdown"))
+        if not valid_basename or not valid_extension:
+            raise QueueValidationError("source_name must be a Markdown basename")
+        if not request.markdown.strip():
+            raise QueueValidationError("seed markdown must not be blank")
+        if len(request.markdown.encode("utf-8")) > 24 * 1024:
+            raise QueueValidationError("seed markdown exceeds the 24 KiB limit")
+        if sha256(request.markdown.encode("utf-8")).hexdigest() != request.source_sha256:
+            raise QueueValidationError("seed markdown digest does not match source_sha256")
 
     async def _is_active(self, principal_id: str, memory_id: UUID) -> bool:
         async with self._session_factory() as session:
@@ -302,7 +499,11 @@ class QueueService:
         return QueueCard(
             item_uid=row["item_uid"],
             candidate=contract_memory_from_row(candidate),
+            birthplace=row["birthplace"],
             birthplace_thread_id=row["birthplace_thread_id"],
+            batch_uid=row["batch_uid"],
+            source_name=row["source_name"],
+            source_sha256=row["source_sha256"],
             verdict=row["verdict"],
             neighbors=neighbors,
             target_ids=[UUID(value) for value in row["target_ids"]],
