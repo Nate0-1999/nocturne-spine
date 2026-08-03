@@ -23,6 +23,7 @@ from spine.inject.decisions import (
     RemovedDecision,
 )
 from spine.inject.service import (
+    InvalidRescoreStateError,
     PrepareCommand,
     PrepareConflictError,
     PrepareService,
@@ -63,6 +64,10 @@ class PrepareRequest(ContractRequest):
     agent_kind: str | None = None
     prompt: str
     model_context_tokens: Annotated[int, Field(gt=0)]
+    mode: Literal["gate", "autonomous"] = "gate"
+    current_memory_ids: list[UUID] = Field(default_factory=list)
+    confirmed_memory_ids: list[UUID] = Field(default_factory=list)
+    excluded_memory_ids: list[UUID] = Field(default_factory=list)
 
 
 class RemovedMemory(ContractRequest):
@@ -79,7 +84,7 @@ class CommitRequest(ContractRequest):
 class FeedbackRequest(ContractRequest):
     injection_id: UUID
     memory_id: UUID
-    signal: Literal["mid_thread_removed", "cited"]
+    signal: Literal["mid_thread_removed", "mid_thread_added", "cited"]
 
 
 @router.post(
@@ -102,6 +107,10 @@ async def prepare(
                 agent_kind=body.agent_kind if body.agent_kind is not None else "general",
                 prompt=body.prompt,
                 model_context_tokens=body.model_context_tokens,
+                mode=body.mode,
+                current_memory_ids=tuple(body.current_memory_ids),
+                confirmed_memory_ids=tuple(body.confirmed_memory_ids),
+                excluded_memory_ids=tuple(body.excluded_memory_ids),
             )
         )
     except ThreadAlreadyPreparedError:
@@ -114,6 +123,8 @@ async def prepare(
             request,
             "The thread ID is already assigned to different request metadata.",
         )
+    except InvalidRescoreStateError as error:
+        return _conflict(request, str(error))
     except PrepareConflictError:
         return _conflict(
             request,

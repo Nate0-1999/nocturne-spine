@@ -176,6 +176,10 @@ class InjectionEvent(Base):
             "shown_as IN ('injected','near_miss','pinned')",
             name="injection_event_shown_as_check",
         ),
+        CheckConstraint(
+            "actor_class IN ('human','passive')",
+            name="injection_event_actor_class_check",
+        ),
         UniqueConstraint("event_uid", name="injection_event_event_uid_key"),
         Index("injection_event_injection_id_idx", "injection_id"),
     )
@@ -201,6 +205,11 @@ class InjectionEvent(Base):
     score: Mapped[float] = mapped_column(REAL, nullable=False)
     rank: Mapped[int] = mapped_column(Integer, nullable=False)
     shown_as: Mapped[str] = mapped_column(Text, nullable=False)
+    actor_class: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        server_default=text("'human'"),
+    )
     outcome: Mapped[str | None] = mapped_column(Text)
     ts: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

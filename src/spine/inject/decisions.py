@@ -21,10 +21,10 @@ from spine.inject.renderer import render_final_block
 from spine.memory.service import contract_memory_from_snapshot
 
 RemovalReason = Literal["not_relevant", "wrong", "never"]
-FeedbackSignal = Literal["mid_thread_removed", "cited"]
+FeedbackSignal = Literal["mid_thread_removed", "mid_thread_added", "cited"]
 
 _POSITIVE_OUTCOMES = frozenset({"kept", "added_back", "cited"})
-_FEEDBACK_OUTCOMES = frozenset({"cited", "mid_thread_removed"})
+_FEEDBACK_OUTCOMES = frozenset({"cited", "mid_thread_removed", "mid_thread_added"})
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -184,7 +184,19 @@ class DecisionService:
                 current_outcome = event["outcome"]
                 if current_outcome == command.signal:
                     return FeedbackResponse(ok=True)
-                if current_outcome not in {"kept", "added_back"}:
+                allowed = (
+                    (
+                        command.signal == "mid_thread_added"
+                        and current_outcome == "mid_thread_removed"
+                    )
+                    or (
+                        command.signal == "mid_thread_removed"
+                        and current_outcome
+                        in {"kept", "added_back", "auto_entered", "mid_thread_added"}
+                    )
+                    or (command.signal == "cited" and current_outcome in {"kept", "added_back"})
+                )
+                if not allowed:
                     raise OutcomeConflictError(
                         f"event outcome {current_outcome!r} cannot accept {command.signal}"
                     )

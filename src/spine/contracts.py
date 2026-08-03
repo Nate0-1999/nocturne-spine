@@ -80,6 +80,7 @@ class PrepareResponse(ContractModel):
     scorer_version: str
     injected: list[ScoredMemoryCard]
     near_misses: list[ScoredMemoryCard]
+    final_block: str | None
 
 
 class CommitResponse(ContractModel):

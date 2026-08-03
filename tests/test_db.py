@@ -213,6 +213,7 @@ async def test_models_match_authoritative_c2_schema(
             "score",
             "rank",
             "shown_as",
+            "actor_class",
             "outcome",
             "ts",
         ),
@@ -344,6 +345,7 @@ async def test_models_match_authoritative_c2_schema(
         "injection_event.score": "REAL",
         "injection_event.rank": "INTEGER",
         "injection_event.shown_as": "TEXT",
+        "injection_event.actor_class": "TEXT",
         "injection_event.outcome": "TEXT",
         "injection_event.ts": "TIMESTAMP WITH TIME ZONE",
         "spend_event.event_uid": "TEXT",
@@ -398,6 +400,7 @@ async def test_models_match_authoritative_c2_schema(
         "memory_revision.ts": "now()",
         "thread.created_at": "now()",
         "injection_event.agent_kind": "'general'",
+        "injection_event.actor_class": "'human'",
         "injection_event.ts": "now()",
         "spend_event.meta": "'{}'::jsonb",
         "scorer_config.created_at": "now()",
@@ -428,7 +431,12 @@ async def test_models_match_authoritative_c2_schema(
         "memory_revision": {},
         "thread": {},
         "injection_event": {
-            "injection_event_shown_as_check": ("shown_as IN ('injected','near_miss','pinned')")
+            "injection_event_actor_class_check": (
+                "actor_class IN ('human','passive')"
+            ),
+            "injection_event_shown_as_check": (
+                "shown_as IN ('injected','near_miss','pinned')"
+            ),
         },
         "spend_event": {
             "spend_event_product_type_check": (

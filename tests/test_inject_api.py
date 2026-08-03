@@ -214,7 +214,9 @@ async def test_prepare_commit_replays_gate_and_prepare_updates_only_injected(
         "scorer_version",
         "injected",
         "near_misses",
+        "final_block",
     }
+    assert payload["final_block"] is None
     UUID(payload["injection_id"])
     snapshot_ts = datetime.fromisoformat(payload["snapshot_ts"])
     assert payload["scorer_version"] == "v0"
@@ -678,6 +680,108 @@ async def test_concurrent_prepare_is_one_shot_per_thread(
 
     repeated = await memory_client.post("/v1/inject/prepare", json=request)
     _assert_problem(repeated, 409)
+
+
+async def test_autonomous_prepare_preserves_locks_and_logs_entry_keep_exit(
+    memory_client: AsyncClient,
+    embedding_provider: ScriptedEmbeddingProvider,
+    memory_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    confirmed_id = UUID(int=310)
+    autonomous_id = UUID(int=311)
+    entered_id = UUID(int=312)
+    for memory_id, label, embedding in (
+        (confirmed_id, "Human confirmed", basis_vector(1)),
+        (autonomous_id, "Old autonomous", basis_vector(1)),
+        (entered_id, "New autonomous", basis_vector(0)),
+    ):
+        await _insert_memory(
+            memory_session_factory,
+            memory_id=memory_id,
+            label=label,
+            body=f"{label} body",
+            embedding=embedding,
+        )
+
+    thread_id = uuid4()
+    first_prompt = "first topic"
+    second_prompt = "second topic"
+    embedding_provider.set(first_prompt, basis_vector(1))
+    embedding_provider.set(second_prompt, basis_vector(0))
+    first = _assert_json(
+        await memory_client.post(
+            "/v1/inject/prepare",
+            json=_prepare_body(thread_id=thread_id, prompt=first_prompt),
+        ),
+        200,
+    )
+    first_ids = [UUID(card["memory_id"]) for card in first["injected"]]
+    assert first_ids == [confirmed_id, autonomous_id]
+
+    second = _assert_json(
+        await memory_client.post(
+            "/v1/inject/prepare",
+            json=_prepare_body(
+                thread_id=thread_id,
+                prompt=second_prompt,
+                mode="autonomous",
+                current_memory_ids=[str(confirmed_id), str(autonomous_id)],
+                confirmed_memory_ids=[str(confirmed_id)],
+                excluded_memory_ids=[],
+            ),
+        ),
+        200,
+    )
+
+    assert [UUID(card["memory_id"]) for card in second["injected"]] == [
+        confirmed_id,
+        entered_id,
+    ]
+    assert second["final_block"] is not None
+    assert "Human confirmed body" in second["final_block"]
+    assert "New autonomous body" in second["final_block"]
+    assert "Old autonomous body" not in second["final_block"]
+    assert datetime.fromisoformat(second["snapshot_ts"]) > datetime.fromisoformat(
+        first["snapshot_ts"]
+    )
+
+    async with memory_session_factory() as session:
+        rows = (
+            await session.scalars(
+                select(InjectionEvent).where(
+                    InjectionEvent.injection_id == UUID(second["injection_id"])
+                )
+            )
+        ).all()
+    outcomes = {row.memory_id: row.outcome for row in rows}
+    assert outcomes == {
+        confirmed_id: "kept",
+        autonomous_id: "auto_exited",
+        entered_id: "auto_entered",
+    }
+    assert {row.actor_class for row in rows} == {"passive"}
+
+    assert _assert_json(
+        await memory_client.post(
+            "/v1/feedback",
+            json={
+                "injection_id": second["injection_id"],
+                "memory_id": str(entered_id),
+                "signal": "mid_thread_removed",
+            },
+        ),
+        200,
+    ) == {"ok": True}
+    async with memory_session_factory() as session:
+        entered_event = (
+            await session.scalars(
+                select(InjectionEvent).where(
+                    InjectionEvent.injection_id == UUID(second["injection_id"]),
+                    InjectionEvent.memory_id == entered_id,
+                )
+            )
+        ).one()
+    assert entered_event.outcome == "mid_thread_removed"
 
 
 async def test_unstamped_thread_requires_exact_identity_before_stamping(

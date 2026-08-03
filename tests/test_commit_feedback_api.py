@@ -1115,6 +1115,65 @@ async def test_feedback_is_exactly_once_and_cited_stays_inert(
     )
 
 
+async def test_mid_thread_removed_can_be_human_readded_and_removed_again(
+    memory_client: AsyncClient,
+    memory_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    injection_id = UUID(int=9401)
+    memory_id = UUID(int=4401)
+    await _insert_memory(
+        memory_session_factory,
+        memory_id=memory_id,
+        label="Toggle context",
+        body="Toggle context body",
+    )
+    await _insert_event(
+        memory_session_factory,
+        injection_id=injection_id,
+        memory_id=memory_id,
+        rank=1,
+        shown_as="injected",
+        event_seed=401,
+        label="Toggle context",
+        body="Toggle context body",
+        outcome="kept",
+    )
+
+    def feedback(signal: str) -> dict[str, str]:
+        return {
+            "injection_id": str(injection_id),
+            "memory_id": str(memory_id),
+            "signal": signal,
+        }
+
+    for signal in ("mid_thread_removed", "mid_thread_added", "mid_thread_added"):
+        assert _assert_json(
+            await memory_client.post("/v1/feedback", json=feedback(signal)), 200
+        ) == {"ok": True}
+
+    async with memory_session_factory() as session:
+        after_add = await session.get(MemoryUnit, memory_id)
+    assert after_add is not None
+    assert after_add.stats["removals"] == 1
+
+    assert _assert_json(
+        await memory_client.post("/v1/feedback", json=feedback("mid_thread_removed")),
+        200,
+    ) == {"ok": True}
+    async with memory_session_factory() as session:
+        event = (
+            await session.scalars(
+                select(InjectionEvent).where(
+                    InjectionEvent.injection_id == injection_id,
+                    InjectionEvent.memory_id == memory_id,
+                )
+            )
+        ).one()
+        head = await session.get(MemoryUnit, memory_id)
+    assert event.outcome == "mid_thread_removed"
+    assert head is not None and head.stats["removals"] == 2
+
+
 async def test_lineage_failures_roll_back_commit_and_feedback(
     memory_app: Any,
     memory_session_factory: async_sessionmaker[AsyncSession],

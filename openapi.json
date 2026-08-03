@@ -212,6 +212,7 @@
           "signal": {
             "enum": [
               "mid_thread_removed",
+              "mid_thread_added",
               "cited"
             ],
             "title": "Signal",
@@ -767,8 +768,41 @@
             ],
             "title": "Agent Kind"
           },
+          "confirmed_memory_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Confirmed Memory Ids",
+            "type": "array"
+          },
+          "current_memory_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Current Memory Ids",
+            "type": "array"
+          },
+          "excluded_memory_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Excluded Memory Ids",
+            "type": "array"
+          },
           "machine_id": {
             "title": "Machine Id",
+            "type": "string"
+          },
+          "mode": {
+            "default": "gate",
+            "enum": [
+              "gate",
+              "autonomous"
+            ],
+            "title": "Mode",
             "type": "string"
           },
           "model_context_tokens": {
@@ -815,6 +849,17 @@
       "PrepareResponse": {
         "additionalProperties": false,
         "properties": {
+          "final_block": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Final Block"
+          },
           "injected": {
             "items": {
               "$ref": "#/components/schemas/ScoredMemoryCard"
@@ -849,7 +894,8 @@
           "snapshot_ts",
           "scorer_version",
           "injected",
-          "near_misses"
+          "near_misses",
+          "final_block"
         ],
         "title": "PrepareResponse",
         "type": "object"

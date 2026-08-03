@@ -6,7 +6,7 @@ from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from dataclasses import asdict, dataclass
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID, uuid4
 
 from sqlalchemy import func, insert, or_, select, text, update
@@ -37,6 +37,7 @@ from spine.embeddings import (
     embed_one,
 )
 from spine.ids import mint_ulid
+from spine.inject.renderer import render_final_block
 from spine.inject.scorer import (
     ScoredCandidate,
     ScorerConfig,
@@ -61,6 +62,10 @@ class PrepareCommand:
     agent_kind: str
     prompt: str
     model_context_tokens: int
+    mode: Literal["gate", "autonomous"] = "gate"
+    current_memory_ids: tuple[UUID, ...] = ()
+    confirmed_memory_ids: tuple[UUID, ...] = ()
+    excluded_memory_ids: tuple[UUID, ...] = ()
 
 
 class PrepareServiceError(RuntimeError):
@@ -75,6 +80,10 @@ class ThreadIdentityConflictError(PrepareServiceError):
     """A thread UUID is already owned by different identity metadata."""
 
 
+class InvalidRescoreStateError(PrepareServiceError):
+    """An autonomous request cannot preserve its declared thread locks."""
+
+
 class PrepareConflictError(PrepareServiceError):
     """Concurrent writes repeatedly prevented one atomic snapshot."""
 
@@ -85,6 +94,28 @@ class ScorerConfigurationError(PrepareServiceError):
 
 class _RetryTransaction(RuntimeError):
     """An invisible concurrent thread insert requires a fresh MVCC snapshot."""
+
+
+def _validate_command(command: PrepareCommand) -> None:
+    current = set(command.current_memory_ids)
+    confirmed = set(command.confirmed_memory_ids)
+    excluded = set(command.excluded_memory_ids)
+    if len(current) != len(command.current_memory_ids):
+        raise InvalidRescoreStateError("current_memory_ids contains duplicates")
+    if len(confirmed) != len(command.confirmed_memory_ids):
+        raise InvalidRescoreStateError("confirmed_memory_ids contains duplicates")
+    if len(excluded) != len(command.excluded_memory_ids):
+        raise InvalidRescoreStateError("excluded_memory_ids contains duplicates")
+    if command.mode == "gate":
+        if current or confirmed or excluded:
+            raise InvalidRescoreStateError("gate mode does not accept thread disposition sets")
+        return
+    if not confirmed <= current:
+        raise InvalidRescoreStateError(
+            "confirmed_memory_ids must be a subset of current_memory_ids"
+        )
+    if excluded & (current | confirmed):
+        raise InvalidRescoreStateError("excluded_memory_ids must be disjoint from current state")
 
 
 class PrepareService:
@@ -105,6 +136,8 @@ class PrepareService:
 
     async def prepare(self, command: PrepareCommand) -> PrepareResponse:
         """Embed a prompt, freeze one thread snapshot, score, and log atomically."""
+
+        _validate_command(command)
 
         query_embedding = await embed_one(
             self._embedding_provider,
@@ -161,6 +194,7 @@ class PrepareService:
                     thread_project_key=command.project_key,
                     pinned_candidates=pinned,
                     regular_candidates=regular,
+                    locked_memory_ids=frozenset(command.confirmed_memory_ids),
                     model_context_tokens=command.model_context_tokens,
                     config=config,
                 )
@@ -171,7 +205,7 @@ class PrepareService:
                     snapshot_ts=snapshot_ts,
                     injected=selection.injected,
                 )
-                await _insert_events(
+                event_values = await _insert_events(
                     session,
                     command=command,
                     snapshot_ts=snapshot_ts,
@@ -186,6 +220,17 @@ class PrepareService:
                     scorer_version=config.version,
                     injected=[_response_card(item) for item in selection.injected],
                     near_misses=[_response_card(item) for item in selection.near_misses],
+                    final_block=(
+                        render_final_block(
+                            [
+                                event
+                                for event in event_values
+                                if event["outcome"] in {"kept", "auto_entered"}
+                            ]
+                        )
+                        if command.mode == "autonomous"
+                        else None
+                    ),
                 )
 
 
@@ -215,6 +260,8 @@ async def _stamp_thread(
         .one_or_none()
     )
     if inserted is not None:
+        if command.mode == "autonomous":
+            raise InvalidRescoreStateError("autonomous mode requires an already prepared thread")
         return
 
     existing = (
@@ -230,8 +277,6 @@ async def _stamp_thread(
         # PostgreSQL uniqueness can observe a row committed after our repeatable-
         # read snapshot even though SELECT cannot. A fresh transaction resolves it.
         raise _RetryTransaction
-    if existing["snapshot_ts"] is not None:
-        raise ThreadAlreadyPreparedError(str(command.thread_id))
     if (
         existing["principal_id"] != command.principal_id
         or existing["agent_id"] != command.agent_id
@@ -239,6 +284,10 @@ async def _stamp_thread(
         or existing["project_key"] != command.project_key
     ):
         raise ThreadIdentityConflictError(str(command.thread_id))
+    if command.mode == "gate" and existing["snapshot_ts"] is not None:
+        raise ThreadAlreadyPreparedError(str(command.thread_id))
+    if command.mode == "autonomous" and existing["snapshot_ts"] is None:
+        raise InvalidRescoreStateError("autonomous mode requires a completed gate prepare")
     await session.execute(
         update(table).where(table.c.id == command.thread_id).values(snapshot_ts=snapshot_ts)
     )
@@ -291,11 +340,14 @@ async def _load_candidates(
         .subquery()
     )
     columns = (*unit.c, human_edits.c.last_human_edit_at)
-    base_filters = (
+    excluded_ids = tuple(command.excluded_memory_ids)
+    base_filters: tuple[Any, ...] = (
         unit.c.principal_id == command.principal_id,
         unit.c.status == "active",
         or_(unit.c.project_key.is_(None), unit.c.project_key == command.project_key),
     )
+    if excluded_ids:
+        base_filters = (*base_filters, unit.c.id.not_in(excluded_ids))
     joined = unit.outerjoin(human_edits, human_edits.c.memory_id == unit.c.id)
 
     pinned_rows = (
@@ -378,6 +430,35 @@ async def _load_candidates(
                 merged[memory_id] = (row, [])
             merged[memory_id][1].append(source)
 
+    current_ids = set(command.current_memory_ids)
+    if current_ids:
+        eligible_pinned = {row["id"] for row in pinned_rows if row["id"] in current_ids}
+        explicit_rows = (
+            (
+                await session.execute(
+                    select(*columns)
+                    .select_from(joined)
+                    .where(*base_filters, unit.c.pin.is_(False), unit.c.id.in_(current_ids))
+                    .order_by(unit.c.id.asc())
+                )
+            )
+            .mappings()
+            .all()
+        )
+        found = eligible_pinned | {row["id"] for row in explicit_rows}
+        missing = current_ids - found
+        if missing:
+            memory_id = min(missing, key=lambda value: value.int)
+            raise InvalidRescoreStateError(
+                f"current memory {memory_id} is not active and eligible for this thread"
+            )
+        for row in explicit_rows:
+            memory_id = row["id"]
+            if memory_id not in merged:
+                merged[memory_id] = (row, [])
+            if "current" not in merged[memory_id][1]:
+                merged[memory_id][1].append("current")
+
     return (
         [_candidate_from_row(row, pool_sources=("pinned",)) for row in pinned_rows],
         [
@@ -447,9 +528,12 @@ async def _insert_events(
     injection_id: UUID,
     scorer_version: str,
     selection: ScoringSelection,
-) -> None:
+) -> list[dict[str, Any]]:
     values: list[dict[str, Any]] = []
+    current_ids = set(command.current_memory_ids)
+    recorded_ids: set[UUID] = set()
     for item in selection.injected:
+        recorded_ids.add(item.candidate.memory_id)
         values.append(
             _event_values(
                 command=command,
@@ -458,9 +542,14 @@ async def _insert_events(
                 scorer_version=scorer_version,
                 item=item,
                 shown_as="pinned" if item.candidate.pin else "injected",
+                actor_class="passive" if command.mode == "autonomous" else "human",
+                outcome=("kept" if item.candidate.memory_id in current_ids else "auto_entered")
+                if command.mode == "autonomous"
+                else None,
             )
         )
     for item in selection.near_misses:
+        recorded_ids.add(item.candidate.memory_id)
         values.append(
             _event_values(
                 command=command,
@@ -469,10 +558,34 @@ async def _insert_events(
                 scorer_version=scorer_version,
                 item=item,
                 shown_as="near_miss",
+                actor_class="passive" if command.mode == "autonomous" else "human",
+                outcome=(
+                    "auto_exited"
+                    if command.mode == "autonomous" and item.candidate.memory_id in current_ids
+                    else None
+                ),
             )
         )
+    if command.mode == "autonomous":
+        for item in selection.unselected:
+            if item.candidate.memory_id not in current_ids - recorded_ids:
+                continue
+            recorded_ids.add(item.candidate.memory_id)
+            values.append(
+                _event_values(
+                    command=command,
+                    snapshot_ts=snapshot_ts,
+                    injection_id=injection_id,
+                    scorer_version=scorer_version,
+                    item=item,
+                    shown_as="near_miss",
+                    actor_class="passive",
+                    outcome="auto_exited",
+                )
+            )
     if values:
         await session.execute(insert(InjectionEvent.__table__), values)
+    return values
 
 
 def _event_values(
@@ -483,6 +596,8 @@ def _event_values(
     scorer_version: str,
     item: ScoredCandidate,
     shown_as: str,
+    actor_class: Literal["human", "passive"],
+    outcome: str | None,
 ) -> dict[str, Any]:
     candidate = item.candidate
     features: dict[str, Any] = asdict(item.features)
@@ -510,7 +625,8 @@ def _event_values(
         "score": item.score,
         "rank": item.rank,
         "shown_as": shown_as,
-        "outcome": None,
+        "actor_class": actor_class,
+        "outcome": outcome,
         "ts": snapshot_ts,
     }
 
@@ -539,6 +655,7 @@ def _is_serialization_failure(error: DBAPIError) -> bool:
 
 
 __all__ = [
+    "InvalidRescoreStateError",
     "PrepareCommand",
     "PrepareConflictError",
     "PrepareService",

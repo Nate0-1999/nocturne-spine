@@ -203,6 +203,7 @@ class ScoringSelection:
 
     injected: tuple[ScoredCandidate, ...]
     near_misses: tuple[ScoredCandidate, ...]
+    unselected: tuple[ScoredCandidate, ...]
     regular_budget: int
     pin_token_cost: int
 
@@ -215,6 +216,7 @@ def score_and_select(
     thread_project_key: str | None,
     pinned_candidates: Sequence[ScoringCandidate],
     regular_candidates: Sequence[ScoringCandidate],
+    locked_memory_ids: frozenset[UUID] = frozenset(),
     model_context_tokens: int,
     config: ScorerConfig,
 ) -> ScoringSelection:
@@ -242,6 +244,8 @@ def score_and_select(
         for candidate in pins
     ]
     pin_scores.sort(key=lambda scored: scored.candidate.memory_id.int)
+    pin_ids = frozenset(scored.candidate.memory_id for scored in pin_scores)
+    locked_regular_ids = locked_memory_ids - pin_ids
 
     scored_pool = [
         _score_candidate(
@@ -255,17 +259,32 @@ def score_and_select(
         )
         for candidate in regular
     ]
-    scored_pool.sort(key=lambda scored: (-scored.score, scored.candidate.memory_id.int))
+    locked_pool = [
+        scored for scored in scored_pool if scored.candidate.memory_id in locked_regular_ids
+    ]
+    regular_pool = [
+        scored for scored in scored_pool if scored.candidate.memory_id not in locked_regular_ids
+    ]
+    if len(locked_pool) != len(locked_regular_ids):
+        raise ValueError("every locked memory must be an eligible candidate")
+    locked_pool.sort(key=lambda scored: (-scored.score, scored.candidate.memory_id.int))
+    regular_pool.sort(key=lambda scored: (-scored.score, scored.candidate.memory_id.int))
 
     ranked_pins = tuple(
         _with_rank(scored, rank=index) for index, scored in enumerate(pin_scores, start=1)
     )
+    ranked_locked = tuple(
+        _with_rank(scored, rank=index)
+        for index, scored in enumerate(locked_pool, start=len(ranked_pins) + 1)
+    )
     ranked_regular = tuple(
         _with_rank(scored, rank=index)
-        for index, scored in enumerate(scored_pool, start=len(ranked_pins) + 1)
+        for index, scored in enumerate(
+            regular_pool, start=len(ranked_pins) + len(ranked_locked) + 1
+        )
     )
 
-    pin_token_cost = sum(scored.token_cost for scored in ranked_pins)
+    pin_token_cost = sum(scored.token_cost for scored in (*ranked_pins, *ranked_locked))
     budget_pct = Fraction(str(config.params.budget_pct))
     percentage_budget = budget_pct.numerator * model_context_tokens // budget_pct.denominator
     base_budget = min(config.params.budget_tokens, percentage_budget)
@@ -287,8 +306,9 @@ def score_and_select(
             unselected_regular.append(scored)
 
     return ScoringSelection(
-        injected=(*ranked_pins, *selected_regular),
+        injected=(*ranked_pins, *ranked_locked, *selected_regular),
         near_misses=tuple(unselected_regular[: config.params.near_miss_k]),
+        unselected=tuple(unselected_regular),
         regular_budget=regular_budget,
         pin_token_cost=pin_token_cost,
     )

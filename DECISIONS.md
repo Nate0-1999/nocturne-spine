@@ -676,3 +676,35 @@ authority and invite floating-point drift. Refreshing on demand would couple a
 dashboard read to analytical write work. Treating missing gauges as zero or
 mining `updated_at` and free-form reasons would violate Invariant 10. A new
 event log is outside M2C and would pre-build later lifecycle packets.
+
+## 024 — Autonomous prepare is a new snapshot, not a second gate [P1.2, P1.4]
+
+**Decision.** Adopt Garden A-030 as the M2G injection contract. Preserve gate
+mode's one-shot prepare and human event rows. For each autonomous prepare, lock
+the already-stamped thread, take a fresh database-clock snapshot, retrieve the
+ordinary bounded union plus every current or confirmed head, apply explicit
+thread exclusions, and write passive rows for selected, entered, exited, and
+near-miss membership. Render the returned block only from that batch.
+
+Pins and confirmed units are forced binary members. Pins keep their established
+UUID order; only confirmed non-pins form the locked regular lane. Forced token
+cost reduces ordinary budget but may overflow it, while threshold and top-k
+continue to govern only ordinary candidates. A memory that is both pinned and
+confirmed is one forced member, not an invalid duplicate class.
+
+Permit a human panel removal to replace passive `kept` or `auto_entered`, then
+permit `mid_thread_added` and a later removal on that same membership. These
+feedback writes remain exactly once; only removal increments the corpus removal
+counter.
+
+**Motivation.** The first gate establishes human authority, but later prompts
+need current relevance and live corpus state without repeatedly interrupting
+the owner. Keeping locks binary prevents the scorer from silently weakening a
+human decision. Actor-classed batches preserve the distinction between passive
+system selection and human teaching signal.
+
+**Rejected alternatives.** Reusing the first snapshot makes live corpus edits
+invisible. Treating a lock as a score boost permits demotion. Reopening the gate
+on every turn violates the product experience. Updating one durable event in
+place would erase replay provenance; storing daemon-only entry/exit state would
+make learning and trace evidence unverifiable.

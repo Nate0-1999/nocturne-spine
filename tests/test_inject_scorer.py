@@ -221,6 +221,55 @@ def test_golden_pins_can_exceed_budget_and_bypass_a_below_tau_score() -> None:
     assert result.near_misses[0].rank == 2
 
 
+def test_confirmed_lock_bypasses_threshold_top_k_and_reduces_regular_budget() -> None:
+    locked = _candidate(2, body="one two three", embedding=(-1.0, 0.0))
+    ordinary = _candidate(1, body="one")
+
+    result = score_and_select(
+        prompt="the",
+        query_embedding=(1.0, 0.0),
+        snapshot_ts=SNAPSHOT,
+        thread_project_key=None,
+        pinned_candidates=(),
+        regular_candidates=(ordinary, locked),
+        locked_memory_ids=frozenset({locked.memory_id}),
+        model_context_tokens=80,
+        config=_config(top_k=1, budget_tokens=4),
+    )
+
+    assert [item.candidate.memory_id for item in result.injected] == [
+        locked.memory_id,
+        ordinary.memory_id,
+    ]
+    assert result.injected[0].score < 0.55
+    assert result.injected[0].rank == 1
+    assert result.pin_token_cost == 3
+    assert result.regular_budget == 1
+    assert result.near_misses == ()
+
+
+def test_confirmed_pin_is_already_forced_and_does_not_require_regular_membership() -> None:
+    pinned_and_confirmed = _candidate(7, body="one two", pin=True)
+
+    result = score_and_select(
+        prompt="the",
+        query_embedding=(1.0, 0.0),
+        snapshot_ts=SNAPSHOT,
+        thread_project_key=None,
+        pinned_candidates=(pinned_and_confirmed,),
+        regular_candidates=(),
+        locked_memory_ids=frozenset({pinned_and_confirmed.memory_id}),
+        model_context_tokens=80,
+        config=_config(top_k=1, budget_tokens=4),
+    )
+
+    assert [item.candidate.memory_id for item in result.injected] == [
+        pinned_and_confirmed.memory_id
+    ]
+    assert result.injected[0].rank == 1
+    assert result.near_misses == ()
+
+
 def test_every_supplied_pool_candidate_is_scored_before_threshold_and_budget_selection() -> None:
     # Candidate retrieval owns the vector/FTS bounds. Even with the historical
     # candidate_pool config set to one, the scorer must rank every member of
