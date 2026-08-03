@@ -23,6 +23,7 @@ SPINE_ROUTES = {
     ("GET", "/v1/memories"),
     ("POST", "/v1/search"),
     ("POST", "/v1/spend/events"),
+    ("GET", "/v1/vitals"),
 }
 
 
@@ -229,6 +230,46 @@ def test_committed_openapi_is_current(app: FastAPI) -> None:
     assert {"event_uid", "product_type", "quantity_type", "purpose", "ref"} <= set(
         spend_event["required"]
     )
+    vitals_operation = committed["paths"]["/v1/vitals"]["get"]
+    assert "parameters" not in vitals_operation
+    assert {"200", "401", "422", "500"} <= set(vitals_operation["responses"])
+    vitals_schema = committed["components"]["schemas"]["VitalsSnapshot"]
+    assert set(vitals_schema["required"]) == {
+        "as_of",
+        "window_minutes",
+        "spend",
+        "lifecycle_rates",
+        "palace_counts",
+    }
+    assert vitals_schema["properties"]["window_minutes"]["const"] == 60
+    spend_point = committed["components"]["schemas"]["SpendPoint"]
+    cost_schema = spend_point["properties"]["cost_usd"]["anyOf"]
+    assert cost_schema == [
+        {"$ref": "#/components/schemas/DecimalString"},
+        {"type": "null"},
+    ]
+    assert committed["components"]["schemas"]["DecimalString"] == {
+        "pattern": r"^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$",
+        "type": "string",
+    }
+    lifecycle_metric = committed["components"]["schemas"]["LifecycleMetric"]
+    assert set(lifecycle_metric["enum"]) == {
+        "created",
+        "reinforced",
+        "superseded",
+        "merged",
+        "quarantined",
+        "tombstoned",
+        "add_backs",
+    }
+    assert set(committed["components"]["schemas"]["PalaceMetric"]["enum"]) == {
+        "active_units",
+        "pinned_units",
+        "candidates_pending",
+        "edges",
+        "staged_units",
+        "queue_depth",
+    }
 
     memory_unit_fields = {
         "memory_id",

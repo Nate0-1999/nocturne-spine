@@ -28,6 +28,8 @@ from spine.problems import ProblemJSONResponse, problem_openapi, problem_respons
 from spine.spend.router import router as spend_router
 from spine.spend.service import SpendService
 from spine.spend.views import SpendViewRefresher
+from spine.vitals.router import router as vitals_router
+from spine.vitals.service import VitalsService
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +54,7 @@ def create_app(
         session_factory = make_session_factory(owned_engine)
 
     spend_service = SpendService(session_factory)
+    vitals_service = VitalsService(session_factory)
 
     owned_provider = None
     if embedding_provider is None:
@@ -109,6 +112,7 @@ def create_app(
     app.state.decision_service = decision_service
     app.state.spend_service = spend_service
     app.state.spend_view_refresher = spend_view_refresher
+    app.state.vitals_service = vitals_service
     app.add_middleware(
         StaticBearerAuthMiddleware,
         token=resolved.token.get_secret_value(),
@@ -175,4 +179,5 @@ def create_app(
     app.include_router(inject_router)
     app.include_router(memory_router)
     app.include_router(spend_router)
+    app.include_router(vitals_router)
     return app

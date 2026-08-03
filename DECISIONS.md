@@ -644,3 +644,35 @@ carrying different source labels do not deduplicate overlap. Reapplying cosine
 top-50 inside the scorer discards the FTS-only candidate M2E exists to recover.
 Source ranks, weighted fields, language-specific dictionaries, and a new runtime
 configuration surface add policy not required by this packet.
+
+## 023 — Vitals is one honest canonical snapshot [P2.4, P4.1]
+
+**Decision.** Adopt Garden A-028 and its collision repair A-029 as the M2C read
+contract. Serve one
+bearer-protected, repeatable-read snapshot over the ordinary materialized
+`v_spend_rate` cadence and current `memory_unit` heads. Group the same trailing
+hour of canonical rows into deterministic total, purpose, and model lanes with
+Python `Decimal`; preserve exact decimal strings, null cost, unpriced-line
+counts, and cross-lane conservation. Measure only created rate and current
+active and pinned counts. Return every other named lifecycle, Palace, and queue
+gauge with A-028's typed `not_recorded` or `placeholder` status.
+
+Reserve `unreported` for the null-model lane and apply A-029's single-prefix
+escape to colliding non-null model keys. This read-only identity escape never
+changes the canonical model stored on a receipt.
+
+Do not refresh the materialized view per request, infer transition history from
+revision reasons or mutable timestamps, or add a lifecycle writer. The endpoint
+is a read projection only; it changes no authoritative memory or spend row.
+
+**Motivation.** The spend view is already the canonical dollar boundary, while
+the current schema simply does not record most named lifecycle transitions.
+One database snapshot keeps lanes and counters mutually coherent. Typed absence
+is honest and reversible when future packets add canonical observations;
+invented zeros or reconstructed events would be durable misinformation.
+
+**Rejected alternatives.** Browser-side currency aggregation would duplicate
+authority and invite floating-point drift. Refreshing on demand would couple a
+dashboard read to analytical write work. Treating missing gauges as zero or
+mining `updated_at` and free-form reasons would violate Invariant 10. A new
+event log is outside M2C and would pre-build later lifecycle packets.

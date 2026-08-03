@@ -1,0 +1,276 @@
+"""Build one honest A-028 snapshot from canonical read sources."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from decimal import Decimal
+from typing import Any
+
+from sqlalchemy import func, select, text
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.sql import and_
+
+from spine.db.models import MemoryUnit
+from spine.vitals.contracts import (
+    LifecycleRate,
+    PalaceCount,
+    SpendDimension,
+    SpendLane,
+    SpendPoint,
+    SpendSnapshot,
+    VitalsSnapshot,
+)
+
+_WINDOW_MINUTES = 60
+_WINDOW = timedelta(minutes=_WINDOW_MINUTES)
+_SPEND_SOURCE = "v_spend_rate"
+_UNREPORTED_MODEL_KEY = "unreported"
+_MODEL_KEY_ESCAPE = "~"
+
+_NOT_RECORDED_LIFECYCLE = (
+    "reinforced",
+    "superseded",
+    "merged",
+    "quarantined",
+    "tombstoned",
+    "add_backs",
+)
+_NOT_RECORDED_COUNTS = (
+    "candidates_pending",
+    "edges",
+    "staged_units",
+)
+
+
+@dataclass(slots=True)
+class _PointTotal:
+    cost_usd: Decimal = Decimal(0)
+    has_priced_line: bool = False
+    receipt_lines: int = 0
+    unpriced_lines: int = 0
+
+    def add(self, *, cost_usd: Decimal | None, receipt_lines: int, unpriced_lines: int) -> None:
+        if receipt_lines < 0 or unpriced_lines < 0 or unpriced_lines > receipt_lines:
+            raise ValueError("v_spend_rate returned impossible receipt counts")
+        if cost_usd is not None:
+            if not cost_usd.is_finite() or cost_usd < 0:
+                raise ValueError("v_spend_rate returned an invalid cost")
+            self.cost_usd += cost_usd
+            self.has_priced_line = True
+        self.receipt_lines += receipt_lines
+        self.unpriced_lines += unpriced_lines
+
+
+class VitalsService:
+    """Read the canonical spend view and the three enacted memory gauges."""
+
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
+        self._session_factory = session_factory
+
+    async def snapshot(self) -> VitalsSnapshot:
+        """Return one repeatable-read trailing-hour snapshot without refreshing views."""
+
+        async with self._session_factory() as session:
+            async with session.begin():
+                await session.execute(
+                    text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
+                )
+                as_of = await session.scalar(select(func.transaction_timestamp()))
+                if not isinstance(as_of, datetime) or as_of.tzinfo is None:
+                    raise RuntimeError("Postgres returned an invalid snapshot timestamp")
+                window_start = as_of - _WINDOW
+                spend_rows = (
+                    (
+                        await session.execute(
+                            text(
+                                "SELECT minute, purpose, model, provider, receipt_lines, "
+                                "cost_usd, unpriced_lines FROM v_spend_rate "
+                                "WHERE minute > :window_start AND minute <= :as_of "
+                                "ORDER BY minute ASC, purpose ASC, model ASC NULLS FIRST, "
+                                "provider ASC NULLS FIRST"
+                            ),
+                            {"window_start": window_start, "as_of": as_of},
+                        )
+                    )
+                    .mappings()
+                    .all()
+                )
+                created_per_hour = await session.scalar(
+                    select(func.count())
+                    .select_from(MemoryUnit)
+                    .where(
+                        MemoryUnit.created_at > window_start,
+                        MemoryUnit.created_at <= as_of,
+                    )
+                )
+                counts = (
+                    await session.execute(
+                        select(
+                            func.count()
+                            .filter(MemoryUnit.status == "active")
+                            .label("active_units"),
+                            func.count()
+                            .filter(
+                                and_(
+                                    MemoryUnit.status == "active",
+                                    MemoryUnit.pin.is_(True),
+                                )
+                            )
+                            .label("pinned_units"),
+                        )
+                    )
+                ).one()
+
+        return VitalsSnapshot(
+            as_of=as_of,
+            window_minutes=_WINDOW_MINUTES,
+            spend=_spend_snapshot(spend_rows),
+            lifecycle_rates=[
+                LifecycleRate(
+                    metric="created",
+                    status="measured",
+                    per_hour=_nonnegative_count(created_per_hour, "created"),
+                    source="memory_unit.created_at",
+                ),
+                *[
+                    LifecycleRate(
+                        metric=metric,
+                        status="not_recorded",
+                        per_hour=None,
+                        source=None,
+                    )
+                    for metric in _NOT_RECORDED_LIFECYCLE
+                ],
+            ],
+            palace_counts=[
+                PalaceCount(
+                    metric="active_units",
+                    status="measured",
+                    count=_nonnegative_count(counts.active_units, "active_units"),
+                    source="memory_unit.status",
+                ),
+                PalaceCount(
+                    metric="pinned_units",
+                    status="measured",
+                    count=_nonnegative_count(counts.pinned_units, "pinned_units"),
+                    source="memory_unit.status+pin",
+                ),
+                *[
+                    PalaceCount(
+                        metric=metric,
+                        status="not_recorded",
+                        count=None,
+                        source=None,
+                    )
+                    for metric in _NOT_RECORDED_COUNTS
+                ],
+                PalaceCount(
+                    metric="queue_depth",
+                    status="placeholder",
+                    count=None,
+                    source=None,
+                ),
+            ],
+        )
+
+
+def _spend_snapshot(rows: list[Any]) -> SpendSnapshot:
+    total: dict[datetime, _PointTotal] = {}
+    purposes: dict[str, dict[datetime, _PointTotal]] = {}
+    models: dict[str, dict[datetime, _PointTotal]] = {}
+    latest_minute: datetime | None = None
+
+    for row in rows:
+        minute = row["minute"]
+        purpose = row["purpose"]
+        model = row["model"]
+        receipt_lines = _nonnegative_count(row["receipt_lines"], "receipt_lines")
+        unpriced_lines = _nonnegative_count(row["unpriced_lines"], "unpriced_lines")
+        cost_usd = row["cost_usd"]
+        if not isinstance(minute, datetime) or minute.tzinfo is None:
+            raise ValueError("v_spend_rate returned an invalid minute")
+        if not isinstance(purpose, str) or not purpose:
+            raise ValueError("v_spend_rate returned an invalid purpose")
+        if model is not None and (not isinstance(model, str) or not model):
+            raise ValueError("v_spend_rate returned an invalid model")
+        if cost_usd is not None and not isinstance(cost_usd, Decimal):
+            raise ValueError("v_spend_rate returned a non-decimal cost")
+
+        model_key = _model_lane_key(model)
+        for points in (
+            total,
+            purposes.setdefault(purpose, {}),
+            models.setdefault(model_key, {}),
+        ):
+            points.setdefault(minute, _PointTotal()).add(
+                cost_usd=cost_usd,
+                receipt_lines=receipt_lines,
+                unpriced_lines=unpriced_lines,
+            )
+        if latest_minute is None or minute > latest_minute:
+            latest_minute = minute
+
+    lanes = [_lane("total", None, "All spend", total)]
+    lanes.extend(_lane("purpose", key, key, purposes[key]) for key in sorted(purposes))
+    lanes.extend(
+        _lane(
+            "model",
+            model_key,
+            _model_lane_label(model_key),
+            models[model_key],
+        )
+        for model_key in sorted(models)
+    )
+    return SpendSnapshot(
+        source_view=_SPEND_SOURCE,
+        latest_minute=latest_minute,
+        lanes=lanes,
+    )
+
+
+def _model_lane_key(model: str | None) -> str:
+    if model is None:
+        return _UNREPORTED_MODEL_KEY
+    if model == _UNREPORTED_MODEL_KEY or model.startswith(_MODEL_KEY_ESCAPE):
+        return f"{_MODEL_KEY_ESCAPE}{model}"
+    return model
+
+
+def _model_lane_label(key: str) -> str:
+    if key == _UNREPORTED_MODEL_KEY:
+        return "Model not reported"
+    if key.startswith(_MODEL_KEY_ESCAPE):
+        return key.removeprefix(_MODEL_KEY_ESCAPE)
+    return key
+
+
+def _lane(
+    dimension: SpendDimension,
+    key: str | None,
+    label: str,
+    totals: dict[datetime, _PointTotal],
+) -> SpendLane:
+    return SpendLane(
+        dimension=dimension,
+        key=key,
+        label=label,
+        points=[
+            SpendPoint(
+                minute=minute,
+                cost_usd=(format(total.cost_usd, "f") if total.has_priced_line else None),
+                receipt_lines=total.receipt_lines,
+                unpriced_lines=total.unpriced_lines,
+            )
+            for minute, total in sorted(totals.items())
+        ],
+    )
+
+
+def _nonnegative_count(value: object, name: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f"database returned an invalid {name} count")
+    return value
+
+
+__all__ = ["VitalsService"]
