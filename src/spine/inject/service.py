@@ -42,10 +42,12 @@ from spine.inject.scorer import (
     ScorerConfig,
     ScoringCandidate,
     ScoringSelection,
+    prompt_keywords,
     score_and_select,
 )
 
 _EMBEDDING_DIMENSIONS = 1536
+_FTS_CANDIDATE_POOL = 50
 _MAX_TRANSACTION_ATTEMPTS = 3
 
 
@@ -309,26 +311,87 @@ async def _load_candidates(
         .all()
     )
     distance = unit.c.embedding.cosine_distance(list(query_embedding))
-    regular_rows = (
+    # C.3 defines an exact cosine/UUID boundary. Materializing the eligible
+    # IDs and distances before ordering prevents an approximate HNSW cutoff
+    # from changing membership (especially at the 50th-place tie).
+    eligible_vectors = (
+        select(
+            unit.c.id.label("memory_id"),
+            distance.label("vector_distance"),
+        )
+        .where(*base_filters, unit.c.pin.is_(False))
+        .cte("eligible_vector_candidates")
+        .prefix_with("MATERIALIZED")
+    )
+    top_vectors = (
+        select(
+            eligible_vectors.c.memory_id,
+            eligible_vectors.c.vector_distance,
+        )
+        .order_by(
+            eligible_vectors.c.vector_distance.asc(),
+            eligible_vectors.c.memory_id.asc(),
+        )
+        .limit(candidate_pool)
+        .subquery()
+    )
+    vector_rows = (
         (
             await session.execute(
                 select(*columns)
-                .select_from(joined)
-                .where(*base_filters, unit.c.pin.is_(False))
-                .order_by(distance.asc(), unit.c.id.asc())
-                .limit(candidate_pool)
+                .select_from(joined.join(top_vectors, top_vectors.c.memory_id == unit.c.id))
+                .order_by(top_vectors.c.vector_distance.asc(), unit.c.id.asc())
             )
         )
         .mappings()
         .all()
     )
+
+    terms = sorted(prompt_keywords(command.prompt))
+    fts_rows: Sequence[Mapping[str, Any]] = ()
+    if terms:
+        fts_query = func.to_tsquery("pg_catalog.simple", " | ".join(terms))
+        rank = func.ts_rank_cd(unit.c.search_tsv, fts_query)
+        fts_rows = (
+            (
+                await session.execute(
+                    select(*columns)
+                    .select_from(joined)
+                    .where(
+                        *base_filters,
+                        unit.c.pin.is_(False),
+                        unit.c.search_tsv.op("@@")(fts_query),
+                    )
+                    .order_by(rank.desc(), unit.c.id.asc())
+                    .limit(_FTS_CANDIDATE_POOL)
+                )
+            )
+            .mappings()
+            .all()
+        )
+
+    merged: dict[UUID, tuple[Mapping[str, Any], list[str]]] = {}
+    for source, rows in (("vector", vector_rows), ("fts", fts_rows)):
+        for row in rows:
+            memory_id = row["id"]
+            if memory_id not in merged:
+                merged[memory_id] = (row, [])
+            merged[memory_id][1].append(source)
+
     return (
-        [_candidate_from_row(row) for row in pinned_rows],
-        [_candidate_from_row(row) for row in regular_rows],
+        [_candidate_from_row(row, pool_sources=("pinned",)) for row in pinned_rows],
+        [
+            _candidate_from_row(row, pool_sources=tuple(sources))
+            for _, (row, sources) in sorted(merged.items(), key=lambda item: item[0].int)
+        ],
     )
 
 
-def _candidate_from_row(row: Mapping[str, Any]) -> ScoringCandidate:
+def _candidate_from_row(
+    row: Mapping[str, Any],
+    *,
+    pool_sources: tuple[str, ...],
+) -> ScoringCandidate:
     return ScoringCandidate(
         memory_id=row["id"],
         label=row["label"],
@@ -343,6 +406,7 @@ def _candidate_from_row(row: Mapping[str, Any]) -> ScoringCandidate:
         stats=deepcopy(row["stats"]),
         bias=float(row["bias"]),
         revision=row["revision"],
+        pool_sources=pool_sources,
     )
 
 
@@ -428,6 +492,7 @@ def _event_values(
         "pin": candidate.pin,
         "updated_at": candidate.updated_at.isoformat(),
     }
+    features["_retrieval"] = {"sources": list(candidate.pool_sources)}
     return {
         "event_uid": mint_ulid(),
         "injection_id": injection_id,

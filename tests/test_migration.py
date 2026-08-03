@@ -1,6 +1,10 @@
 """Integration proof for the authoritative C.2 migration and C.3 seed."""
 
+import asyncio
+from uuid import UUID, uuid4
+
 import pytest
+from alembic import command
 from alembic.script import ScriptDirectory
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
@@ -16,7 +20,33 @@ def test_packaged_migration_tree_has_one_expected_head() -> None:
 
     assert config.attributes[DATABASE_URL_ATTRIBUTE] == database_url
     assert scripts.get_base() == "0001"
-    assert scripts.get_heads() == ["0003"]
+    assert scripts.get_heads() == ["0004"]
+
+
+def test_0004_backfills_legacy_rows_and_downgrades_cleanly(
+    migrated_database_url: str,
+) -> None:
+    """Prove the packaged revision upgrades real 0003 data, not only an empty schema."""
+
+    config = make_alembic_config(migrated_database_url)
+    memory_id = uuid4()
+    command.downgrade(config, "0003")
+    try:
+        asyncio.run(_insert_0003_memory(migrated_database_url, memory_id))
+        command.upgrade(config, "0004")
+
+        matches = asyncio.run(_legacy_search_matches(migrated_database_url, memory_id))
+        assert matches == {
+            "label": True,
+            "body": True,
+            "keyword": True,
+        }
+
+        command.downgrade(config, "0003")
+        assert asyncio.run(_search_tsv_exists(migrated_database_url)) is False
+    finally:
+        command.upgrade(config, "head")
+        asyncio.run(_delete_memory(migrated_database_url, memory_id))
 
 
 async def test_c2_migration_and_v0_seed(migrated_database_url: str) -> None:
@@ -57,6 +87,23 @@ async def test_c2_migration_and_v0_seed(migrated_database_url: str) -> None:
                     "WHERE c.relname = 'memory_unit' AND a.attname = 'embedding'"
                 )
             )
+            search_tsv = (
+                (
+                    await connection.execute(
+                        text(
+                            "SELECT format_type(a.atttypid, a.atttypmod) AS data_type, "
+                            "a.attnotnull AS not_null "
+                            "FROM pg_attribute a "
+                            "JOIN pg_class c ON c.oid = a.attrelid "
+                            "JOIN pg_namespace n ON n.oid = c.relnamespace "
+                            "WHERE n.nspname = 'public' AND c.relname = 'memory_unit' "
+                            "AND a.attname = 'search_tsv'"
+                        )
+                    )
+                )
+                .mappings()
+                .one()
+            )
             origin_path = (
                 (
                     await connection.execute(
@@ -78,8 +125,33 @@ async def test_c2_migration_and_v0_seed(migrated_database_url: str) -> None:
                     "AND indexname = 'memory_unit_active_label'"
                 )
             )
+            search_tsv_index = await connection.scalar(
+                text(
+                    "SELECT indexdef FROM pg_indexes "
+                    "WHERE schemaname = 'public' "
+                    "AND indexname = 'memory_unit_search_tsv_idx'"
+                )
+            )
+            search_tsv_trigger = (
+                (
+                    await connection.execute(
+                        text(
+                            "SELECT t.tgenabled::text AS tgenabled, p.proname "
+                            "FROM pg_trigger t "
+                            "JOIN pg_class c ON c.oid = t.tgrelid "
+                            "JOIN pg_namespace n ON n.oid = c.relnamespace "
+                            "JOIN pg_proc p ON p.oid = t.tgfoid "
+                            "WHERE n.nspname = 'public' AND c.relname = 'memory_unit' "
+                            "AND NOT t.tgisinternal "
+                            "AND t.tgname = 'memory_unit_refresh_search_tsv'"
+                        )
+                    )
+                )
+                .mappings()
+                .one()
+            )
 
-        assert revision == "0003"
+        assert revision == "0004"
         expected_tables = {
             "memory_unit",
             "memory_revision",
@@ -91,6 +163,7 @@ async def test_c2_migration_and_v0_seed(migrated_database_url: str) -> None:
         assert expected_tables <= tables
         assert extension == "vector"
         assert embedding_type == "vector(1536)"
+        assert search_tsv == {"data_type": "tsvector", "not_null": True}
         assert origin_path == {
             "data_type": "text",
             "is_nullable": "YES",
@@ -100,6 +173,12 @@ async def test_c2_migration_and_v0_seed(migrated_database_url: str) -> None:
         assert "UNIQUE INDEX memory_unit_active_label" in active_label_index
         assert "(principal_id, label)" in active_label_index
         assert "WHERE (status = 'active'::text)" in active_label_index
+        assert search_tsv_index is not None
+        assert "USING gin (search_tsv)" in search_tsv_index
+        assert search_tsv_trigger == {
+            "tgenabled": "O",
+            "proname": "memory_unit_refresh_search_tsv",
+        }
         assert scorer["version"] == "v0"
         assert scorer["active"] is True
         assert scorer["weights"] == {
@@ -122,6 +201,99 @@ async def test_c2_migration_and_v0_seed(migrated_database_url: str) -> None:
             "quarantine_kills": 3,
             "candidate_pool": 50,
         }
+    finally:
+        await engine.dispose()
+
+
+async def _insert_0003_memory(database_url: str, memory_id: UUID) -> None:
+    engine = create_async_engine(database_url)
+    embedding = f"[{','.join(['0'] * 1536)}]"
+    try:
+        async with engine.begin() as connection:
+            await connection.execute(
+                text(
+                    """
+                    INSERT INTO memory_unit (
+                      id, principal_id, label, body, kind, keywords,
+                      embedding, embedding_model
+                    ) VALUES (
+                      :memory_id, :principal_id, 'LegacyLabelNeedle',
+                      'LegacyBodyNeedle', 'fact', ARRAY['LegacyKeywordNeedle'],
+                      CAST(:embedding AS vector), 'migration-test'
+                    )
+                    """
+                ),
+                {
+                    "memory_id": memory_id,
+                    "principal_id": f"migration-backfill-{memory_id}",
+                    "embedding": embedding,
+                },
+            )
+    finally:
+        await engine.dispose()
+
+
+async def _legacy_search_matches(database_url: str, memory_id: UUID) -> dict[str, bool]:
+    engine = create_async_engine(database_url)
+    try:
+        async with engine.connect() as connection:
+            row = (
+                (
+                    await connection.execute(
+                        text(
+                            """
+                            SELECT
+                              search_tsv @@ plainto_tsquery(
+                                'pg_catalog.simple'::regconfig, 'LegacyLabelNeedle'
+                              ) AS label,
+                              search_tsv @@ plainto_tsquery(
+                                'pg_catalog.simple'::regconfig, 'LegacyBodyNeedle'
+                              ) AS body,
+                              search_tsv @@ plainto_tsquery(
+                                'pg_catalog.simple'::regconfig, 'LegacyKeywordNeedle'
+                              ) AS keyword
+                            FROM memory_unit
+                            WHERE id = :memory_id
+                            """
+                        ),
+                        {"memory_id": memory_id},
+                    )
+                )
+                .mappings()
+                .one()
+            )
+            return dict(row)
+    finally:
+        await engine.dispose()
+
+
+async def _search_tsv_exists(database_url: str) -> bool:
+    engine = create_async_engine(database_url)
+    try:
+        async with engine.connect() as connection:
+            return bool(
+                await connection.scalar(
+                    text(
+                        "SELECT EXISTS ("
+                        "SELECT 1 FROM information_schema.columns "
+                        "WHERE table_schema = 'public' AND table_name = 'memory_unit' "
+                        "AND column_name = 'search_tsv'"
+                        ")"
+                    )
+                )
+            )
+    finally:
+        await engine.dispose()
+
+
+async def _delete_memory(database_url: str, memory_id: UUID) -> None:
+    engine = create_async_engine(database_url)
+    try:
+        async with engine.begin() as connection:
+            await connection.execute(
+                text("DELETE FROM memory_unit WHERE id = :memory_id"),
+                {"memory_id": memory_id},
+            )
     finally:
         await engine.dispose()
 

@@ -159,6 +159,7 @@ class ScoringCandidate:
     stats: Mapping[str, Any]
     bias: float
     revision: int
+    pool_sources: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -227,12 +228,12 @@ def score_and_select(
     regular = tuple(regular_candidates)
     _validate_candidate_partition(pins, regular)
 
-    prompt_keywords = _keywords(prompt)
+    keywords = prompt_keywords(prompt)
     pin_scores = [
         _score_candidate(
             candidate,
             query=query,
-            prompt_keywords=prompt_keywords,
+            prompt_keywords=keywords,
             snapshot_ts=snapshot_ts,
             thread_project_key=thread_project_key,
             weights=config.weights,
@@ -242,33 +243,26 @@ def score_and_select(
     ]
     pin_scores.sort(key=lambda scored: scored.candidate.memory_id.int)
 
-    # The vector pool boundary precedes linear scoring. Reapplying the exact
-    # order here makes the pure layer deterministic even if a caller supplies
-    # a larger unsorted eligible set.
-    semantic_pool = [(_vector_similarity(candidate, query), candidate) for candidate in regular]
-    semantic_pool.sort(key=lambda item: (-item[0], item[1].memory_id.int))
-    semantic_pool = semantic_pool[: config.params.candidate_pool]
-    vector_pool = [
+    scored_pool = [
         _score_candidate(
             candidate,
             query=query,
-            semantic=max(0.0, semantic),
-            prompt_keywords=prompt_keywords,
+            prompt_keywords=keywords,
             snapshot_ts=snapshot_ts,
             thread_project_key=thread_project_key,
             weights=config.weights,
             params=config.params,
         )
-        for semantic, candidate in semantic_pool
+        for candidate in regular
     ]
-    vector_pool.sort(key=lambda scored: (-scored.score, scored.candidate.memory_id.int))
+    scored_pool.sort(key=lambda scored: (-scored.score, scored.candidate.memory_id.int))
 
     ranked_pins = tuple(
         _with_rank(scored, rank=index) for index, scored in enumerate(pin_scores, start=1)
     )
     ranked_regular = tuple(
         _with_rank(scored, rank=index)
-        for index, scored in enumerate(vector_pool, start=len(ranked_pins) + 1)
+        for index, scored in enumerate(scored_pool, start=len(ranked_pins) + 1)
     )
 
     pin_token_cost = sum(scored.token_cost for scored in ranked_pins)
@@ -407,7 +401,9 @@ def _tokens(value: str) -> tuple[str, ...]:
     return tuple(tokens)
 
 
-def _keywords(value: str) -> frozenset[str]:
+def prompt_keywords(value: str) -> frozenset[str]:
+    """Return the C.3 normalized prompt terms shared by FTS and f_kw."""
+
     return frozenset(token for token in _tokens(value) if token not in _STOPWORDS)
 
 
@@ -503,5 +499,6 @@ __all__ = [
     "ScorerWeights",
     "ScoringCandidate",
     "ScoringSelection",
+    "prompt_keywords",
     "score_and_select",
 ]

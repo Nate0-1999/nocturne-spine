@@ -33,7 +33,7 @@ def main() -> None:
         make_alembic_config("postgresql+asyncpg://unused:unused@localhost/unused")
     )
     assert scripts.get_base() == "0001"
-    assert scripts.get_heads() == ["0002"]
+    assert scripts.get_heads() == ["0004"]
 
     with TemporaryDirectory(prefix="nocturne-spine-wheel-") as temporary_directory:
         root = Path(temporary_directory)
@@ -42,6 +42,7 @@ def main() -> None:
 
         assert {path.name for path in app_source.iterdir()} == {
             "Dockerfile",
+            "README.md",
             "infra",
             "pyproject.toml",
             "src",

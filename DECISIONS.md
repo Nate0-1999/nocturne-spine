@@ -601,3 +601,46 @@ from scope drift and invites bypassing a check whose premise no longer holds.
 leave CI red. A milestone switch whose M2 branch does nothing is ceremonial
 machinery. Rewriting the regex for every packet duplicates Garden authority in
 two product repositories and cannot express packet dependencies reliably.
+
+## 022 — Hybrid retrieval owns its bounded union [P1.1, P1.2]
+
+**Decision.** Implement M2E candidate retrieval as the deduplicated union of
+the configured vector pool and 50 full-text results. Maintain a `TSVECTOR`
+document over `memory_unit.label`, `body`, and `keywords` with the PostgreSQL
+`simple` dictionary and a GIN index. The lexical query ORs the same normalized,
+non-stopword prompt terms used by scorer v0, then orders its boundary by
+`ts_rank_cd` descending and memory UUID ascending. Retrieval applies the common
+principal, active-status, project/global, and non-pin filters to both regular
+legs; pins remain a separate unbounded lane. It merges overlap by UUID and
+records canonical source membership in the private event metadata
+`_retrieval.sources` as `pinned`, `vector`, and/or `fts`. The public six-feature
+card remains unchanged.
+
+For `inject/prepare`, materialize eligible memory IDs and exact cosine
+distances before applying the cosine/UUID top-50 order. This deliberately does
+not use the approximate HNSW cutoff: its default breadth is only 40, filters
+are applied after ANN scanning, and an inner ANN limit cannot preserve C.3's
+UUID tie boundary. This packet leaves the C.2 HNSW schema in place but does not
+use it for the gate's exact boundary. Owner-scale gate correctness wins here; a
+future scale change must preserve the same membership law rather than silently
+trading away recall.
+
+This supersedes Decision 007 only where its pure scorer reapplied the vector
+pool boundary. Retrieval now owns both finite pool boundaries, and the pure
+scorer ranks every candidate in the already-bounded union. Its feature formula,
+score quantization, threshold, complete ordering, pin law, and token budget do
+not change.
+
+**Motivation.** Exact identifiers and proper nouns can have weak embeddings but
+must still reach the gate. A fixed lexical pool of 50 matches the established
+vector width, bounds work deterministically, and keeps the packet to one indexed
+recall leg. `simple` preserves exact tokens rather than stemming away their
+identity. Persisting source membership proves how a candidate reached scoring
+without contaminating the frozen public feature contract.
+
+**Rejected alternatives.** `plainto_tsquery` gives ordinary multiword prompts
+AND semantics and can exclude the one decisive exact term. SQL `UNION` rows
+carrying different source labels do not deduplicate overlap. Reapplying cosine
+top-50 inside the scorer discards the FTS-only candidate M2E exists to recover.
+Source ranks, weighted fields, language-specific dictionaries, and a new runtime
+configuration surface add policy not required by this packet.

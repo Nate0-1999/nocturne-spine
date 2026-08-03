@@ -20,7 +20,7 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
-from sqlalchemy.dialects.postgresql import ARRAY, JSONB
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TSVECTOR
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -47,6 +47,11 @@ class MemoryUnit(Base):
             "embedding",
             postgresql_using="hnsw",
             postgresql_ops={"embedding": "vector_cosine_ops"},
+        ),
+        Index(
+            "memory_unit_search_tsv_idx",
+            "search_tsv",
+            postgresql_using="gin",
         ),
         Index(
             "memory_unit_principal_id_status_project_key_idx",
@@ -76,6 +81,11 @@ class MemoryUnit(Base):
         ARRAY(Text),
         nullable=False,
         server_default=text("'{}'"),
+    )
+    search_tsv: Mapped[Any] = mapped_column(
+        TSVECTOR,
+        nullable=False,
+        comment="M2E lexical candidate document over label, body, and keywords.",
     )
     embedding: Mapped[list[float]] = mapped_column(Vector(1536), nullable=False)
     embedding_model: Mapped[str] = mapped_column(Text, nullable=False)

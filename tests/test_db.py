@@ -9,7 +9,7 @@ from uuid import UUID, uuid4
 import pytest
 from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
-from sqlalchemy import CheckConstraint, func, insert, select
+from sqlalchemy import CheckConstraint, func, insert, select, text, update
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import (
@@ -61,6 +61,7 @@ async def _insert_memory_and_root(
     principal_id: str,
     label: str,
     body: str,
+    keywords: tuple[str, ...] = (),
 ) -> None:
     await session.execute(
         insert(MemoryUnit).values(
@@ -69,6 +70,7 @@ async def _insert_memory_and_root(
             label=label,
             body=body,
             kind="fact",
+            keywords=list(keywords),
             embedding=list(ZERO_EMBEDDING),
             embedding_model="s1-test",
             created_at=SEEDED_AT,
@@ -98,6 +100,7 @@ async def _seed_memory(
     principal_id: str,
     label: str,
     body: str = "root body",
+    keywords: tuple[str, ...] = (),
 ) -> None:
     async with sessions.begin() as session:
         await _insert_memory_and_root(
@@ -107,7 +110,21 @@ async def _seed_memory(
             principal_id=principal_id,
             label=label,
             body=body,
+            keywords=keywords,
         )
+
+
+async def _search_tsv_matches(session: AsyncSession, memory_id: UUID, term: str) -> bool:
+    return bool(
+        await session.scalar(
+            text(
+                "SELECT search_tsv @@ "
+                "plainto_tsquery('pg_catalog.simple'::regconfig, :term) "
+                "FROM memory_unit WHERE id = :memory_id"
+            ),
+            {"memory_id": memory_id, "term": term},
+        )
+    )
 
 
 async def test_models_match_authoritative_c2_schema(
@@ -143,6 +160,7 @@ async def test_models_match_authoritative_c2_schema(
             "body",
             "kind",
             "keywords",
+            "search_tsv",
             "embedding",
             "embedding_model",
             "project_key",
@@ -279,6 +297,7 @@ async def test_models_match_authoritative_c2_schema(
         "memory_unit.body": "TEXT",
         "memory_unit.kind": "TEXT",
         "memory_unit.keywords": "TEXT[]",
+        "memory_unit.search_tsv": "TSVECTOR",
         "memory_unit.embedding": "VECTOR(1536)",
         "memory_unit.embedding_model": "TEXT",
         "memory_unit.project_key": "TEXT",
@@ -441,6 +460,7 @@ async def test_models_match_authoritative_c2_schema(
     indexes = {index.name: index for index in unit.indexes}
     assert set(indexes) == {
         "memory_unit_embedding_idx",
+        "memory_unit_search_tsv_idx",
         "memory_unit_principal_id_status_project_key_idx",
         "memory_unit_active_label",
     }
@@ -448,6 +468,7 @@ async def test_models_match_authoritative_c2_schema(
     assert indexes["memory_unit_embedding_idx"].dialect_options["postgresql"]["ops"] == {
         "embedding": "vector_cosine_ops"
     }
+    assert indexes["memory_unit_search_tsv_idx"].dialect_options["postgresql"]["using"] == "gin"
     assert indexes["memory_unit_active_label"].unique is True
     assert (
         str(indexes["memory_unit_active_label"].dialect_options["postgresql"]["where"])
@@ -461,6 +482,58 @@ async def test_models_match_authoritative_c2_schema(
     assert {foreign_key.target_fullname for foreign_key in revision.c.memory_id.foreign_keys} == {
         "memory_unit.id"
     }
+
+
+async def test_search_tsv_trigger_tracks_sources_and_overwrites_tampering(
+    database: tuple[AsyncEngine, async_sessionmaker[AsyncSession]],
+) -> None:
+    _, sessions = database
+    memory_id = uuid4()
+    await _seed_memory(
+        sessions,
+        memory_id=memory_id,
+        root_uid=_rev_uid(91),
+        principal_id=f"fts-trigger-{memory_id}",
+        label="InitialLabelNeedle",
+        body="InitialBodyNeedle",
+        keywords=("InitialKeywordNeedle",),
+    )
+
+    async with sessions() as session:
+        for term in ("InitialLabelNeedle", "InitialBodyNeedle", "InitialKeywordNeedle"):
+            assert await _search_tsv_matches(session, memory_id, term)
+
+    async with sessions.begin() as session:
+        await session.execute(
+            update(MemoryUnit)
+            .where(MemoryUnit.id == memory_id)
+            .values(
+                label="ChangedLabelNeedle",
+                body="ChangedBodyNeedle",
+                keywords=["ChangedKeywordNeedle"],
+            )
+        )
+        await session.execute(
+            update(MemoryUnit)
+            .where(MemoryUnit.id == memory_id)
+            .values(
+                search_tsv=func.to_tsvector(
+                    text("'pg_catalog.simple'::regconfig"),
+                    "TamperNeedle",
+                )
+            )
+        )
+
+    async with sessions() as session:
+        for term in ("ChangedLabelNeedle", "ChangedBodyNeedle", "ChangedKeywordNeedle"):
+            assert await _search_tsv_matches(session, memory_id, term)
+        for term in (
+            "InitialLabelNeedle",
+            "InitialBodyNeedle",
+            "InitialKeywordNeedle",
+            "TamperNeedle",
+        ):
+            assert not await _search_tsv_matches(session, memory_id, term)
 
 
 async def test_cas_updates_form_cloud_head_lineage(

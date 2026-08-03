@@ -221,49 +221,45 @@ def test_golden_pins_can_exceed_budget_and_bypass_a_below_tau_score() -> None:
     assert result.near_misses[0].rank == 2
 
 
-def test_vector_pool_precedes_score_and_breaks_cosine_ties_by_memory_id() -> None:
-    candidates = (
-        _candidate(30, embedding=(0.8, 0.6), bias=100.0),
-        _candidate(20, embedding=(1.0, 0.0)),
-        _candidate(10, embedding=(0.8, 0.6)),
+def test_every_supplied_pool_candidate_is_scored_before_threshold_and_budget_selection() -> None:
+    # Candidate retrieval owns the vector/FTS bounds. Even with the historical
+    # candidate_pool config set to one, the scorer must rank every member of
+    # the already-bounded union supplied by the service.
+    highest_but_over_budget = _candidate(
+        30,
+        label="Needle",
+        body="one two three",
+        embedding=(-1.0, 0.0),
+        bias=0.7,
     )
+    selected = _candidate(20, body="x", embedding=(1.0, 0.0))
+    below_threshold = _candidate(10, body="x", embedding=(0.8, 0.6))
 
     result = score_and_select(
-        prompt="the",
+        prompt="needle",
         query_embedding=(1.0, 0.0),
         snapshot_ts=SNAPSHOT,
         thread_project_key=None,
         pinned_candidates=(),
-        regular_candidates=candidates,
-        model_context_tokens=10_000,
-        config=_config(tau=0.0, candidate_pool=2),
+        regular_candidates=(below_threshold, selected, highest_but_over_budget),
+        model_context_tokens=40,
+        config=_config(candidate_pool=1, budget_tokens=2),
     )
 
-    # Candidate 30 would dominate the linear sort via bias, but candidate 10
-    # wins their .8-cosine tie at the vector-pool boundary.
-    assert [item.candidate.memory_id.int for item in result.injected] == [20, 10]
-    assert [item.rank for item in result.injected] == [1, 2]
-    returned = (*result.injected, *result.near_misses)
-    assert all(item.candidate.memory_id.int != 30 for item in returned)
+    assert result.regular_budget == 2
+    assert [item.candidate.memory_id.int for item in result.injected] == [20]
+    assert [item.rank for item in result.injected] == [2]
+    assert [item.candidate.memory_id.int for item in result.near_misses] == [30, 10]
+    assert [item.rank for item in result.near_misses] == [1, 3]
 
-
-def test_vector_pool_orders_raw_negative_cosines_before_feature_clamping() -> None:
-    strongly_negative = _candidate(1, embedding=(-1.0, 0.0))
-    less_negative = _candidate(2, embedding=(-0.5, 3**0.5 / 2))
-
-    result = score_and_select(
-        prompt="the",
-        query_embedding=(1.0, 0.0),
-        snapshot_ts=SNAPSHOT,
-        thread_project_key=None,
-        pinned_candidates=(),
-        regular_candidates=(strongly_negative, less_negative),
-        model_context_tokens=10_000,
-        config=_config(tau=0.0, candidate_pool=1),
+    ranked = sorted(
+        (*result.injected, *result.near_misses),
+        key=lambda item: item.rank,
     )
-
-    assert [item.candidate.memory_id.int for item in result.injected] == [2]
-    assert result.injected[0].features.sem == 0.0
+    assert [item.score for item in ranked] == pytest.approx([1.05, 0.61, 0.526])
+    assert ranked[0].features.as_dict() == pytest.approx(
+        {"sem": 0.0, "kw": 1.0, "time": 1.0, "proj": 0.5, "freq": 0.0, "hist": 0.0}
+    )
 
 
 def test_postgres_real_quantization_precedes_score_tie_breaking() -> None:

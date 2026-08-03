@@ -8,7 +8,7 @@ from uuid import UUID, uuid4
 import pytest
 from conftest import ScriptedEmbeddingProvider, basis_vector
 from httpx import AsyncClient, Response
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 import spine.inject.service as inject_service
@@ -181,6 +181,7 @@ async def test_prepare_commit_replays_gate_and_prepare_updates_only_injected(
         label="Wrong project",
         body="Must not cross projects.",
         embedding=basis_vector(0),
+        keywords=["alpha"],
         project_key="beta",
     )
     await _insert_memory(
@@ -189,6 +190,7 @@ async def test_prepare_commit_replays_gate_and_prepare_updates_only_injected(
         label="Wrong owner",
         body="Must not cross principals.",
         embedding=basis_vector(0),
+        keywords=["alpha"],
         principal_id="someone-else",
     )
     await _insert_memory(
@@ -197,6 +199,7 @@ async def test_prepare_commit_replays_gate_and_prepare_updates_only_injected(
         label="Quarantined",
         body="Inactive candidates stay out.",
         embedding=basis_vector(0),
+        keywords=["alpha"],
         status="quarantined",
     )
     prompt = "The Alpha launch plan"
@@ -291,10 +294,17 @@ async def test_prepare_commit_replays_gate_and_prepare_updates_only_injected(
         (injected_id, "injected", None),
         (near_id, "near_miss", None),
     ]
-    for event, card in zip(events, [injected, near], strict=True):
+    expected_sources = (["vector", "fts"], ["vector"])
+    for event, card, sources in zip(
+        events,
+        [injected, near],
+        expected_sources,
+        strict=True,
+    ):
         assert event.score == card["score"]
         assert event.rank == card["rank"]
         assert {name: event.features[name] for name in FEATURE_NAMES} == card["features"]
+        assert event.features["_retrieval"] == {"sources": sources}
         assert event.features["_memory"] == {
             "label": card["label"],
             "body": card["body"],
@@ -399,6 +409,108 @@ async def test_prepare_commit_replays_gate_and_prepare_updates_only_injected(
     ]
 
 
+async def test_exact_keyword_with_weak_embedding_reaches_the_gate_via_fts(
+    memory_client: AsyncClient,
+    embedding_provider: ScriptedEmbeddingProvider,
+    memory_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    now = datetime.now(UTC)
+    stale = now - timedelta(days=3650)
+    target_id = UUID(int=999)
+    for value in range(1000, 1050):
+        await _insert_memory(
+            memory_session_factory,
+            memory_id=UUID(int=value),
+            label=f"Semantic decoy {value}",
+            body="A stale global memory with no lexical match.",
+            embedding=basis_vector(0),
+            project_key=None,
+            updated_at=stale,
+        )
+    await _insert_memory(
+        memory_session_factory,
+        memory_id=target_id,
+        label="Launch cipher",
+        body="Remember the exact project identifier.",
+        embedding=basis_vector(1),
+        keywords=["umbrahelix"],
+        stats=DEFAULT_STATS | {"citations": 10},
+        updated_at=now,
+        revision_editor="user",
+        revision_ts=now,
+    )
+
+    prompt = "umbrahelix"
+    embedding_provider.set(prompt, basis_vector(0))
+    response = _assert_json(
+        await memory_client.post(
+            "/v1/inject/prepare",
+            json=_prepare_body(prompt=prompt),
+        ),
+        200,
+    )
+
+    assert [UUID(card["memory_id"]) for card in response["injected"]] == [target_id]
+    card = response["injected"][0]
+    assert set(card["features"]) == FEATURE_NAMES
+    assert card["features"]["sem"] == pytest.approx(0.0)
+    assert card["features"]["kw"] == pytest.approx(1.0)
+    assert card["score"] == pytest.approx(0.58, abs=2e-5)
+
+    async with memory_session_factory() as session:
+        event = await session.scalar(
+            select(InjectionEvent).where(
+                InjectionEvent.injection_id == UUID(response["injection_id"]),
+                InjectionEvent.memory_id == target_id,
+            )
+        )
+
+    assert event is not None
+    assert event.shown_as == "injected"
+    assert event.features["_retrieval"] == {"sources": ["fts"]}
+
+
+async def test_hybrid_pool_uses_or_terms_and_exact_uuid_tie_boundaries(
+    memory_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    memory_ids = [UUID(int=value) for value in range(2000, 2051)]
+    for memory_id in reversed(memory_ids):
+        await _insert_memory(
+            memory_session_factory,
+            memory_id=memory_id,
+            label=f"Equal lexical rank {memory_id.int}",
+            body="Same document shape for every candidate.",
+            embedding=basis_vector(1),
+            keywords=["tielexeme"],
+        )
+
+    command = inject_service.PrepareCommand(
+        thread_id=uuid4(),
+        agent_id="agent-1",
+        machine_id="machine-1",
+        principal_id="owner",
+        project_key="alpha",
+        agent_kind="general",
+        prompt="tielexeme absentterm",
+        model_context_tokens=100_000,
+    )
+    async with memory_session_factory() as session:
+        # Avoid the small-table sequential-scan happy path. All 50 returned
+        # rows must still carry both legs, proving the exact vector boundary
+        # is not capped by HNSW's default breadth of 40.
+        await session.execute(text("SET LOCAL enable_seqscan = off"))
+        pinned, regular = await inject_service._load_candidates(
+            session,
+            command=command,
+            query_embedding=basis_vector(0),
+            candidate_pool=50,
+        )
+
+    assert pinned == []
+    assert [candidate.memory_id for candidate in regular] == memory_ids[:50]
+    assert all(candidate.pool_sources == ("vector", "fts") for candidate in regular)
+
+
 async def test_pins_bypass_threshold_and_budget_and_regular_ties_use_memory_id(
     memory_client: AsyncClient,
     embedding_provider: ScriptedEmbeddingProvider,
@@ -473,6 +585,13 @@ async def test_pins_bypass_threshold_and_budget_and_regular_ties_use_memory_id(
         "near_miss",
         "near_miss",
         "near_miss",
+    ]
+    assert [event.features["_retrieval"] for event in events] == [
+        {"sources": ["pinned"]},
+        {"sources": ["pinned"]},
+        {"sources": ["vector"]},
+        {"sources": ["vector"]},
+        {"sources": ["vector"]},
     ]
     assert all(heads[memory_id].revision == 2 for memory_id in pin_ids)
     assert all(heads[memory_id].stats["injections"] == 1 for memory_id in pin_ids)
