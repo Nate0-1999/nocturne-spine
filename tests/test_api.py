@@ -258,8 +258,9 @@ def test_committed_openapi_is_current(app: FastAPI) -> None:
     assert set(vitals_schema["required"]) == {
         "as_of",
         "window_minutes",
-        "spend",
-        "lifecycle_rates",
+            "spend",
+            "reconciliation",
+            "lifecycle_rates",
         "palace_counts",
     }
     assert vitals_schema["properties"]["window_minutes"]["const"] == 60

@@ -490,6 +490,57 @@ class SpendEvent(Base):
     )
 
 
+class SpendReconciliation(Base):
+    """One immutable comparison of broker usage with the spend ledger."""
+
+    __tablename__ = "spend_reconciliation"
+    __table_args__ = (
+        CheckConstraint("provider = 'openrouter'", name="spend_reconciliation_provider_check"),
+        CheckConstraint(
+            "status IN ('baseline','balanced','drift','unavailable')",
+            name="spend_reconciliation_status_check",
+        ),
+        CheckConstraint("tolerance_usd >= 0", name="spend_reconciliation_tolerance_check"),
+        CheckConstraint("unpriced_lines >= 0", name="spend_reconciliation_unpriced_check"),
+        CheckConstraint(
+            "error_code IS NULL OR error_code IN "
+            "('broker_unavailable','invalid_broker_response')",
+            name="spend_reconciliation_error_check",
+        ),
+        CheckConstraint(
+            "(status = 'unavailable' AND broker_usage_usd IS NULL "
+            "AND ledger_cost_usd IS NULL AND broker_since_baseline_usd IS NULL "
+            "AND ledger_since_baseline_usd IS NULL AND drift_usd IS NULL "
+            "AND error_code IS NOT NULL) OR "
+            "(status = 'baseline' AND broker_usage_usd IS NOT NULL "
+            "AND ledger_cost_usd IS NOT NULL AND broker_since_baseline_usd = 0 "
+            "AND ledger_since_baseline_usd = 0 AND drift_usd = 0 "
+            "AND error_code IS NULL) OR "
+            "(status IN ('balanced','drift') AND broker_usage_usd IS NOT NULL "
+            "AND ledger_cost_usd IS NOT NULL AND broker_since_baseline_usd IS NOT NULL "
+            "AND ledger_since_baseline_usd IS NOT NULL AND drift_usd IS NOT NULL "
+            "AND error_code IS NULL)",
+            name="spend_reconciliation_shape_check",
+        ),
+        Index("spend_reconciliation_ts_idx", "ts", "event_uid"),
+    )
+
+    event_uid: Mapped[str] = mapped_column(Text, primary_key=True)
+    ts: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    provider: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False)
+    broker_usage_usd: Mapped[Decimal | None] = mapped_column(Numeric(20, 12))
+    ledger_cost_usd: Mapped[Decimal | None] = mapped_column(Numeric(20, 12))
+    broker_since_baseline_usd: Mapped[Decimal | None] = mapped_column(Numeric(20, 12))
+    ledger_since_baseline_usd: Mapped[Decimal | None] = mapped_column(Numeric(20, 12))
+    drift_usd: Mapped[Decimal | None] = mapped_column(Numeric(20, 12))
+    tolerance_usd: Mapped[Decimal] = mapped_column(Numeric(20, 12), nullable=False)
+    unpriced_lines: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    error_code: Mapped[str | None] = mapped_column(Text)
+
+
 class ScorerConfig(Base):
     """Versioned scorer weights and parameters."""
 

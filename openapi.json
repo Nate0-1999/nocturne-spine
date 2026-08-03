@@ -1762,6 +1762,139 @@
         "title": "QueueResponse",
         "type": "object"
       },
+      "ReconciliationSnapshot": {
+        "additionalProperties": false,
+        "properties": {
+          "broker_since_baseline_usd": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DecimalString"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "broker_usage_usd": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DecimalString"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "checked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checked At"
+          },
+          "drift_usd": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SignedDecimalString"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "enum": [
+                  "broker_unavailable",
+                  "invalid_broker_response"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "ledger_cost_usd": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DecimalString"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ledger_since_baseline_usd": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DecimalString"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source": {
+            "anyOf": [
+              {
+                "const": "openrouter:/api/v1/key",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "status": {
+            "enum": [
+              "not_recorded",
+              "baseline",
+              "balanced",
+              "drift",
+              "unavailable"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "tolerance_usd": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DecimalString"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unpriced_lines": {
+            "$ref": "#/components/schemas/NonNegativeInt"
+          }
+        },
+        "required": [
+          "status",
+          "checked_at",
+          "broker_usage_usd",
+          "ledger_cost_usd",
+          "broker_since_baseline_usd",
+          "ledger_since_baseline_usd",
+          "drift_usd",
+          "tolerance_usd",
+          "unpriced_lines",
+          "source",
+          "error_code"
+        ],
+        "title": "ReconciliationSnapshot",
+        "type": "object"
+      },
       "RemovedMemory": {
         "additionalProperties": false,
         "properties": {
@@ -2977,6 +3110,9 @@
             "title": "Palace Counts",
             "type": "array"
           },
+          "reconciliation": {
+            "$ref": "#/components/schemas/ReconciliationSnapshot"
+          },
           "spend": {
             "$ref": "#/components/schemas/SpendSnapshot"
           },
@@ -2990,6 +3126,7 @@
           "as_of",
           "window_minutes",
           "spend",
+          "reconciliation",
           "lifecycle_rates",
           "palace_counts"
         ],

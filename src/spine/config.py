@@ -1,5 +1,6 @@
 """Spine configuration and enacted runtime defaults."""
 
+from decimal import Decimal
 from typing import Literal
 
 from pydantic import Field, SecretStr, model_validator
@@ -38,6 +39,10 @@ class Settings(BaseSettings):
     label_max: int = Field(default=64, gt=0)
     chat_model: str = "anthropic:claude-sonnet-4-6"
     spend_view_refresh_seconds: int = Field(default=60, gt=0)
+    reconciliation_hours: float = Field(default=24, gt=0)
+    reconciliation_tolerance_usd: Decimal = Field(
+        default=Decimal("0.000001"), gt=0, max_digits=20, decimal_places=12
+    )
     learner_min_dispositions: int = Field(default=25, gt=0)
     learner_holdout_fraction: float = Field(default=0.20, gt=0.0, lt=0.5)
     learner_passive_discount: float = Field(default=0.25, gt=0.0, le=1.0)

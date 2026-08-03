@@ -4,6 +4,7 @@ import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from http import HTTPStatus
+from urllib.parse import urlparse
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.encoders import jsonable_encoder
@@ -32,6 +33,11 @@ from spine.memory.service import MemoryService
 from spine.problems import ProblemJSONResponse, problem_openapi, problem_response
 from spine.queue.router import router as queue_router
 from spine.queue.service import QueueService
+from spine.spend.reconciliation import (
+    OpenRouterUsageClient,
+    ReconciliationScheduler,
+    ReconciliationService,
+)
 from spine.spend.router import router as spend_router
 from spine.spend.service import SpendService
 from spine.spend.views import SpendViewRefresher
@@ -61,13 +67,19 @@ def create_app(
         session_factory = make_session_factory(owned_engine)
 
     spend_service = SpendService(session_factory)
-    vitals_service = VitalsService(session_factory)
+    configured_key = (
+        resolved.openai_api_key.get_secret_value() if resolved.openai_api_key else None
+    )
+    reconciliation_configured = bool(
+        configured_key and urlparse(resolved.embed_base_url).hostname == "openrouter.ai"
+    )
+    vitals_service = VitalsService(
+        session_factory,
+        reconciliation_configured=reconciliation_configured,
+    )
 
     owned_provider = None
     if embedding_provider is None:
-        configured_key = (
-            resolved.openai_api_key.get_secret_value() if resolved.openai_api_key else None
-        )
         owned_provider = OpenAIEmbeddingProvider(
             api_key=configured_key or None,
             model=resolved.embed_model,
@@ -91,6 +103,28 @@ def create_app(
     spend_view_refresher = SpendViewRefresher(
         session_factory,
         interval_seconds=resolved.spend_view_refresh_seconds,
+    )
+    reconciliation_client = (
+        OpenRouterUsageClient(api_key=configured_key or "", base_url=resolved.embed_base_url)
+        if reconciliation_configured
+        else None
+    )
+    reconciliation_service = (
+        ReconciliationService(
+            session_factory,
+            reconciliation_client,
+            tolerance_usd=resolved.reconciliation_tolerance_usd,
+        )
+        if reconciliation_client is not None
+        else None
+    )
+    reconciliation_scheduler = (
+        ReconciliationScheduler(
+            reconciliation_service,
+            interval_seconds=resolved.reconciliation_hours * 3600,
+        )
+        if reconciliation_service is not None
+        else None
     )
     learner_service = LearnerService(
         session_factory,
@@ -120,17 +154,23 @@ def create_app(
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         if owned_engine is not None:
             spend_view_refresher.start()
+            if reconciliation_scheduler is not None:
+                reconciliation_scheduler.start()
             if learner_scheduler is not None:
                 learner_scheduler.start()
         try:
             yield
         finally:
             if owned_engine is not None:
+                if reconciliation_scheduler is not None:
+                    await reconciliation_scheduler.stop()
                 if learner_scheduler is not None:
                     await learner_scheduler.stop()
                 await spend_view_refresher.stop()
             if owned_provider is not None:
                 await owned_provider.aclose()
+            if reconciliation_client is not None:
+                await reconciliation_client.aclose()
             if owned_engine is not None:
                 await owned_engine.dispose()
 
@@ -148,6 +188,8 @@ def create_app(
     app.state.decision_service = decision_service
     app.state.spend_service = spend_service
     app.state.spend_view_refresher = spend_view_refresher
+    app.state.reconciliation_service = reconciliation_service
+    app.state.reconciliation_scheduler = reconciliation_scheduler
     app.state.vitals_service = vitals_service
     app.state.learner_service = learner_service
     app.state.m2k_service = m2k_service

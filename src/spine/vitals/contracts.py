@@ -27,6 +27,10 @@ type DecimalString = Annotated[
     StrictStr,
     Field(pattern=r"^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$"),
 ]
+type SignedDecimalString = Annotated[
+    StrictStr,
+    Field(pattern=r"^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$"),
+]
 type GaugeStatus = Literal["measured", "not_recorded", "placeholder"]
 type SpendDimension = Literal["total", "purpose", "model"]
 type LifecycleMetric = Literal[
@@ -88,6 +92,48 @@ class SpendSnapshot(VitalsContract):
     lanes: list[SpendLane]
 
 
+class ReconciliationSnapshot(VitalsContract):
+    status: Literal["not_recorded", "baseline", "balanced", "drift", "unavailable"]
+    checked_at: AwareDatetime | None
+    broker_usage_usd: DecimalString | None
+    ledger_cost_usd: DecimalString | None
+    broker_since_baseline_usd: DecimalString | None
+    ledger_since_baseline_usd: DecimalString | None
+    drift_usd: SignedDecimalString | None
+    tolerance_usd: DecimalString | None
+    unpriced_lines: NonNegativeInt
+    source: Literal["openrouter:/api/v1/key"] | None
+    error_code: Literal["broker_unavailable", "invalid_broker_response"] | None
+
+    @model_validator(mode="after")
+    def require_honest_shape(self) -> ReconciliationSnapshot:
+        observations = (
+            self.broker_usage_usd,
+            self.ledger_cost_usd,
+            self.broker_since_baseline_usd,
+            self.ledger_since_baseline_usd,
+            self.drift_usd,
+        )
+        if self.status == "not_recorded":
+            if self.checked_at is not None or any(value is not None for value in observations):
+                raise ValueError("not_recorded reconciliation cannot contain observations")
+            if self.tolerance_usd is not None or self.error_code is not None:
+                raise ValueError("not_recorded reconciliation cannot contain a result")
+        elif self.status == "unavailable":
+            if self.checked_at is None or any(value is not None for value in observations):
+                raise ValueError("unavailable reconciliation has no numeric observations")
+            if self.tolerance_usd is None or self.error_code is None:
+                raise ValueError("unavailable reconciliation requires tolerance and error code")
+        else:
+            if self.checked_at is None or any(value is None for value in observations):
+                raise ValueError("successful reconciliation requires every observation")
+            if self.tolerance_usd is None or self.error_code is not None:
+                raise ValueError("successful reconciliation has tolerance and no error")
+        if self.source is None and self.status != "not_recorded":
+            raise ValueError("recorded reconciliation requires a source")
+        return self
+
+
 class LifecycleRate(VitalsContract):
     metric: LifecycleMetric
     status: GaugeStatus
@@ -126,6 +172,7 @@ class VitalsSnapshot(VitalsContract):
     as_of: AwareDatetime
     window_minutes: Literal[60]
     spend: SpendSnapshot
+    reconciliation: ReconciliationSnapshot
     lifecycle_rates: list[LifecycleRate]
     palace_counts: list[PalaceCount]
 
@@ -151,6 +198,7 @@ __all__ = [
     "LifecycleRate",
     "PalaceCount",
     "PalaceMetric",
+    "ReconciliationSnapshot",
     "SpendDimension",
     "SpendLane",
     "SpendPoint",

@@ -12,10 +12,11 @@ from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.sql import and_
 
-from spine.db.models import ApprovalQueueItem, MemoryEdge, MemoryUnit
+from spine.db.models import ApprovalQueueItem, MemoryEdge, MemoryUnit, SpendReconciliation
 from spine.vitals.contracts import (
     LifecycleRate,
     PalaceCount,
+    ReconciliationSnapshot,
     SpendDimension,
     SpendLane,
     SpendPoint,
@@ -61,8 +62,14 @@ class _PointTotal:
 class VitalsService:
     """Read the canonical spend view and the three enacted memory gauges."""
 
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
+    def __init__(
+        self,
+        session_factory: async_sessionmaker[AsyncSession],
+        *,
+        reconciliation_configured: bool = False,
+    ) -> None:
         self._session_factory = session_factory
+        self._reconciliation_configured = reconciliation_configured
 
     async def snapshot(self, *, thread_id: UUID | None = None) -> VitalsSnapshot:
         """Return one repeatable-read trailing-hour snapshot without refreshing views."""
@@ -116,6 +123,11 @@ class VitalsService:
                     .select_from(ApprovalQueueItem)
                     .where(ApprovalQueueItem.state == "pending")
                 )
+                reconciliation = await session.scalar(
+                    select(SpendReconciliation)
+                    .order_by(SpendReconciliation.ts.desc(), SpendReconciliation.event_uid.desc())
+                    .limit(1)
+                )
 
         return VitalsSnapshot(
             as_of=as_of,
@@ -123,6 +135,10 @@ class VitalsService:
             spend=_spend_snapshot(
                 spend_rows,
                 source="spend_event" if thread_id is not None else "v_spend_rate",
+            ),
+            reconciliation=_reconciliation_snapshot(
+                reconciliation,
+                configured=self._reconciliation_configured,
             ),
             lifecycle_rates=[
                 LifecycleRate(
@@ -320,6 +336,45 @@ def _nonnegative_count(value: object, name: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ValueError(f"database returned an invalid {name} count")
     return value
+
+
+def _reconciliation_snapshot(
+    row: SpendReconciliation | None,
+    *,
+    configured: bool,
+) -> ReconciliationSnapshot:
+    source = "openrouter:/api/v1/key" if configured else None
+    if row is None:
+        return ReconciliationSnapshot(
+            status="not_recorded",
+            checked_at=None,
+            broker_usage_usd=None,
+            ledger_cost_usd=None,
+            broker_since_baseline_usd=None,
+            ledger_since_baseline_usd=None,
+            drift_usd=None,
+            tolerance_usd=None,
+            unpriced_lines=0,
+            source=source,
+            error_code=None,
+        )
+    return ReconciliationSnapshot(
+        status=row.status,
+        checked_at=row.ts,
+        broker_usage_usd=_decimal_text(row.broker_usage_usd),
+        ledger_cost_usd=_decimal_text(row.ledger_cost_usd),
+        broker_since_baseline_usd=_decimal_text(row.broker_since_baseline_usd),
+        ledger_since_baseline_usd=_decimal_text(row.ledger_since_baseline_usd),
+        drift_usd=_decimal_text(row.drift_usd),
+        tolerance_usd=_decimal_text(row.tolerance_usd),
+        unpriced_lines=row.unpriced_lines,
+        source="openrouter:/api/v1/key",
+        error_code=row.error_code,
+    )
+
+
+def _decimal_text(value: Decimal | None) -> str | None:
+    return None if value is None else format(value, "f")
 
 
 __all__ = ["VitalsService"]

@@ -152,6 +152,7 @@ async def test_models_match_authoritative_c2_schema(
         "thread",
         "injection_event",
         "spend_event",
+        "spend_reconciliation",
         "scorer_config",
         "scorer_activation",
     )
@@ -276,6 +277,20 @@ async def test_models_match_authoritative_c2_schema(
             "ref",
             "meta",
         ),
+        "spend_reconciliation": (
+            "event_uid",
+            "ts",
+            "provider",
+            "status",
+            "broker_usage_usd",
+            "ledger_cost_usd",
+            "broker_since_baseline_usd",
+            "ledger_since_baseline_usd",
+            "drift_usd",
+            "tolerance_usd",
+            "unpriced_lines",
+            "error_code",
+        ),
         "scorer_config": ("version", "weights", "params", "created_at", "active"),
         "scorer_activation": (
             "event_uid",
@@ -323,6 +338,14 @@ async def test_models_match_authoritative_c2_schema(
             "provider",
             "quantization",
         },
+        "spend_reconciliation": {
+            "broker_usage_usd",
+            "ledger_cost_usd",
+            "broker_since_baseline_usd",
+            "ledger_since_baseline_usd",
+            "drift_usd",
+            "error_code",
+        },
         "scorer_config": set(),
         "scorer_activation": set(),
     }
@@ -340,6 +363,7 @@ async def test_models_match_authoritative_c2_schema(
         "thread": ("id",),
         "injection_event": ("id",),
         "spend_event": ("event_uid",),
+        "spend_reconciliation": ("event_uid",),
         "scorer_config": ("version",),
         "scorer_activation": ("event_uid",),
     }
@@ -454,6 +478,18 @@ async def test_models_match_authoritative_c2_schema(
         "spend_event.quantization": "TEXT",
         "spend_event.ref": "TEXT",
         "spend_event.meta": "JSONB",
+        "spend_reconciliation.event_uid": "TEXT",
+        "spend_reconciliation.ts": "TIMESTAMP WITH TIME ZONE",
+        "spend_reconciliation.provider": "TEXT",
+        "spend_reconciliation.status": "TEXT",
+        "spend_reconciliation.broker_usage_usd": "NUMERIC(20, 12)",
+        "spend_reconciliation.ledger_cost_usd": "NUMERIC(20, 12)",
+        "spend_reconciliation.broker_since_baseline_usd": "NUMERIC(20, 12)",
+        "spend_reconciliation.ledger_since_baseline_usd": "NUMERIC(20, 12)",
+        "spend_reconciliation.drift_usd": "NUMERIC(20, 12)",
+        "spend_reconciliation.tolerance_usd": "NUMERIC(20, 12)",
+        "spend_reconciliation.unpriced_lines": "BIGINT",
+        "spend_reconciliation.error_code": "TEXT",
         "scorer_config.version": "TEXT",
         "scorer_config.weights": "JSONB",
         "scorer_config.params": "JSONB",
@@ -500,6 +536,7 @@ async def test_models_match_authoritative_c2_schema(
         "injection_event.actor_class": "'human'",
         "injection_event.ts": "now()",
         "spend_event.meta": "'{}'::jsonb",
+        "spend_reconciliation.ts": "now()",
         "scorer_config.created_at": "now()",
         "scorer_config.active": "false",
         "scorer_activation.ts": "now()",
@@ -580,6 +617,32 @@ async def test_models_match_authoritative_c2_schema(
                 "('building','extraction','curation','judge','remember','embedding','scout')"
             ),
             "spend_event_ref_nonblank_check": "ref = btrim(ref) AND ref <> ''",
+        },
+        "spend_reconciliation": {
+            "spend_reconciliation_provider_check": "provider = 'openrouter'",
+            "spend_reconciliation_status_check": (
+                "status IN ('baseline','balanced','drift','unavailable')"
+            ),
+            "spend_reconciliation_tolerance_check": "tolerance_usd >= 0",
+            "spend_reconciliation_unpriced_check": "unpriced_lines >= 0",
+            "spend_reconciliation_error_check": (
+                "error_code IS NULL OR error_code IN "
+                "('broker_unavailable','invalid_broker_response')"
+            ),
+            "spend_reconciliation_shape_check": (
+                "(status = 'unavailable' AND broker_usage_usd IS NULL "
+                "AND ledger_cost_usd IS NULL AND broker_since_baseline_usd IS NULL "
+                "AND ledger_since_baseline_usd IS NULL AND drift_usd IS NULL "
+                "AND error_code IS NOT NULL) OR "
+                "(status = 'baseline' AND broker_usage_usd IS NOT NULL "
+                "AND ledger_cost_usd IS NOT NULL AND broker_since_baseline_usd = 0 "
+                "AND ledger_since_baseline_usd = 0 AND drift_usd = 0 "
+                "AND error_code IS NULL) OR "
+                "(status IN ('balanced','drift') AND broker_usage_usd IS NOT NULL "
+                "AND ledger_cost_usd IS NOT NULL AND broker_since_baseline_usd IS NOT NULL "
+                "AND ledger_since_baseline_usd IS NOT NULL AND drift_usd IS NOT NULL "
+                "AND error_code IS NULL)"
+            ),
         },
         "scorer_config": {},
         "scorer_activation": {
