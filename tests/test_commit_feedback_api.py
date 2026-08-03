@@ -113,6 +113,7 @@ async def _insert_event(
     updated_at: str = "2026-01-02T03:04:05+00:00",
     outcome: str | None = None,
     scorer_version: str = "v0",
+    actor_class: str = "human",
 ) -> None:
     async with session_factory() as session:
         async with session.begin():
@@ -148,6 +149,7 @@ async def _insert_event(
                     rank=rank,
                     shown_as=shown_as,
                     outcome=outcome,
+                    actor_class=actor_class,
                     ts=datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC),
                 )
             )
@@ -907,11 +909,13 @@ async def test_all_near_miss_empty_commit_is_repeatable_no_op(
     assert (head.stats, head.revision) == (DEFAULT_STATS, 1)
 
 
-async def test_feedback_is_exactly_once_and_cited_stays_inert(
+async def test_feedback_is_exactly_once_and_cited_increments_frequency(
     memory_client: AsyncClient,
     memory_session_factory: async_sessionmaker[AsyncSession],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """C.4 feedback stays idempotent while A-036 activates citation frequency."""
+
     injection_id = UUID(int=9301)
     removed_id, cited_id, null_id, gate_removed_id = (
         UUID(int=value) for value in (4001, 4002, 4003, 4004)
@@ -1092,6 +1096,13 @@ async def test_feedback_is_exactly_once_and_cited_stays_inert(
                 .order_by(MemoryRevision.revision)
             )
         ).all()
+        cited_revisions = (
+            await session.scalars(
+                select(MemoryRevision)
+                .where(MemoryRevision.memory_id == cited_id)
+                .order_by(MemoryRevision.revision)
+            )
+        ).all()
     assert events[removed_id].outcome == "mid_thread_removed"
     assert events[cited_id].outcome == "cited"
     assert removed is not None and cited is not None
@@ -1100,7 +1111,7 @@ async def test_feedback_is_exactly_once_and_cited_stays_inert(
         1,
         3,
     )
-    assert (cited.stats["citations"], cited.revision) == (0, 1)
+    assert (cited.stats["citations"], cited.revision) == (1, 2)
     feedback_revision = removed_revisions[-1]
     assert (
         feedback_revision.parent_uid,
@@ -1113,6 +1124,66 @@ async def test_feedback_is_exactly_once_and_cited_stays_inert(
         "machine-gate",
         "feedback/mid_thread_removed",
     )
+    assert (
+        cited_revisions[-1].editor,
+        cited_revisions[-1].origin_machine_id,
+        cited_revisions[-1].reason,
+    ) == ("system:feedback", "machine-gate", "feedback/cited")
+
+
+@pytest.mark.asyncio
+async def test_autonomous_entry_accepts_one_citation_transition(
+    memory_client: AsyncClient,
+    memory_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """An M2G auto-entered member can feed ADR-005 citation frequency. [A-036]"""
+
+    injection_id = UUID(int=9391)
+    memory_id = UUID(int=4391)
+    await _insert_memory(
+        memory_session_factory,
+        memory_id=memory_id,
+        label="Autonomous citation",
+        body="Autonomous citation body",
+    )
+    await _insert_event(
+        memory_session_factory,
+        injection_id=injection_id,
+        memory_id=memory_id,
+        rank=1,
+        shown_as="injected",
+        event_seed=391,
+        label="Autonomous citation",
+        body="Autonomous citation body",
+        outcome="auto_entered",
+        actor_class="passive",
+    )
+    request = {
+        "injection_id": str(injection_id),
+        "memory_id": str(memory_id),
+        "signal": "cited",
+    }
+
+    assert _assert_json(await memory_client.post("/v1/feedback", json=request), 200) == {
+        "ok": True
+    }
+    assert _assert_json(await memory_client.post("/v1/feedback", json=request), 200) == {
+        "ok": True
+    }
+
+    async with memory_session_factory() as session:
+        event = (
+            await session.scalars(
+                select(InjectionEvent).where(
+                    InjectionEvent.injection_id == injection_id,
+                    InjectionEvent.memory_id == memory_id,
+                )
+            )
+        ).one()
+        head = await session.get(MemoryUnit, memory_id)
+    assert event.outcome == "cited"
+    assert head is not None
+    assert (head.stats["citations"], head.revision) == (1, 2)
 
 
 async def test_mid_thread_removed_can_be_human_readded_and_removed_again(

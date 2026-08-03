@@ -194,21 +194,25 @@ class DecisionService:
                         and current_outcome
                         in {"kept", "added_back", "auto_entered", "mid_thread_added"}
                     )
-                    or (command.signal == "cited" and current_outcome in {"kept", "added_back"})
+                    or (
+                        command.signal == "cited"
+                        and current_outcome in {"kept", "added_back", "auto_entered"}
+                    )
                 )
                 if not allowed:
                     raise OutcomeConflictError(
                         f"event outcome {current_outcome!r} cannot accept {command.signal}"
                     )
 
-                if command.signal == "mid_thread_removed":
+                if command.signal in {"mid_thread_removed", "cited"}:
                     memory_id = _event_uuid(event, "memory_id")
                     heads = await _load_heads_for_update(session, {memory_id})
                     row = heads.get(memory_id)
                     if row is None:
                         raise DecisionStateError(f"memory {memory_id} does not exist")
                     current = MemoryUnitSnapshot.from_row(row)
-                    stats = _increment_stat(current.stats, "removals")
+                    stat = "removals" if command.signal == "mid_thread_removed" else "citations"
+                    stats = _increment_stat(current.stats, stat)
                     await cas_update_memory_unit(
                         session,
                         CasUpdate(
@@ -217,7 +221,7 @@ class DecisionService:
                             rev_uid=mint_ulid(),
                             editor="system:feedback",
                             origin_machine_id=_event_string(event, "machine_id"),
-                            reason="feedback/mid_thread_removed",
+                            reason=f"feedback/{command.signal}",
                             changes=MemoryUnitChanges(stats=stats),
                         ),
                     )
