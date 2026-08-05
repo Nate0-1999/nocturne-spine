@@ -3,12 +3,31 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Iterator
+from contextlib import contextmanager
 
 from alembic import command
 from alembic.config import Config
+from sqlalchemy import text
+from sqlalchemy.engine import Connection
 
 DATABASE_URL_ATTRIBUTE = "spine.database_url"
 MIGRATION_RESOURCE = "spine:db/migrations"
+MIGRATION_ADVISORY_LOCK_ID = 5642809481902573646
+
+
+@contextmanager
+def migration_lock(connection: Connection) -> Iterator[None]:
+    """Serialize every online migration on one database-owned session lock."""
+
+    parameters = {"lock_id": MIGRATION_ADVISORY_LOCK_ID}
+    connection.execute(text("SELECT pg_advisory_lock(:lock_id)"), parameters)
+    connection.commit()
+    try:
+        yield
+    finally:
+        connection.execute(text("SELECT pg_advisory_unlock(:lock_id)"), parameters)
+        connection.commit()
 
 
 def make_alembic_config(database_url: str) -> Config:

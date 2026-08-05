@@ -9,7 +9,7 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-from spine.db.migrate import DATABASE_URL_ATTRIBUTE
+from spine.db.migrate import DATABASE_URL_ATTRIBUTE, migration_lock
 from spine.db.models import Base
 
 config = context.config
@@ -40,9 +40,10 @@ def run_migrations_offline() -> None:
 def do_run_migrations(connection: Connection) -> None:
     """Configure Alembic on the synchronous facade of an async connection."""
 
-    context.configure(connection=connection, target_metadata=target_metadata)
-    with context.begin_transaction():
-        context.run_migrations()
+    with migration_lock(connection):
+        context.configure(connection=connection, target_metadata=target_metadata)
+        with context.begin_transaction():
+            context.run_migrations()
 
 
 async def run_async_migrations() -> None:

@@ -786,3 +786,20 @@ would manufacture confidence the machine cannot justify. Sharing the script
 through a sibling checkout would break installed and standalone repository
 operation. Auto-inserting generic docstrings would disguise the human sweep as
 completion.
+
+## 028 — Serialize the packaged migration boundary [P1.3]
+
+**Decision.** Adopt Garden A-041. Acquire one stable PostgreSQL session
+advisory lock on Alembic's own connection around every online migration run.
+Exercise each packaged historical revision through the current head against
+real Postgres.
+
+**Motivation.** Both local startup and owner-cloud deployment already converge
+on the packaged Alembic entrypoint. Locking that deepest shared boundary keeps
+two callers from interleaving schema history without creating a second
+migration coordinator.
+
+**Rejected alternatives.** A process-local lock cannot coordinate CLI and
+deployment processes. Locking on a separate database connection would not bind
+the lock lifetime to the migration transaction. Testing only empty-to-head
+would miss upgrade failures in intermediate owner histories.

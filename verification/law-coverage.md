@@ -2,8 +2,8 @@
 
 Generated deterministically by `scripts/check_test_motivations.py`.
 
-- Tests discovered: 151
-- Motivated tests: 4
+- Tests discovered: 153
+- Motivated tests: 6
 - Grandfathered baseline debt: 147
 - Stale baseline entries: 0
 
@@ -169,9 +169,9 @@ Generated deterministically by `scripts/check_test_motivations.py`.
 
 - _None._
 
-### C.2 — ZERO DEFENDERS
+### C.2 — 1 defender(s)
 
-- _None._
+- `tests/test_m2n_migrations.py::test_every_supported_revision_upgrades_to_head`
 
 ### C.3 — ZERO DEFENDERS
 
@@ -231,6 +231,10 @@ Generated deterministically by `scripts/check_test_motivations.py`.
 ### A-040
 
 - `tests/test_test_motivations.py::test_syntax_digest_turns_a_modified_grandfathered_test_into_a_failure`
+
+### A-041
+
+- `tests/test_m2n_migrations.py::test_migration_lock_releases_after_success_and_failure`
 
 ## Baseline debt
 
