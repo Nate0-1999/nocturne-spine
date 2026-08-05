@@ -17,6 +17,7 @@ from spine.vitals.contracts import (
     LifecycleRate,
     PalaceCount,
     ReconciliationSnapshot,
+    ResourceSnapshot,
     SpendDimension,
     SpendLane,
     SpendPoint,
@@ -128,6 +129,9 @@ class VitalsService:
                     .order_by(SpendReconciliation.ts.desc(), SpendReconciliation.event_uid.desc())
                     .limit(1)
                 )
+                database_bytes = await session.scalar(
+                    select(func.pg_database_size(func.current_database()))
+                )
 
         return VitalsSnapshot(
             as_of=as_of,
@@ -139,6 +143,17 @@ class VitalsService:
             reconciliation=_reconciliation_snapshot(
                 reconciliation,
                 configured=self._reconciliation_configured,
+            ),
+            resources=ResourceSnapshot(
+                status="partial",
+                daemon_rss_bytes=None,
+                daemon_uptime_seconds=None,
+                disk_free_bytes=None,
+                disk_total_bytes=None,
+                database_bytes=_nonnegative_count(database_bytes, "database_bytes"),
+                journal_bytes=None,
+                backup_bytes=None,
+                warning=None,
             ),
             lifecycle_rates=[
                 LifecycleRate(

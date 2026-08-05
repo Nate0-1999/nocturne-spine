@@ -169,6 +169,7 @@ def test_exactly_the_lawful_spine_routes_are_registered(app: FastAPI) -> None:
 
 
 def test_committed_openapi_is_current(app: FastAPI) -> None:
+    """A-044 keeps the committed public Vitals schema literal and current."""
     committed = json.loads((ROOT / "openapi.json").read_text(encoding="utf-8"))
     assert committed == app.openapi()
     assert committed["components"]["securitySchemes"]["StaticBearer"] == {
@@ -258,10 +259,11 @@ def test_committed_openapi_is_current(app: FastAPI) -> None:
     assert set(vitals_schema["required"]) == {
         "as_of",
         "window_minutes",
-            "spend",
-            "reconciliation",
-            "lifecycle_rates",
+        "spend",
+        "reconciliation",
+        "lifecycle_rates",
         "palace_counts",
+        "resources",
     }
     assert vitals_schema["properties"]["window_minutes"]["const"] == 60
     spend_point = committed["components"]["schemas"]["SpendPoint"]

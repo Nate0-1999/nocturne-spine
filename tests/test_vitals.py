@@ -47,6 +47,25 @@ def _event(
     }
 
 
+async def test_vitals_measures_database_size_without_guessing_harness_resources(
+    memory_client: AsyncClient,
+) -> None:
+    """A-044 keeps database observation in Spine and local process values unavailable."""
+    response = await memory_client.get("/v1/vitals")
+
+    assert response.status_code == 200
+    resources = response.json()["resources"]
+    assert resources["status"] == "partial"
+    assert resources["database_bytes"] > 0
+    assert resources["daemon_rss_bytes"] is None
+    assert resources["daemon_uptime_seconds"] is None
+    assert resources["disk_free_bytes"] is None
+    assert resources["disk_total_bytes"] is None
+    assert resources["journal_bytes"] is None
+    assert resources["backup_bytes"] is None
+    assert resources["warning"] is None
+
+
 async def _insert_memory_heads(
     session_factory: async_sessionmaker[AsyncSession],
     *,

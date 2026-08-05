@@ -1943,6 +1943,108 @@
         "title": "ReplayScoreView",
         "type": "object"
       },
+      "ResourceSnapshot": {
+        "additionalProperties": false,
+        "description": "Database-owned portion of the cross-process A-044 resource gauge.",
+        "properties": {
+          "backup_bytes": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NonNegativeInt"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "daemon_rss_bytes": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NonNegativeInt"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "daemon_uptime_seconds": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NonNegativeInt"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "database_bytes": {
+            "$ref": "#/components/schemas/NonNegativeInt"
+          },
+          "disk_free_bytes": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NonNegativeInt"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "disk_total_bytes": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NonNegativeInt"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "journal_bytes": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NonNegativeInt"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "enum": [
+              "partial",
+              "measured"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "warning": {
+            "anyOf": [
+              {
+                "const": "low_disk",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warning"
+          }
+        },
+        "required": [
+          "status",
+          "daemon_rss_bytes",
+          "daemon_uptime_seconds",
+          "disk_free_bytes",
+          "disk_total_bytes",
+          "database_bytes",
+          "journal_bytes",
+          "backup_bytes",
+          "warning"
+        ],
+        "title": "ResourceSnapshot",
+        "type": "object"
+      },
       "RetrainResponse": {
         "properties": {
           "challenger": {
@@ -3113,6 +3215,9 @@
           "reconciliation": {
             "$ref": "#/components/schemas/ReconciliationSnapshot"
           },
+          "resources": {
+            "$ref": "#/components/schemas/ResourceSnapshot"
+          },
           "spend": {
             "$ref": "#/components/schemas/SpendSnapshot"
           },
@@ -3127,6 +3232,7 @@
           "window_minutes",
           "spend",
           "reconciliation",
+          "resources",
           "lifecycle_rates",
           "palace_counts"
         ],

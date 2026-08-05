@@ -168,11 +168,44 @@ class PalaceCount(VitalsContract):
         return self
 
 
+class ResourceSnapshot(VitalsContract):
+    """Database-owned portion of the cross-process A-044 resource gauge."""
+
+    status: Literal["partial", "measured"]
+    daemon_rss_bytes: NonNegativeInt | None
+    daemon_uptime_seconds: NonNegativeInt | None
+    disk_free_bytes: NonNegativeInt | None
+    disk_total_bytes: NonNegativeInt | None
+    database_bytes: NonNegativeInt
+    journal_bytes: NonNegativeInt | None
+    backup_bytes: NonNegativeInt | None
+    warning: Literal["low_disk"] | None
+
+    @model_validator(mode="after")
+    def require_honest_availability(self) -> ResourceSnapshot:
+        local = (
+            self.daemon_rss_bytes,
+            self.daemon_uptime_seconds,
+            self.disk_free_bytes,
+            self.disk_total_bytes,
+            self.journal_bytes,
+            self.backup_bytes,
+        )
+        if self.status == "measured" and any(value is None for value in local):
+            raise ValueError("measured resources require every local observation")
+        if self.warning is not None and (
+            self.disk_free_bytes is None or self.disk_total_bytes is None
+        ):
+            raise ValueError("a resource warning requires disk observations")
+        return self
+
+
 class VitalsSnapshot(VitalsContract):
     as_of: AwareDatetime
     window_minutes: Literal[60]
     spend: SpendSnapshot
     reconciliation: ReconciliationSnapshot
+    resources: ResourceSnapshot
     lifecycle_rates: list[LifecycleRate]
     palace_counts: list[PalaceCount]
 
@@ -199,6 +232,7 @@ __all__ = [
     "PalaceCount",
     "PalaceMetric",
     "ReconciliationSnapshot",
+    "ResourceSnapshot",
     "SpendDimension",
     "SpendLane",
     "SpendPoint",

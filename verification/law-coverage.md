@@ -2,9 +2,9 @@
 
 Generated deterministically by `scripts/check_test_motivations.py`.
 
-- Tests discovered: 153
-- Motivated tests: 6
-- Grandfathered baseline debt: 147
+- Tests discovered: 154
+- Motivated tests: 8
+- Grandfathered baseline debt: 146
 - Stale baseline entries: 0
 
 ## SPEC and ADR defenders
@@ -236,6 +236,11 @@ Generated deterministically by `scripts/check_test_motivations.py`.
 
 - `tests/test_m2n_migrations.py::test_migration_lock_releases_after_success_and_failure`
 
+### A-044
+
+- `tests/test_api.py::test_committed_openapi_is_current`
+- `tests/test_vitals.py::test_vitals_measures_database_size_without_guessing_harness_resources`
+
 ## Baseline debt
 
 - `tests/test_api.py::test_health_endpoints_and_auth_are_live`
@@ -247,7 +252,6 @@ Generated deterministically by `scripts/check_test_motivations.py`.
 - `tests/test_api.py::test_http_errors_are_rfc7807`
 - `tests/test_api.py::test_unexpected_service_errors_are_sanitized_rfc7807`
 - `tests/test_api.py::test_exactly_the_lawful_spine_routes_are_registered`
-- `tests/test_api.py::test_committed_openapi_is_current`
 - `tests/test_billing_breaker.py::test_below_budget_fixture_never_constructs_gateway`
 - `tests/test_billing_breaker.py::test_equality_and_overage_detach_the_fixed_project`
 - `tests/test_billing_breaker.py::test_duplicate_delivery_repeats_the_same_idempotent_desired_state`

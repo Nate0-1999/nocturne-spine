@@ -803,3 +803,20 @@ migration coordinator.
 deployment processes. Locking on a separate database connection would not bind
 the lock lifetime to the migration transaction. Testing only empty-to-head
 would miss upgrade failures in intermediate owner histories.
+
+## 029 — Measure database size where the database lives [P1.3, P2.4]
+
+**Decision.** Adopt Garden A-044. Extend both Vitals scopes with one resource
+object measured inside the existing repeatable-read transaction. Spine fills
+only `database_bytes` from PostgreSQL and marks the object partial; Harness owns
+all process and filesystem enrichment.
+
+**Motivation.** Logical database size is the one resource fact Spine can report
+truthfully for both local PostgreSQL and the owner's Cloud SQL Palace. Keeping
+the query in the canonical snapshot avoids a second credentialed endpoint and
+lets CURRENT and GLOBAL agree about the same physical database.
+
+**Rejected alternatives.** Docker-volume inspection does not work for Cloud SQL.
+Letting Harness connect directly to PostgreSQL would break the HTTP boundary.
+Having Spine guess daemon or owner-filesystem values would turn unavailable
+observations into false measurements.
