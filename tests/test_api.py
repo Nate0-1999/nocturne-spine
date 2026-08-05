@@ -27,6 +27,8 @@ SPINE_ROUTES = {
     ("GET", "/v1/vitals/threads/{thread_id}"),
     ("POST", "/v1/memory-graph/query"),
     ("POST", "/v1/scorer-console/query"),
+    ("POST", "/v1/scorer-simulations"),
+    ("POST", "/v1/scorer-auditions"),
     ("POST", "/v1/scorer-configs"),
     ("POST", "/v1/scorer-configs/{version}/activate"),
     ("POST", "/v1/extractions"),
@@ -183,8 +185,8 @@ async def test_unexpected_service_errors_are_sanitized_rfc7807(app: FastAPI) -> 
 
 
 def test_exactly_the_lawful_spine_routes_are_registered(app: FastAPI) -> None:
-    """SPEC C.4 is defended by verifying that exactly the lawful spine routes are registered;
-    this prevents drift in the public API and error contract.
+    """SPEC C.4 and A-047 are defended by verifying that exactly the lawful Spine routes
+    are registered; this prevents drift in the public API and simulation boundary.
     """
     actual = {
         (method.upper(), path)
