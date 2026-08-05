@@ -767,3 +767,22 @@ diffs are an audit log.
 would duplicate authority. Updating an active scorer row in place would erase
 history. Reusing global spend lanes for CURRENT would misstate thread scope.
 What-if and audition remain M2P rather than being smuggled into M2K controls.
+
+## 027 — Syntax-ratcheted test motivation and inverse law index [P4]
+
+**Decision.** Adopt Garden A-040. Ship a repository-local, standard-library
+checker that reads every Python test docstring, accepts only the enacted
+citation grammar, and grandfathers only an exact normalized syntax digest. Run
+it from both the local pre-commit configuration and CI. Generate the
+law-coverage artifact from the same scan rather than maintaining a second
+hand-written index.
+
+**Motivation.** A filename exemption would let an old test change forever
+without explaining its purpose. A syntax digest makes the temporary baseline a
+real ratchet, while one scanner keeps enforcement and coverage from disagreeing.
+
+**Rejected alternatives.** Enforcing prose quality with keyword heuristics
+would manufacture confidence the machine cannot justify. Sharing the script
+through a sibling checkout would break installed and standalone repository
+operation. Auto-inserting generic docstrings would disguise the human sweep as
+completion.
