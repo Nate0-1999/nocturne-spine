@@ -138,6 +138,8 @@ def create_app(
     m2k_service = M2KService(
         session_factory,
         graph_edge_sim=resolved.graph_edge_sim,
+        holdout_fraction=resolved.learner_holdout_fraction,
+        passive_discount=resolved.learner_passive_discount,
     )
     learner_scheduler = (
         None

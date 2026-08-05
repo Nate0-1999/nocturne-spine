@@ -182,9 +182,8 @@ async def test_console_contributions_sum_exactly_and_control_inserts_a_version(
     memory_client: AsyncClient,
     memory_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    """A-035 is defended by verifying that console contributions sum exactly and control
-    inserts a version; this prevents drift in the authoritative graph, console, and accuracy
-    boundary.
+    """A-035/A-047 are defended by proving that contribution math, replay previews,
+    content-addressed force, and the immutable activation journal share one authority.
     """
     thread_id = UUID(int=9201)
     memory_id = UUID(int=9202)
@@ -211,6 +210,7 @@ async def test_console_contributions_sum_exactly_and_control_inserts_a_version(
                     "freq": 0.0,
                     "hist": 0.5,
                     "_memory": {"label": "Console memory", "body": "Console body"},
+                    "_prepare": {"model_context_tokens": 8192},
                 },
                 score=0.4,
                 rank=1,
@@ -239,17 +239,39 @@ async def test_console_contributions_sum_exactly_and_control_inserts_a_version(
 
     values = payload["configurations"][0]["values"]
     values["tau"] = 0.6
+    simulation = await memory_client.post(
+        "/v1/scorer-simulations",
+        json={
+            "principal_id": "owner",
+            "injection_id": str(UUID(int=9203)),
+            "base_version": "v0",
+            "values": values,
+            "slice_parameter_id": "scorer.top_k",
+        },
+    )
+    assert simulation.status_code == 200
+    receipt = simulation.json()
+    assert receipt["instant"]["status"] == "ready"
+    assert len(receipt["slice"]["points"]) == 8
     event_uid = "01KZ4R10000000000000000002"
     request = {
         "event_uid": event_uid,
         "base_version": "v0",
         "values": values,
+        "simulation_digest": receipt["simulation_digest"],
+        "force": True,
         "actor_class": "human",
         "machine_id": "studio",
     }
+    stale = await memory_client.post(
+        "/v1/scorer-configs",
+        json={**request, "simulation_digest": "0" * 64},
+    )
     created = await memory_client.post("/v1/scorer-configs", json=request)
     replay = await memory_client.post("/v1/scorer-configs", json=request)
 
+    assert stale.status_code == 409
+    assert stale.json()["detail"] == "M2K operation refused: simulation_stale."
     assert created.status_code == 200
     assert replay.status_code == 200
     assert created.json()["version"] == f"m2k-{event_uid}"
@@ -263,7 +285,15 @@ async def test_console_contributions_sum_exactly_and_control_inserts_a_version(
         activations = (await session.execute(select(ScorerActivationRow))).scalars().all()
     assert active.version == f"m2k-{event_uid}"
     assert len(activations) == 1
-    assert activations[0].changes == {"scorer.tau": {"old": 0.55, "new": 0.6}}
+    assert activations[0].changes["scorer.tau"] == {"old": 0.55, "new": 0.6}
+    assert activations[0].changes["_force"] == {
+        "simulation_digest": receipt["simulation_digest"],
+        "source_boundary": "01KZ4R10000000000000000001",
+        "holdout_dispositions": 0,
+        "incumbent_accuracy_percent": None,
+        "accuracy_percent": None,
+        "delta_percent": None,
+    }
 
 
 @pytest.mark.asyncio
@@ -271,10 +301,11 @@ async def test_only_learner_proposals_can_be_activated_and_accuracy_is_measured(
     memory_client: AsyncClient,
     memory_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    """A-035 is defended by verifying that only learner proposals can be activated and accuracy
-    is measured; this prevents drift in the authoritative graph, console, and accuracy
-    boundary.
+    """A-035/A-047 are defended by proving that audition is read-only and only a
+    subsequent explicit activation can replace the incumbent scorer.
     """
+    injection_id = UUID(int=9301)
+    memory_id = UUID(int=9302)
     async with memory_session_factory() as session, session.begin():
         base = await session.get(ScorerConfigRow, "v0")
         assert base is not None
@@ -295,6 +326,38 @@ async def test_only_learner_proposals_can_be_activated_and_accuracy_is_measured(
                 active=False,
             )
         )
+        session.add(
+            InjectionEvent(
+                event_uid="01KZ4R20000000000000000000",
+                injection_id=injection_id,
+                thread_id=UUID(int=9303),
+                agent_id="general",
+                machine_id="studio",
+                principal_id="owner",
+                project_key=None,
+                agent_kind="general",
+                prompt_text="audition fixture",
+                scorer_version="v0",
+                memory_id=memory_id,
+                memory_kind="fact",
+                features={
+                    "sem": 0.5,
+                    "kw": 0.25,
+                    "time": 1.0,
+                    "proj": 0.5,
+                    "freq": 0.0,
+                    "hist": 0.5,
+                    "_memory": {"label": "Audition memory", "body": "Audition body"},
+                    "_prepare": {"model_context_tokens": 8192},
+                },
+                score=0.4,
+                rank=1,
+                shown_as="injected",
+                actor_class="human",
+                outcome=None,
+                ts=datetime(2026, 8, 3, 15, tzinfo=UTC),
+            )
+        )
 
     before = await memory_client.post(
         "/v1/scorer-console/query",
@@ -303,6 +366,24 @@ async def test_only_learner_proposals_can_be_activated_and_accuracy_is_measured(
     assert before.status_code == 200
     accuracy = {item["version"]: item for item in before.json()["accuracy"]}
     assert accuracy["learner-proposal"]["accuracy_percent"] == "90"
+
+    audition = await memory_client.post(
+        "/v1/scorer-auditions",
+        json={
+            "principal_id": "owner",
+            "injection_id": str(injection_id),
+            "proposal_version": "learner-proposal",
+        },
+    )
+    assert audition.status_code == 200
+    assert audition.json()["instant"]["status"] == "ready"
+    async with memory_session_factory() as session:
+        incumbent = (
+            (await session.execute(select(ScorerConfigRow).where(ScorerConfigRow.active.is_(True))))
+            .scalars()
+            .one()
+        )
+    assert incumbent.version == "v0"
 
     activated = await memory_client.post(
         "/v1/scorer-configs/learner-proposal/activate",

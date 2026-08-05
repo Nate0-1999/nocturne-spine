@@ -62,6 +62,59 @@
         "title": "AccuracyPoint",
         "type": "object"
       },
+      "AccuracySlice": {
+        "additionalProperties": false,
+        "properties": {
+          "parameter_id": {
+            "$ref": "#/components/schemas/ScorerParameterId"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/AccuracySlicePoint"
+            },
+            "title": "Points",
+            "type": "array"
+          }
+        },
+        "required": [
+          "parameter_id",
+          "points"
+        ],
+        "title": "AccuracySlice",
+        "type": "object"
+      },
+      "AccuracySlicePoint": {
+        "additionalProperties": false,
+        "properties": {
+          "accuracy_percent": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SignedDecimalString"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "value",
+          "accuracy_percent"
+        ],
+        "title": "AccuracySlicePoint",
+        "type": "object"
+      },
       "ActivateScorerConfigRequest": {
         "additionalProperties": false,
         "properties": {
@@ -162,6 +215,11 @@
           "features": {
             "$ref": "#/components/schemas/MemoryFeatures"
           },
+          "injection_id": {
+            "format": "uuid",
+            "title": "Injection Id",
+            "type": "string"
+          },
           "outcome": {
             "anyOf": [
               {
@@ -199,6 +257,7 @@
         },
         "required": [
           "event_uid",
+          "injection_id",
           "ts",
           "scorer_version",
           "score",
@@ -427,8 +486,18 @@
           "event_uid": {
             "$ref": "#/components/schemas/NonBlankString"
           },
+          "force": {
+            "const": true,
+            "title": "Force",
+            "type": "boolean"
+          },
           "machine_id": {
             "$ref": "#/components/schemas/NonBlankString"
+          },
+          "simulation_digest": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Simulation Digest",
+            "type": "string"
           },
           "values": {
             "$ref": "#/components/schemas/ScorerValues"
@@ -438,6 +507,8 @@
           "event_uid",
           "base_version",
           "values",
+          "simulation_digest",
+          "force",
           "actor_class",
           "machine_id"
         ],
@@ -694,6 +765,46 @@
           "version"
         ],
         "title": "HealthResponse",
+        "type": "object"
+      },
+      "InstantSimulation": {
+        "additionalProperties": false,
+        "properties": {
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/ScorerComparisonRow"
+            },
+            "title": "Candidates",
+            "type": "array"
+          },
+          "injection_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Injection Id"
+          },
+          "status": {
+            "enum": [
+              "ready",
+              "not_requested",
+              "not_replayable"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "injection_id",
+          "candidates"
+        ],
+        "title": "InstantSimulation",
         "type": "object"
       },
       "JsonValue": {},
@@ -2299,6 +2410,111 @@
         "title": "ScorerActivationView",
         "type": "object"
       },
+      "ScorerAuditionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "injection_id": {
+            "format": "uuid",
+            "title": "Injection Id",
+            "type": "string"
+          },
+          "principal_id": {
+            "$ref": "#/components/schemas/NonBlankString"
+          },
+          "proposal_version": {
+            "$ref": "#/components/schemas/NonBlankString"
+          }
+        },
+        "required": [
+          "principal_id",
+          "injection_id",
+          "proposal_version"
+        ],
+        "title": "ScorerAuditionRequest",
+        "type": "object"
+      },
+      "ScorerAuditionResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "incumbent_version": {
+            "$ref": "#/components/schemas/NonBlankString"
+          },
+          "instant": {
+            "$ref": "#/components/schemas/InstantSimulation"
+          },
+          "proposal_version": {
+            "$ref": "#/components/schemas/NonBlankString"
+          }
+        },
+        "required": [
+          "incumbent_version",
+          "proposal_version",
+          "instant"
+        ],
+        "title": "ScorerAuditionResponse",
+        "type": "object"
+      },
+      "ScorerComparisonRow": {
+        "additionalProperties": false,
+        "properties": {
+          "disposition": {
+            "enum": [
+              "also_shown",
+              "would_add",
+              "would_drop",
+              "still_out"
+            ],
+            "title": "Disposition",
+            "type": "string"
+          },
+          "incumbent_rank": {
+            "$ref": "#/components/schemas/PositiveInt"
+          },
+          "incumbent_score": {
+            "$ref": "#/components/schemas/SignedDecimalString"
+          },
+          "incumbent_selected": {
+            "title": "Incumbent Selected",
+            "type": "boolean"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "memory_id": {
+            "format": "uuid",
+            "title": "Memory Id",
+            "type": "string"
+          },
+          "preview_rank": {
+            "$ref": "#/components/schemas/PositiveInt"
+          },
+          "preview_score": {
+            "$ref": "#/components/schemas/SignedDecimalString"
+          },
+          "preview_selected": {
+            "title": "Preview Selected",
+            "type": "boolean"
+          },
+          "score_delta": {
+            "$ref": "#/components/schemas/SignedDecimalString"
+          }
+        },
+        "required": [
+          "memory_id",
+          "label",
+          "incumbent_score",
+          "preview_score",
+          "score_delta",
+          "incumbent_rank",
+          "preview_rank",
+          "incumbent_selected",
+          "preview_selected",
+          "disposition"
+        ],
+        "title": "ScorerComparisonRow",
+        "type": "object"
+      },
       "ScorerConfigurationView": {
         "additionalProperties": false,
         "properties": {
@@ -2526,6 +2742,139 @@
           "default"
         ],
         "title": "ScorerDescriptor",
+        "type": "object"
+      },
+      "ScorerParameterId": {
+        "enum": [
+          "scorer.tau",
+          "scorer.top_k",
+          "scorer.budget_tokens",
+          "scorer.half_life_time_days",
+          "scorer.half_life_hist_days",
+          "scorer.weight.sem",
+          "scorer.weight.kw",
+          "scorer.weight.time",
+          "scorer.weight.proj",
+          "scorer.weight.freq",
+          "scorer.weight.hist"
+        ],
+        "type": "string"
+      },
+      "ScorerSimulationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "base_version": {
+            "$ref": "#/components/schemas/NonBlankString"
+          },
+          "injection_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Injection Id"
+          },
+          "principal_id": {
+            "$ref": "#/components/schemas/NonBlankString"
+          },
+          "slice_parameter_id": {
+            "$ref": "#/components/schemas/ScorerParameterId"
+          },
+          "values": {
+            "$ref": "#/components/schemas/ScorerValues"
+          }
+        },
+        "required": [
+          "principal_id",
+          "injection_id",
+          "base_version",
+          "values",
+          "slice_parameter_id"
+        ],
+        "title": "ScorerSimulationRequest",
+        "type": "object"
+      },
+      "ScorerSimulationResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "accuracy_percent": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SignedDecimalString"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "base_version": {
+            "$ref": "#/components/schemas/NonBlankString"
+          },
+          "delta_percent": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SignedDecimalString"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "holdout_dispositions": {
+            "$ref": "#/components/schemas/NonNegativeInt"
+          },
+          "incumbent_accuracy_percent": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SignedDecimalString"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "instant": {
+            "$ref": "#/components/schemas/InstantSimulation"
+          },
+          "simulation_digest": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Simulation Digest",
+            "type": "string"
+          },
+          "slice": {
+            "$ref": "#/components/schemas/AccuracySlice"
+          },
+          "source_boundary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NonBlankString"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "values": {
+            "$ref": "#/components/schemas/ScorerValues"
+          }
+        },
+        "required": [
+          "simulation_digest",
+          "base_version",
+          "values",
+          "source_boundary",
+          "holdout_dispositions",
+          "accuracy_percent",
+          "incumbent_accuracy_percent",
+          "delta_percent",
+          "instant",
+          "slice"
+        ],
+        "title": "ScorerSimulationResponse",
         "type": "object"
       },
       "ScorerValues": {
@@ -6303,6 +6652,254 @@
         ]
       }
     },
+    "/v1/scorer-auditions": {
+      "post": {
+        "operationId": "audition_scorer_v1_scorer_auditions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScorerAuditionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScorerAuditionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "description": "RFC 7807 problem details with an optional endpoint extension.",
+                  "properties": {
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    },
+                    "endpoint": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Endpoint"
+                    },
+                    "instance": {
+                      "title": "Instance",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "title": "ProblemDetail",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bearer token missing or invalid"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "description": "RFC 7807 problem details with an optional endpoint extension.",
+                  "properties": {
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    },
+                    "endpoint": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Endpoint"
+                    },
+                    "instance": {
+                      "title": "Instance",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "title": "ProblemDetail",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Scorer state changed or is not activatable"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "description": "RFC 7807 problem details with an optional endpoint extension.",
+                  "properties": {
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    },
+                    "endpoint": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Endpoint"
+                    },
+                    "instance": {
+                      "title": "Instance",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "title": "ProblemDetail",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Request does not match the endpoint contract"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "description": "RFC 7807 problem details with an optional endpoint extension.",
+                  "properties": {
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    },
+                    "endpoint": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Endpoint"
+                    },
+                    "instance": {
+                      "title": "Instance",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "title": "ProblemDetail",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Unexpected service failure"
+          }
+        },
+        "security": [
+          {
+            "StaticBearer": []
+          }
+        ],
+        "summary": "Audition Scorer",
+        "tags": [
+          "m2k"
+        ]
+      }
+    },
     "/v1/scorer-configs": {
       "post": {
         "operationId": "create_scorer_config_v1_scorer_configs_post",
@@ -7053,6 +7650,254 @@
           }
         ],
         "summary": "Scorer Console",
+        "tags": [
+          "m2k"
+        ]
+      }
+    },
+    "/v1/scorer-simulations": {
+      "post": {
+        "operationId": "simulate_scorer_v1_scorer_simulations_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScorerSimulationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScorerSimulationResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "description": "RFC 7807 problem details with an optional endpoint extension.",
+                  "properties": {
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    },
+                    "endpoint": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Endpoint"
+                    },
+                    "instance": {
+                      "title": "Instance",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "title": "ProblemDetail",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bearer token missing or invalid"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "description": "RFC 7807 problem details with an optional endpoint extension.",
+                  "properties": {
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    },
+                    "endpoint": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Endpoint"
+                    },
+                    "instance": {
+                      "title": "Instance",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "title": "ProblemDetail",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Scorer state changed or is not activatable"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "description": "RFC 7807 problem details with an optional endpoint extension.",
+                  "properties": {
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    },
+                    "endpoint": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Endpoint"
+                    },
+                    "instance": {
+                      "title": "Instance",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "title": "ProblemDetail",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Request does not match the endpoint contract"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "description": "RFC 7807 problem details with an optional endpoint extension.",
+                  "properties": {
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    },
+                    "endpoint": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Endpoint"
+                    },
+                    "instance": {
+                      "title": "Instance",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "title": "ProblemDetail",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Unexpected service failure"
+          }
+        },
+        "security": [
+          {
+            "StaticBearer": []
+          }
+        ],
+        "summary": "Simulate Scorer",
         "tags": [
           "m2k"
         ]

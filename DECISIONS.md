@@ -820,3 +820,26 @@ lets CURRENT and GLOBAL agree about the same physical database.
 Letting Harness connect directly to PostgreSQL would break the HTTP boundary.
 Having Spine guess daemon or owner-filesystem values would turn unavailable
 observations into false measurements.
+
+## 030 — Bind informed force to one replay authority [P1.2.3, P2.5]
+
+**Decision.** Adopt Garden A-047 and A-048. Spine owns instant frozen-gate
+replay, M2F-compatible held-out scoring, bounded accuracy slices, and learner
+proposal auditions. A human scorer replacement must present a SHA-256 receipt
+over its exact base version, eleven values, evidence boundary, denominator, and
+scores; Spine recomputes that receipt inside the same advisory-locked activation
+transaction and journals it with the immutable version change.
+
+Prepare events now retain the exact model-context limit in private replay
+metadata. Legacy gates without sufficient inputs return `not_replayable`.
+Integer controls enumerate their real bounded domains, so `top_k` produces
+eight distinct slice points rather than a duplicated ninth point.
+
+**Motivation.** The displayed consequence and the activated values must be the
+same fact. Reusing frozen injection inputs and the existing M2F referee avoids
+a persuasive browser approximation, while a recomputed content receipt closes
+the time-of-check/time-of-use gap without another persistence table.
+
+**Rejected alternatives.** A confirmation dialog proves only that a click
+happened. Trusting a browser-computed score would split authority. Persisting
+audition state would let a presentation overlay leak into commit or feedback.

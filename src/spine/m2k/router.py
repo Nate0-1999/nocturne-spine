@@ -7,9 +7,13 @@ from spine.m2k.contracts import (
     CreateScorerConfigRequest,
     MemoryGraphQuery,
     MemoryGraphSnapshot,
+    ScorerAuditionRequest,
+    ScorerAuditionResponse,
     ScorerConfigurationView,
     ScorerConsoleQuery,
     ScorerConsoleSnapshot,
+    ScorerSimulationRequest,
+    ScorerSimulationResponse,
 )
 from spine.m2k.service import M2KService, M2KStateError
 from spine.problems import ProblemJSONResponse, problem_openapi, problem_response
@@ -47,6 +51,36 @@ async def scorer_console(
 ) -> ScorerConsoleSnapshot | ProblemJSONResponse:
     try:
         return await _service(request).scorer_console(body)
+    except M2KStateError as error:
+        return _state_problem(request, error)
+
+
+@router.post(
+    "/v1/scorer-simulations",
+    response_model=ScorerSimulationResponse,
+    responses=_RESPONSES,
+)
+async def simulate_scorer(
+    body: ScorerSimulationRequest,
+    request: Request,
+) -> ScorerSimulationResponse | ProblemJSONResponse:
+    try:
+        return await _service(request).simulate(body)
+    except M2KStateError as error:
+        return _state_problem(request, error)
+
+
+@router.post(
+    "/v1/scorer-auditions",
+    response_model=ScorerAuditionResponse,
+    responses=_RESPONSES,
+)
+async def audition_scorer(
+    body: ScorerAuditionRequest,
+    request: Request,
+) -> ScorerAuditionResponse | ProblemJSONResponse:
+    try:
+        return await _service(request).audition(body)
     except M2KStateError as error:
         return _state_problem(request, error)
 

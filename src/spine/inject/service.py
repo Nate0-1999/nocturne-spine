@@ -607,6 +607,7 @@ def _event_values(
         "pin": candidate.pin,
         "updated_at": candidate.updated_at.isoformat(),
     }
+    features["_prepare"] = {"model_context_tokens": command.model_context_tokens}
     features["_retrieval"] = {"sources": list(candidate.pool_sources)}
     return {
         "event_uid": mint_ulid(),

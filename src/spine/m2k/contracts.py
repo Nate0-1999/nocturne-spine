@@ -34,6 +34,19 @@ type SignedDecimalString = Annotated[
 type NonNegativeInt = Annotated[StrictInt, Field(ge=0)]
 type PositiveInt = Annotated[StrictInt, Field(gt=0)]
 type FeatureName = Literal["sem", "kw", "time", "proj", "freq", "hist"]
+type ScorerParameterId = Literal[
+    "scorer.tau",
+    "scorer.top_k",
+    "scorer.budget_tokens",
+    "scorer.half_life_time_days",
+    "scorer.half_life_hist_days",
+    "scorer.weight.sem",
+    "scorer.weight.kw",
+    "scorer.weight.time",
+    "scorer.weight.proj",
+    "scorer.weight.freq",
+    "scorer.weight.hist",
+]
 
 
 class M2KContract(BaseModel):
@@ -179,6 +192,7 @@ class ContributionBreakdown(M2KContract):
 
 class CandidateScorePoint(M2KContract):
     event_uid: NonBlankString
+    injection_id: UUID
     ts: AwareDatetime
     scorer_version: NonBlankString
     score: SignedDecimalString
@@ -213,6 +227,8 @@ class CreateScorerConfigRequest(M2KContract):
     event_uid: NonBlankString
     base_version: NonBlankString
     values: ScorerValues
+    simulation_digest: Annotated[StrictStr, Field(pattern=r"^[0-9a-f]{64}$")]
+    force: Literal[True]
     actor_class: Literal["human"]
     machine_id: NonBlankString
 
@@ -221,6 +237,68 @@ class ActivateScorerConfigRequest(M2KContract):
     event_uid: NonBlankString
     actor_class: Literal["human"]
     machine_id: NonBlankString
+
+
+class ScorerSimulationRequest(M2KContract):
+    principal_id: NonBlankString
+    injection_id: UUID | None
+    base_version: NonBlankString
+    values: ScorerValues
+    slice_parameter_id: ScorerParameterId
+
+
+class ScorerComparisonRow(M2KContract):
+    memory_id: UUID
+    label: str
+    incumbent_score: SignedDecimalString
+    preview_score: SignedDecimalString
+    score_delta: SignedDecimalString
+    incumbent_rank: PositiveInt
+    preview_rank: PositiveInt
+    incumbent_selected: bool
+    preview_selected: bool
+    disposition: Literal["also_shown", "would_add", "would_drop", "still_out"]
+
+
+class InstantSimulation(M2KContract):
+    status: Literal["ready", "not_requested", "not_replayable"]
+    injection_id: UUID | None
+    candidates: list[ScorerComparisonRow]
+
+
+class AccuracySlicePoint(M2KContract):
+    value: float | int
+    accuracy_percent: SignedDecimalString | None
+
+
+class AccuracySlice(M2KContract):
+    parameter_id: ScorerParameterId
+    points: list[AccuracySlicePoint]
+
+
+class ScorerSimulationResponse(M2KContract):
+    simulation_digest: Annotated[StrictStr, Field(pattern=r"^[0-9a-f]{64}$")]
+    base_version: NonBlankString
+    values: ScorerValues
+    source_boundary: NonBlankString | None
+    holdout_dispositions: NonNegativeInt
+    accuracy_percent: SignedDecimalString | None
+    incumbent_accuracy_percent: SignedDecimalString | None
+    delta_percent: SignedDecimalString | None
+    instant: InstantSimulation
+    slice: AccuracySlice
+
+
+class ScorerAuditionRequest(M2KContract):
+    principal_id: NonBlankString
+    injection_id: UUID
+    proposal_version: NonBlankString
+
+
+class ScorerAuditionResponse(M2KContract):
+    incumbent_version: NonBlankString
+    proposal_version: NonBlankString
+    instant: InstantSimulation
 
 
 __all__ = [
@@ -232,8 +310,12 @@ __all__ = [
     "MemoryGraphQuery",
     "MemoryGraphSnapshot",
     "ScorerConfigurationView",
+    "ScorerAuditionRequest",
+    "ScorerAuditionResponse",
     "ScorerConsoleQuery",
     "ScorerConsoleSnapshot",
     "ScorerDescriptor",
+    "ScorerSimulationRequest",
+    "ScorerSimulationResponse",
     "ScorerValues",
 ]
