@@ -52,6 +52,9 @@ async def _receipt(
 async def test_baseline_balanced_drift_and_vitals_projection(
     memory_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
+    """A-037 is defended by verifying that baseline balanced drift and vitals projection; this
+    prevents drift in the broker-ledger reconciliation contract.
+    """
     await _receipt(memory_session_factory, "01K1M2M0000000000000000001", "1.000000")
     gateway = _Gateway(Decimal("10"), Decimal("10.25"), Decimal("10.30"))
     service = ReconciliationService(
@@ -85,6 +88,9 @@ async def test_baseline_balanced_drift_and_vitals_projection(
 async def test_unavailable_is_safe_and_reconciliation_rows_are_append_only(
     memory_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
+    """A-037 is defended by verifying that unavailable is safe and reconciliation rows are
+    append only; this prevents drift in the broker-ledger reconciliation contract.
+    """
     service = ReconciliationService(
         memory_session_factory,
         _Gateway(BrokerUnavailable("secret-bearing upstream error")),
@@ -105,6 +111,10 @@ async def test_unavailable_is_safe_and_reconciliation_rows_are_append_only(
 
 
 async def test_openrouter_client_reads_only_current_key_usage() -> None:
+    """A-037 is defended by verifying that openrouter client reads only current key usage; this
+    prevents drift in the broker-ledger reconciliation contract.
+    """
+
     async def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/api/v1/key"
         assert request.headers["authorization"] == "Bearer existing-key"
@@ -127,6 +137,10 @@ async def test_openrouter_client_reads_only_current_key_usage() -> None:
 
 
 async def test_scheduler_runs_immediately_and_stops_cleanly() -> None:
+    """A-037 is defended by verifying that scheduler runs immediately and stops cleanly; this
+    prevents drift in the broker-ledger reconciliation contract.
+    """
+
     class Service:
         def __init__(self) -> None:
             self.called = asyncio.Event()

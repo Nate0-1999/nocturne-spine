@@ -58,6 +58,9 @@ async def test_spend_route_is_atomic_idempotent_and_conflict_safe(
     memory_client: AsyncClient,
     memory_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
+    """A-027 is defended by verifying that spend route is atomic idempotent and conflict safe;
+    this prevents drift in the append-only spend-ledger contract.
+    """
     first = await memory_client.post("/v1/spend/events", json={"events": [_event()]})
     replay = await memory_client.post("/v1/spend/events", json={"events": [_event()]})
 
@@ -84,6 +87,9 @@ async def test_spend_route_is_atomic_idempotent_and_conflict_safe(
 async def test_spend_contract_rejects_zero_lines_bad_enums_and_duplicate_ids(
     memory_client: AsyncClient,
 ) -> None:
+    """A-027 is defended by verifying that spend contract rejects zero lines bad enums and
+    duplicate ids; this prevents drift in the append-only spend-ledger contract.
+    """
     zero = _event(quantity="0")
     duplicate = _event()
     bad_purpose = _event()
@@ -103,6 +109,9 @@ async def test_spend_event_database_is_append_only(
     memory_client: AsyncClient,
     memory_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
+    """A-027 is defended by verifying that spend event database is append only; this prevents
+    drift in the append-only spend-ledger contract.
+    """
     response = await memory_client.post("/v1/spend/events", json={"events": [_event()]})
     assert response.status_code == 200
 
@@ -120,6 +129,9 @@ async def test_canonical_views_are_double_run_deterministic_and_sentence_readabl
     memory_client: AsyncClient,
     memory_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
+    """A-027 is defended by verifying that canonical views are double run deterministic and
+    sentence readable; this prevents drift in the append-only spend-ledger contract.
+    """
     cached = _event(
         _SECOND_UID,
         quantity_type="input_cached",
@@ -174,6 +186,9 @@ async def test_canonical_views_are_double_run_deterministic_and_sentence_readabl
 async def test_receipt_language_is_shipped_as_database_comments(
     memory_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
+    """A-027 is defended by verifying that receipt language is shipped as database comments;
+    this prevents drift in the append-only spend-ledger contract.
+    """
     async with memory_session_factory() as session:
         table_comment = await session.scalar(
             text("SELECT obj_description('spend_event'::regclass, 'pg_class')")
@@ -209,11 +224,7 @@ async def _view_snapshot(
     async with session_factory() as session:
         for view in CANONICAL_SPEND_VIEWS:
             rows = (
-                (
-                    await session.execute(
-                        text(f"SELECT * FROM {view} ORDER BY {ordering[view]}")
-                    )
-                )
+                (await session.execute(text(f"SELECT * FROM {view} ORDER BY {ordering[view]}")))
                 .mappings()
                 .all()
             )

@@ -14,6 +14,9 @@ class _RecordingService:
 
 
 async def test_opt_in_scheduler_runs_after_interval_and_stops() -> None:
+    """A-031 is defended by verifying that opt in scheduler runs after interval and stops; this
+    prevents drift in the opt-in learner scheduling boundary.
+    """
     service = _RecordingService()
     scheduler = LearnerScheduler(service, interval_seconds=0.001)  # type: ignore[arg-type]
 

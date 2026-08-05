@@ -130,6 +130,9 @@ async def _search_tsv_matches(session: AsyncSession, memory_id: UUID, term: str)
 async def test_models_match_authoritative_c2_schema(
     database: tuple[AsyncEngine, async_sessionmaker[AsyncSession]],
 ) -> None:
+    """SPEC C.2 is defended by verifying that models match authoritative c2 schema; this
+    prevents drift in the authoritative revisioned storage contract.
+    """
     engine, _ = database
 
     def schema_diff(connection: Any) -> list[Any]:
@@ -698,6 +701,9 @@ async def test_models_match_authoritative_c2_schema(
 async def test_search_tsv_trigger_tracks_sources_and_overwrites_tampering(
     database: tuple[AsyncEngine, async_sessionmaker[AsyncSession]],
 ) -> None:
+    """SPEC C.2 is defended by verifying that search tsv trigger tracks sources and overwrites
+    tampering; this prevents drift in the authoritative revisioned storage contract.
+    """
     _, sessions = database
     memory_id = uuid4()
     await _seed_memory(
@@ -750,6 +756,9 @@ async def test_search_tsv_trigger_tracks_sources_and_overwrites_tampering(
 async def test_cas_updates_form_cloud_head_lineage(
     database: tuple[AsyncEngine, async_sessionmaker[AsyncSession]],
 ) -> None:
+    """SPEC C.2 is defended by verifying that cas updates form cloud head lineage; this
+    prevents drift in the authoritative revisioned storage contract.
+    """
     _, sessions = database
     memory_id = uuid4()
     root_uid, child_uid, grandchild_uid = (_rev_uid(value) for value in (101, 102, 103))
@@ -827,6 +836,9 @@ async def test_cas_updates_form_cloud_head_lineage(
 async def test_competing_cas_has_one_winner_and_current_409(
     database: tuple[AsyncEngine, async_sessionmaker[AsyncSession]],
 ) -> None:
+    """SPEC C.2 is defended by verifying that competing cas has one winner and current 409;
+    this prevents drift in the authoritative revisioned storage contract.
+    """
     _, sessions = database
     memory_id = uuid4()
     root_uid = _rev_uid(201)
@@ -892,6 +904,9 @@ async def test_competing_cas_has_one_winner_and_current_409(
 async def test_revision_append_failure_rolls_back_head_update(
     database: tuple[AsyncEngine, async_sessionmaker[AsyncSession]],
 ) -> None:
+    """SPEC C.2 is defended by verifying that revision append failure rolls back head update;
+    this prevents drift in the authoritative revisioned storage contract.
+    """
     _, sessions = database
     memory_id = uuid4()
     root_uid = _rev_uid(301)
@@ -932,6 +947,9 @@ async def test_revision_append_failure_rolls_back_head_update(
 async def test_lineage_error_rolls_back_when_caught_inside_outer_transaction(
     database: tuple[AsyncEngine, async_sessionmaker[AsyncSession]],
 ) -> None:
+    """SPEC C.2 is defended by verifying that lineage error rolls back when caught inside outer
+    transaction; this prevents drift in the authoritative revisioned storage contract.
+    """
     _, sessions = database
     memory_id = uuid4()
     async with sessions.begin() as session:
@@ -981,6 +999,9 @@ async def test_lineage_error_rolls_back_when_caught_inside_outer_transaction(
 async def test_cas_requires_a_caller_owned_transaction(
     database: tuple[AsyncEngine, async_sessionmaker[AsyncSession]],
 ) -> None:
+    """SPEC C.2 is defended by verifying that cas requires a caller owned transaction; this
+    prevents drift in the authoritative revisioned storage contract.
+    """
     _, sessions = database
     memory_id = uuid4()
     root_uid = _rev_uid(352)
@@ -1027,6 +1048,9 @@ async def test_cas_requires_a_caller_owned_transaction(
 
 
 def test_cas_command_requires_a_canonical_ulid() -> None:
+    """SPEC C.2 is defended by verifying that cas command requires a canonical ulid; this
+    prevents drift in the authoritative revisioned storage contract.
+    """
     with pytest.raises(ValueError, match="canonical 26-character ULID"):
         CasUpdate(
             memory_id=uuid4(),
@@ -1041,6 +1065,9 @@ def test_cas_command_requires_a_canonical_ulid() -> None:
 async def test_tombstone_is_revisioned_and_releases_active_label(
     database: tuple[AsyncEngine, async_sessionmaker[AsyncSession]],
 ) -> None:
+    """SPEC C.2 is defended by verifying that tombstone is revisioned and releases active
+    label; this prevents drift in the authoritative revisioned storage contract.
+    """
     _, sessions = database
     memory_id = uuid4()
     replacement_id = uuid4()

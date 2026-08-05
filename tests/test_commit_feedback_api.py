@@ -191,6 +191,10 @@ def _assert_problem(response: Response, status: int, endpoint: str) -> dict[str,
 
 
 def test_renderer_encodes_control_attributes_and_breaks_rank_ties_by_memory_id() -> None:
+    """A-036 is defended by verifying that renderer encodes control attributes and breaks rank
+    ties by memory id; this prevents drift in the gate feedback and citation-frequency
+    contract.
+    """
     later = {
         "rank": 7,
         "memory_id": UUID(int=2),
@@ -228,6 +232,9 @@ async def test_commit_mixed_gate_decisions_render_frozen_and_return_current_wron
     memory_client: AsyncClient,
     memory_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
+    """A-036 is defended by verifying that commit mixed gate decisions render frozen and return
+    current wrong; this prevents drift in the gate feedback and citation-frequency contract.
+    """
     injection_id = UUID(int=9001)
     memory_ids = [UUID(int=value) for value in range(1001, 1007)]
     current = [
@@ -429,6 +436,10 @@ async def test_third_never_from_near_miss_quarantines_and_zero_card_commit_is_ca
     embedding_provider: ScriptedEmbeddingProvider,
     memory_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
+    """A-036 is defended by verifying that third never from near miss quarantines and zero card
+    commit is canonical; this prevents drift in the gate feedback and citation-frequency
+    contract.
+    """
     memory_id = UUID(int=2001)
     await _insert_memory(
         memory_session_factory,
@@ -563,6 +574,10 @@ async def test_never_uses_event_scorer_version_and_preserves_terminal_status(
     memory_client: AsyncClient,
     memory_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
+    """A-036 is defended by verifying that never uses event scorer version and preserves
+    terminal status; this prevents drift in the gate feedback and citation-frequency
+    contract.
+    """
     historic_version = "historic-never"
     active_id, tombstoned_id = UUID(int=2101), UUID(int=2102)
     await _insert_memory(
@@ -666,6 +681,9 @@ async def test_commit_validation_and_concurrent_retry_are_atomic(
     memory_session_factory: async_sessionmaker[AsyncSession],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """A-036 is defended by verifying that commit validation and concurrent retry are atomic;
+    this prevents drift in the gate feedback and citation-frequency contract.
+    """
     injection_id = UUID(int=9201)
     injected_id, near_id = UUID(int=3001), UUID(int=3002)
     for memory_id, label in ((injected_id, "Injected"), (near_id, "Near")):
@@ -778,6 +796,9 @@ async def test_cross_injection_addbacks_serialize_counter_and_last_timestamp(
     memory_session_factory: async_sessionmaker[AsyncSession],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """A-036 is defended by verifying that cross injection addbacks serialize counter and last
+    timestamp; this prevents drift in the gate feedback and citation-frequency contract.
+    """
     memory_id = UUID(int=3501)
     injection_ids = (UUID(int=9251), UUID(int=9252))
     await _insert_memory(
@@ -872,6 +893,9 @@ async def test_all_near_miss_empty_commit_is_repeatable_no_op(
     memory_client: AsyncClient,
     memory_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
+    """A-036 is defended by verifying that all near miss empty commit is repeatable no op; this
+    prevents drift in the gate feedback and citation-frequency contract.
+    """
     injection_id, memory_id = UUID(int=9261), UUID(int=3601)
     await _insert_memory(
         memory_session_factory,
@@ -1164,12 +1188,8 @@ async def test_autonomous_entry_accepts_one_citation_transition(
         "signal": "cited",
     }
 
-    assert _assert_json(await memory_client.post("/v1/feedback", json=request), 200) == {
-        "ok": True
-    }
-    assert _assert_json(await memory_client.post("/v1/feedback", json=request), 200) == {
-        "ok": True
-    }
+    assert _assert_json(await memory_client.post("/v1/feedback", json=request), 200) == {"ok": True}
+    assert _assert_json(await memory_client.post("/v1/feedback", json=request), 200) == {"ok": True}
 
     async with memory_session_factory() as session:
         event = (
@@ -1190,6 +1210,9 @@ async def test_mid_thread_removed_can_be_human_readded_and_removed_again(
     memory_client: AsyncClient,
     memory_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
+    """A-036 is defended by verifying that mid thread removed can be human readded and removed
+    again; this prevents drift in the gate feedback and citation-frequency contract.
+    """
     injection_id = UUID(int=9401)
     memory_id = UUID(int=4401)
     await _insert_memory(
@@ -1250,6 +1273,9 @@ async def test_lineage_failures_roll_back_commit_and_feedback(
     memory_session_factory: async_sessionmaker[AsyncSession],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """A-036 is defended by verifying that lineage failures roll back commit and feedback; this
+    prevents drift in the gate feedback and citation-frequency contract.
+    """
     successful_commit_id, commit_id, feedback_id = (
         UUID(int=5000),
         UUID(int=5001),

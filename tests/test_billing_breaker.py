@@ -153,6 +153,9 @@ def _load_main_adapter(
 
 
 def test_below_budget_fixture_never_constructs_gateway() -> None:
+    """P4 is defended by verifying that below budget fixture never constructs gateway; this
+    prevents drift in the fixed-project billing breaker safety boundary.
+    """
     factory = FakeFactory(FakeGateway())
     logs: list[str] = []
 
@@ -178,6 +181,9 @@ def test_below_budget_fixture_never_constructs_gateway() -> None:
 
 @pytest.mark.parametrize("fixture_name", ["at_budget", "above_budget"])
 def test_equality_and_overage_detach_the_fixed_project(fixture_name: str) -> None:
+    """P4 is defended by verifying that equality and overage detach the fixed project; this
+    prevents drift in the fixed-project billing breaker safety boundary.
+    """
     factory = FakeFactory(FakeGateway())
     logs: list[str] = []
 
@@ -196,6 +202,9 @@ def test_equality_and_overage_detach_the_fixed_project(fixture_name: str) -> Non
 
 
 def test_duplicate_delivery_repeats_the_same_idempotent_desired_state() -> None:
+    """P4 is defended by verifying that duplicate delivery repeats the same idempotent desired
+    state; this prevents drift in the fixed-project billing breaker safety boundary.
+    """
     gateway = FakeGateway()
     factory = FakeFactory(gateway)
     event = _event(_fixture("at_budget"))
@@ -236,6 +245,9 @@ def test_duplicate_delivery_repeats_the_same_idempotent_desired_state() -> None:
 def test_invalid_or_foreign_notifications_are_logged_and_acknowledged(
     event: object, reason: str
 ) -> None:
+    """P4 is defended by verifying that invalid or foreign notifications are logged and
+    acknowledged; this prevents drift in the fixed-project billing breaker safety boundary.
+    """
     factory = FakeFactory(FakeGateway())
     logs: list[str] = []
 
@@ -249,6 +261,9 @@ def test_invalid_or_foreign_notifications_are_logged_and_acknowledged(
 
 
 def test_malformed_base64_and_json_never_reach_the_gateway() -> None:
+    """P4 is defended by verifying that malformed base64 and json never reach the gateway; this
+    prevents drift in the fixed-project billing breaker safety boundary.
+    """
     factory = FakeFactory(FakeGateway())
     attributes = {
         "billingAccountId": ACCOUNT_ID,
@@ -277,6 +292,9 @@ def test_malformed_base64_and_json_never_reach_the_gateway() -> None:
 
 
 def test_billing_api_failure_is_logged_and_propagated() -> None:
+    """P4 is defended by verifying that billing api failure is logged and propagated; this
+    prevents drift in the fixed-project billing breaker safety boundary.
+    """
     gateway = FakeGateway(error=PermissionError("fixture denial"))
     factory = FakeFactory(gateway)
     logs: list[str] = []
@@ -294,6 +312,9 @@ def test_cloud_event_entrypoint_builds_the_exact_sdk_detach_request(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    """P4 is defended by verifying that cloud event entrypoint builds the exact sdk detach
+    request; this prevents drift in the fixed-project billing breaker safety boundary.
+    """
     main, fake_client = _load_main_adapter(monkeypatch, response_billing_enabled=False)
     monkeypatch.setenv("EXPECTED_BILLING_ACCOUNT_ID", ACCOUNT_ID)
     monkeypatch.setenv("EXPECTED_BUDGET_ID", BUDGET_ID)
@@ -320,6 +341,9 @@ def test_cloud_event_entrypoint_rejects_an_unconfirmed_postcondition(
     billing_enabled: bool,
     billing_account_name: str,
 ) -> None:
+    """P4 is defended by verifying that cloud event entrypoint rejects an unconfirmed
+    postcondition; this prevents drift in the fixed-project billing breaker safety boundary.
+    """
     main, fake_client = _load_main_adapter(
         monkeypatch,
         response_billing_enabled=billing_enabled,
@@ -338,6 +362,9 @@ def test_cloud_event_entrypoint_rejects_an_unconfirmed_postcondition(
 
 
 def test_deploy_script_is_default_inert_and_least_privileged() -> None:
+    """P4 is defended by verifying that deploy script is default inert and least privileged;
+    this prevents drift in the fixed-project billing breaker safety boundary.
+    """
     subprocess.run(["bash", "-n", str(BREAKER_DIR / "deploy.sh")], check=True)
     script = (BREAKER_DIR / "deploy.sh").read_text()
 
@@ -420,6 +447,9 @@ def test_deploy_script_is_default_inert_and_least_privileged() -> None:
 
 
 def test_runbook_proves_subscription_and_resource_absence_from_lists() -> None:
+    """P4 is defended by verifying that runbook proves subscription and resource absence from
+    lists; this prevents drift in the fixed-project billing breaker safety boundary.
+    """
     runbook = (BREAKER_DIR / "README.md").read_text()
     recovery = runbook.split("## Recovery and billing reattach", maxsplit=1)[1]
 
@@ -471,6 +501,10 @@ def _budget(*, topic: str = "") -> dict[str, Any]:
 
 
 def test_deploy_budget_validator_accepts_only_disconnected_or_exact_armed_phase() -> None:
+    """P4 is defended by verifying that deploy budget validator accepts only disconnected or
+    exact armed phase; this prevents drift in the fixed-project billing breaker safety
+    boundary.
+    """
     topic = "projects/n8-memory-palace/topics/billing-breaker"
 
     deployment_checks.validate_budget(_budget(), project_number="123456789", expected_topic="")
@@ -500,6 +534,9 @@ def test_deploy_budget_validator_accepts_only_disconnected_or_exact_armed_phase(
     ],
 )
 def test_deploy_budget_validator_rejects_narrowing_filters(field: str, value: object) -> None:
+    """P4 is defended by verifying that deploy budget validator rejects narrowing filters; this
+    prevents drift in the fixed-project billing breaker safety boundary.
+    """
     budget = copy.deepcopy(_budget())
     budget["budgetFilter"][field] = value
 
@@ -508,6 +545,9 @@ def test_deploy_budget_validator_rejects_narrowing_filters(field: str, value: ob
 
 
 def test_deploy_budget_validator_rejects_extra_project_and_wrong_topic() -> None:
+    """P4 is defended by verifying that deploy budget validator rejects extra project and wrong
+    topic; this prevents drift in the fixed-project billing breaker safety boundary.
+    """
     budget = _budget()
     budget["budgetFilter"]["projects"].append("projects/987654321")
 
@@ -522,6 +562,9 @@ def test_deploy_budget_validator_rejects_extra_project_and_wrong_topic() -> None
 
 
 def test_deploy_budget_validator_requires_billing_account_ownership() -> None:
+    """P4 is defended by verifying that deploy budget validator requires billing account
+    ownership; this prevents drift in the fixed-project billing breaker safety boundary.
+    """
     budget = _budget()
     budget["ownershipScope"] = "ALL_USERS"
 
@@ -534,6 +577,9 @@ def test_deploy_budget_validator_requires_billing_account_ownership() -> None:
 
 
 def test_deploy_topic_policy_allows_only_the_budget_publisher() -> None:
+    """P4 is defended by verifying that deploy topic policy allows only the budget publisher;
+    this prevents drift in the fixed-project billing breaker safety boundary.
+    """
     policy = {
         "bindings": [
             {
@@ -590,6 +636,9 @@ def test_deploy_topic_policy_allows_only_the_budget_publisher() -> None:
 def test_deploy_role_permissions_reject_untrusted_destructive_access(
     role_name: str, permission: str
 ) -> None:
+    """P4 is defended by verifying that deploy role permissions reject untrusted destructive
+    access; this prevents drift in the fixed-project billing breaker safety boundary.
+    """
     trusted = "user:deployer@example.com"
     runtime = "serviceAccount:billing-breaker-runtime@n8-memory-palace.iam.gserviceaccount.com"
     role = {"includedPermissions": [permission], "name": role_name}
@@ -617,6 +666,10 @@ def test_deploy_role_permissions_reject_untrusted_destructive_access(
 
 
 def test_deploy_role_permissions_allow_only_current_project_service_agents() -> None:
+    """P4 is defended by verifying that deploy role permissions allow only current project
+    service agents; this prevents drift in the fixed-project billing breaker safety
+    boundary.
+    """
     role_name = "roles/cloudfunctions.serviceAgent"
     role = {"includedPermissions": ["run.routes.invoke"], "name": role_name}
     common = {
@@ -679,6 +732,9 @@ def test_deploy_role_permissions_allow_only_current_project_service_agents() -> 
 
 
 def test_deploy_billing_role_and_public_members_are_exact() -> None:
+    """P4 is defended by verifying that deploy billing role and public members are exact; this
+    prevents drift in the fixed-project billing breaker safety boundary.
+    """
     trusted = "user:deployer@example.com"
     runtime = "serviceAccount:billing-breaker-runtime@n8-memory-palace.iam.gserviceaccount.com"
     billing_role = {
@@ -734,6 +790,9 @@ def test_deploy_billing_role_and_public_members_are_exact() -> None:
     ],
 )
 def test_deploy_billing_account_control_is_human_only(role_name: str, permission: str) -> None:
+    """P4 is defended by verifying that deploy billing account control is human only; this
+    prevents drift in the fixed-project billing breaker safety boundary.
+    """
     trusted = "user:deployer@example.com"
     role = {"includedPermissions": [permission], "name": role_name}
 
@@ -753,6 +812,9 @@ def test_deploy_billing_account_control_is_human_only(role_name: str, permission
 
 
 def test_deploy_project_bindings_and_billing_manager_membership_are_exact() -> None:
+    """P4 is defended by verifying that deploy project bindings and billing manager membership
+    are exact; this prevents drift in the fixed-project billing breaker safety boundary.
+    """
     runtime = "serviceAccount:billing-breaker-runtime@n8-memory-palace.iam.gserviceaccount.com"
     empty_policy = {"bindings": [{"members": ["user:a@example.com"], "role": "roles/viewer"}]}
     assert deployment_checks.project_bindings(empty_policy) == [
@@ -803,6 +865,9 @@ def test_deploy_project_bindings_and_billing_manager_membership_are_exact() -> N
 
 
 def test_deploy_resource_absence_uses_successful_exact_list_results() -> None:
+    """P4 is defended by verifying that deploy resource absence uses successful exact list
+    results; this prevents drift in the fixed-project billing breaker safety boundary.
+    """
     deployment_checks.validate_absent_resources(
         [{"name": "projects/n8-memory-palace/topics/other"}],
         field="name",
@@ -823,6 +888,9 @@ def test_deploy_resource_absence_uses_successful_exact_list_results() -> None:
 
 
 def test_deploy_topic_subscription_list_includes_cross_project_names() -> None:
+    """P4 is defended by verifying that deploy topic subscription list includes cross project
+    names; this prevents drift in the fixed-project billing breaker safety boundary.
+    """
     expected = [
         "projects/attacker-project/subscriptions/retained",
         "projects/n8-memory-palace/subscriptions/eventarc-managed",
@@ -856,6 +924,9 @@ def test_deploy_topic_subscription_list_includes_cross_project_names() -> None:
 
 
 def test_deploy_message_path_resources_forbid_single_message_transforms() -> None:
+    """P4 is defended by verifying that deploy message path resources forbid single message
+    transforms; this prevents drift in the fixed-project billing breaker safety boundary.
+    """
     topic = "projects/n8-memory-palace/topics/billing-breaker"
     subscription = "projects/n8-memory-palace/subscriptions/eventarc-managed"
     deployment_checks.validate_message_resource(
@@ -907,6 +978,9 @@ def test_deploy_message_path_resources_forbid_single_message_transforms() -> Non
 def test_deploy_rejects_old_eventarc_paths_to_fresh_d2_names(
     trigger: dict[str, Any],
 ) -> None:
+    """P4 is defended by verifying that deploy rejects old eventarc paths to fresh d2 names;
+    this prevents drift in the fixed-project billing breaker safety boundary.
+    """
     common = {
         "topic_resource": "projects/n8-memory-palace/topics/billing-breaker",
         "function_resource": (
@@ -932,6 +1006,9 @@ def test_deploy_rejects_old_eventarc_paths_to_fresh_d2_names(
 
 
 def test_deploy_service_account_policy_must_be_empty() -> None:
+    """P4 is defended by verifying that deploy service account policy must be empty; this
+    prevents drift in the fixed-project billing breaker safety boundary.
+    """
     deployment_checks.validate_empty_policy({}, resource="runtime service account")
 
     with pytest.raises(deployment_checks.UnsafeDeployment, match="direct IAM"):
@@ -949,6 +1026,9 @@ def test_deploy_service_account_policy_must_be_empty() -> None:
 
 
 def test_deploy_function_and_run_policy_pin_all_identities() -> None:
+    """P4 is defended by verifying that deploy function and run policy pin all identities; this
+    prevents drift in the fixed-project billing breaker safety boundary.
+    """
     runtime = "billing-breaker-runtime@n8-memory-palace.iam.gserviceaccount.com"
     trigger = "billing-breaker-trigger@n8-memory-palace.iam.gserviceaccount.com"
     build = (
@@ -1087,6 +1167,9 @@ def test_deploy_function_and_run_policy_pin_all_identities() -> None:
 def test_deploy_function_rejects_wrong_runtime_or_identity_configuration(
     path: tuple[str, ...], value: str, message: str
 ) -> None:
+    """P4 is defended by verifying that deploy function rejects wrong runtime or identity
+    configuration; this prevents drift in the fixed-project billing breaker safety boundary.
+    """
     runtime = "billing-breaker-runtime@n8-memory-palace.iam.gserviceaccount.com"
     trigger = "billing-breaker-trigger@n8-memory-palace.iam.gserviceaccount.com"
     build = (
@@ -1139,6 +1222,9 @@ def test_deploy_function_rejects_wrong_runtime_or_identity_configuration(
 
 
 def test_deploy_run_policy_rejects_public_or_extra_invokers() -> None:
+    """P4 is defended by verifying that deploy run policy rejects public or extra invokers;
+    this prevents drift in the fixed-project billing breaker safety boundary.
+    """
     trigger = "billing-breaker-trigger@n8-memory-palace.iam.gserviceaccount.com"
     for member in ("allUsers", "user:other@example.com"):
         policy = {

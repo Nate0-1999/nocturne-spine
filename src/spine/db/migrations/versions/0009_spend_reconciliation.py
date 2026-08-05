@@ -67,10 +67,7 @@ def upgrade() -> None:
         )
         """
     )
-    op.execute(
-        "CREATE INDEX spend_reconciliation_ts_idx "
-        "ON spend_reconciliation (ts, event_uid)"
-    )
+    op.execute("CREATE INDEX spend_reconciliation_ts_idx ON spend_reconciliation (ts, event_uid)")
     op.execute(
         """
         CREATE FUNCTION spend_reconciliation_reject_mutation() RETURNS trigger

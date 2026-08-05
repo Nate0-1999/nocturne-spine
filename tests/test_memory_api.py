@@ -71,6 +71,9 @@ async def test_create_writes_root_attribution_and_checks_label_before_embedding(
     embedding_provider: ScriptedEmbeddingProvider,
     memory_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
+    """SPEC C.4 is defended by verifying that create writes root attribution and checks label
+    before embedding; this prevents drift in the memory API and revision contract.
+    """
     embedding_provider.set("Original body", basis_vector(0))
 
     created_response = await memory_client.post(
@@ -164,6 +167,9 @@ async def test_create_hard_duplicate_is_forced_but_scoped_to_principal(
     memory_client: AsyncClient,
     embedding_provider: ScriptedEmbeddingProvider,
 ) -> None:
+    """SPEC C.4 is defended by verifying that create hard duplicate is forced but scoped to
+    principal; this prevents drift in the memory API and revision contract.
+    """
     embedding_provider.set("Source", basis_vector(0)).set("Other owner", basis_vector(0)).set(
         "Near copy", vector_with_cosine(0.96)
     )
@@ -214,6 +220,9 @@ async def test_concurrent_same_principal_dedup_creates_only_one_root(
     memory_client: AsyncClient,
     embedding_provider: ScriptedEmbeddingProvider,
 ) -> None:
+    """SPEC C.4 is defended by verifying that concurrent same principal dedup creates only one
+    root; this prevents drift in the memory API and revision contract.
+    """
     embedding_provider.set("Concurrent A", basis_vector(0)).set("Concurrent B", basis_vector(0))
 
     responses = await asyncio.gather(
@@ -241,6 +250,9 @@ async def test_create_similar_band_requires_force_retry(
     memory_client: AsyncClient,
     embedding_provider: ScriptedEmbeddingProvider,
 ) -> None:
+    """SPEC C.4 is defended by verifying that create similar band requires force retry; this
+    prevents drift in the memory API and revision contract.
+    """
     lower_vector = vector_with_cosine(0.82)
     lower_vector[1] *= -1
     embedding_provider.set("Higher", vector_with_cosine(0.85)).set("Lower", lower_vector).set(
@@ -295,6 +307,9 @@ async def test_similar_equal_scores_break_ties_by_memory_id(
     memory_client: AsyncClient,
     embedding_provider: ScriptedEmbeddingProvider,
 ) -> None:
+    """SPEC C.4 is defended by verifying that similar equal scores break ties by memory id;
+    this prevents drift in the memory API and revision contract.
+    """
     positive = vector_with_cosine(0.85)
     negative = list(positive)
     negative[1] *= -1
@@ -331,6 +346,9 @@ async def test_patch_cas_reembeds_and_returns_exact_stale_conflict(
     embedding_provider: ScriptedEmbeddingProvider,
     memory_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
+    """SPEC C.4 is defended by verifying that patch cas reembeds and returns exact stale
+    conflict; this prevents drift in the memory API and revision contract.
+    """
     embedding_provider.set("Before", basis_vector(0)).set("After", basis_vector(1)).set(
         "Stale body", basis_vector(2)
     )
@@ -395,6 +413,9 @@ async def test_origin_path_patch_is_cas_metadata_and_null_is_omitted(
     embedding_provider: ScriptedEmbeddingProvider,
     memory_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
+    """SPEC C.4 is defended by verifying that origin path patch is cas metadata and null is
+    omitted; this prevents drift in the memory API and revision contract.
+    """
     embedding_provider.set("Located body", basis_vector(0))
     original = _assert_json(
         await memory_client.post(
@@ -467,6 +488,9 @@ async def test_patch_not_found_and_noop_are_problem_json(
     memory_client: AsyncClient,
     embedding_provider: ScriptedEmbeddingProvider,
 ) -> None:
+    """SPEC C.4 is defended by verifying that patch not found and noop are problem json; this
+    prevents drift in the memory API and revision contract.
+    """
     missing_id = str(uuid4())
     missing = await memory_client.patch(
         f"/v1/memories/{missing_id}",
@@ -497,6 +521,9 @@ async def test_memory_limits_and_zero_vectors_fail_before_any_write(
     embedding_provider: ScriptedEmbeddingProvider,
     memory_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
+    """SPEC C.4 is defended by verifying that memory limits and zero vectors fail before any
+    write; this prevents drift in the memory API and revision contract.
+    """
     long_label = "L" * 65
     long_body = "token " * 129
     assert len(tiktoken.get_encoding("cl100k_base").encode(long_body)) > 128
@@ -547,6 +574,9 @@ async def test_patch_label_conflict_covers_reactivation_and_stale_precedence(
     embedding_provider: ScriptedEmbeddingProvider,
     memory_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
+    """SPEC C.4 is defended by verifying that patch label conflict covers reactivation and
+    stale precedence; this prevents drift in the memory API and revision contract.
+    """
     embedding_provider.set("First", basis_vector(0)).set("Second", basis_vector(0)).set(
         "Third", basis_vector(2)
     )
@@ -624,6 +654,9 @@ async def test_list_filters_total_paging_and_stable_order(
     embedding_provider: ScriptedEmbeddingProvider,
     memory_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
+    """SPEC C.4 is defended by verifying that list filters total paging and stable order; this
+    prevents drift in the memory API and revision contract.
+    """
     embedding_provider.set("Alpha body", basis_vector(0)).set(
         "Body holds NeEdLe", basis_vector(1)
     ).set("Keyword only %_\\ marker", basis_vector(2))

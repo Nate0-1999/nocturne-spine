@@ -75,18 +75,14 @@ class LearnerService:
                 await session.execute(
                     text("SELECT pg_advisory_xact_lock(:key)"), {"key": _ADVISORY_LOCK_KEY}
                 )
-                configs = (
-                    (await session.execute(select(ScorerConfigRow))).scalars().all()
-                )
+                configs = (await session.execute(select(ScorerConfigRow))).scalars().all()
                 active_rows = [row for row in configs if row.active]
                 if len(active_rows) != 1:
                     raise LearnerDataError(
                         f"expected exactly one active scorer_config row; found {len(active_rows)}"
                     )
                 active_row = active_rows[0]
-                runtime_configs = {
-                    row.version: _runtime_config(row) for row in configs
-                }
+                runtime_configs = {row.version: _runtime_config(row) for row in configs}
                 incumbent = runtime_configs[active_row.version]
                 event_rows = (
                     (
@@ -320,9 +316,7 @@ def _features(row: InjectionEvent) -> tuple[float, float, float, float, float, f
             raise LearnerDataError(f"event {row.event_uid} feature {name} is not numeric")
         normalized = float(value)
         if not math.isfinite(normalized) or not 0.0 <= normalized <= 1.0:
-            raise LearnerDataError(
-                f"event {row.event_uid} feature {name} is outside [0,1]"
-            )
+            raise LearnerDataError(f"event {row.event_uid} feature {name} is outside [0,1]")
         values.append(normalized)
     return tuple(values)  # type: ignore[return-value]
 

@@ -49,6 +49,9 @@ def _example(
 
 
 def test_disposition_and_hygiene_are_actor_classed_without_self_training() -> None:
+    """A-031 is defended by verifying that disposition and hygiene are actor classed without
+    self training; this prevents drift in the deterministic learner and replay scoreboard.
+    """
     discount = Decimal("0.25")
 
     assert disposition("kept", "human", passive_discount=discount) == (
@@ -79,6 +82,9 @@ def test_disposition_and_hygiene_are_actor_classed_without_self_training() -> No
 
 
 def test_time_split_keeps_whole_gates_and_uses_newest_for_holdout() -> None:
+    """A-031 is defended by verifying that time split keeps whole gates and uses newest for
+    holdout; this prevents drift in the deterministic learner and replay scoreboard.
+    """
     examples = tuple(
         _example(
             event=index,
@@ -99,6 +105,9 @@ def test_time_split_keeps_whole_gates_and_uses_newest_for_holdout() -> None:
 
 
 def test_whole_log_fit_is_deterministic_simplex_constrained_and_shrunk() -> None:
+    """A-031 is defended by verifying that whole log fit is deterministic simplex constrained
+    and shrunk; this prevents drift in the deterministic learner and replay scoreboard.
+    """
     examples = (
         _example(
             event=1,
@@ -141,6 +150,10 @@ def test_whole_log_fit_is_deterministic_simplex_constrained_and_shrunk() -> None
 
 
 def test_binary_replay_counts_each_override_and_applies_passive_discount() -> None:
+    """A-031 is defended by verifying that binary replay counts each override and applies
+    passive discount; this prevents drift in the deterministic learner and replay
+    scoreboard.
+    """
     examples = (
         _example(
             event=3,
@@ -178,6 +191,9 @@ def test_binary_replay_counts_each_override_and_applies_passive_discount() -> No
 
 
 def test_replay_winner_requires_margin_except_for_exact_cheaper_tie() -> None:
+    """A-031 is defended by verifying that replay winner requires margin except for exact
+    cheaper tie; this prevents drift in the deterministic learner and replay scoreboard.
+    """
     incumbent = ReplayScore(
         disagreements=4,
         weighted_disagreements=Decimal("4"),

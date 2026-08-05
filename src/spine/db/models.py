@@ -209,9 +209,7 @@ class ApprovalQueueItem(Base):
         PGUUID(as_uuid=True), ForeignKey("memory_unit.id"), nullable=False
     )
     principal_id: Mapped[str] = mapped_column(Text, nullable=False)
-    birthplace: Mapped[str] = mapped_column(
-        Text, nullable=False, server_default=text("'thread'")
-    )
+    birthplace: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'thread'"))
     birthplace_thread_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
     batch_uid: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
     source_name: Mapped[str | None] = mapped_column(Text)
@@ -372,11 +370,7 @@ class SpendEvent(Base):
         Index("spend_event_thread_id_idx", "thread_id"),
         Index("spend_event_run_id_idx", "run_id"),
         Index("spend_event_memory_id_idx", "memory_id"),
-        {
-            "comment": (
-                "LEDGER receipt line: one immutable sentence for one purchased price class."
-            )
-        },
+        {"comment": ("LEDGER receipt line: one immutable sentence for one purchased price class.")},
     )
 
     event_uid: Mapped[str] = mapped_column(
@@ -398,8 +392,7 @@ class SpendEvent(Base):
         Text,
         nullable=False,
         comment=(
-            "The price class bought: fresh input, cached input, cache write, output, "
-            "or reasoning."
+            "The price class bought: fresh input, cached input, cache write, output, or reasoning."
         ),
     )
     unit_of_measure: Mapped[str] = mapped_column(
@@ -420,8 +413,7 @@ class SpendEvent(Base):
         Text,
         nullable=False,
         comment=(
-            "Honesty column: measured, allocated, or estimated; allocation is never "
-            "measurement."
+            "Honesty column: measured, allocated, or estimated; allocation is never measurement."
         ),
     )
     behavior: Mapped[str] = mapped_column(
@@ -433,8 +425,7 @@ class SpendEvent(Base):
         Text,
         nullable=False,
         comment=(
-            "Why bought: building, extraction, curation, judge, remember, embedding, "
-            "or scout."
+            "Why bought: building, extraction, curation, judge, remember, embedding, or scout."
         ),
     )
     principal_id: Mapped[str | None] = mapped_column(
@@ -503,8 +494,7 @@ class SpendReconciliation(Base):
         CheckConstraint("tolerance_usd >= 0", name="spend_reconciliation_tolerance_check"),
         CheckConstraint("unpriced_lines >= 0", name="spend_reconciliation_unpriced_check"),
         CheckConstraint(
-            "error_code IS NULL OR error_code IN "
-            "('broker_unavailable','invalid_broker_response')",
+            "error_code IS NULL OR error_code IN ('broker_unavailable','invalid_broker_response')",
             name="spend_reconciliation_error_check",
         ),
         CheckConstraint(
@@ -582,9 +572,7 @@ class ScorerActivation(Base):
     )
 
     event_uid: Mapped[str] = mapped_column(Text, primary_key=True)
-    version: Mapped[str] = mapped_column(
-        Text, ForeignKey("scorer_config.version"), nullable=False
-    )
+    version: Mapped[str] = mapped_column(Text, ForeignKey("scorer_config.version"), nullable=False)
     previous_version: Mapped[str] = mapped_column(
         Text, ForeignKey("scorer_config.version"), nullable=False
     )

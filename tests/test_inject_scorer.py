@@ -72,6 +72,9 @@ def test_golden_six_feature_score_uses_enacted_tokenizer_and_snapshot_clock() ->
     # sem=.6; kw=3/3=1; time=2^(-14/14)=.5; proj=1;
     # freq=5/10=.5; hist=2^(-7/7)=.5.
     # score=.42*.6 + .16 + .11*.5 + .16 + .08*.5 + .07*.5 + .03 = .732.
+    """A-007 is defended by verifying that golden six feature score uses enacted tokenizer and
+    snapshot clock; this prevents drift in the deterministic scorer contract.
+    """
     candidate = _candidate(
         1,
         label="Café roadmap",
@@ -109,6 +112,9 @@ def test_golden_six_feature_score_uses_enacted_tokenizer_and_snapshot_clock() ->
 def test_golden_tau_is_inclusive_and_negative_cosine_clamps_to_zero() -> None:
     # Shared subtotal: sem=1 -> .42, time=1 -> .11, global project=.5 ->
     # .08, for .61. Bias -.06 lands exactly on tau; -.061 lands at .549.
+    """A-007 is defended by verifying that golden tau is inclusive and negative cosine clamps
+    to zero; this prevents drift in the deterministic scorer contract.
+    """
     at_tau = _candidate(
         1,
         embedding=(1.0, 0.0),
@@ -149,6 +155,9 @@ def test_golden_selection_preserves_pin_score_order_ranks_and_greedy_skips() -> 
     # With only stopwords in the prompt, every regular has the same .61 base:
     # .42*1 sem + .11*1 time + .16*.5 global project = .61.
     # Biases therefore make regular scores .90, .80, .70, .60, .50.
+    """A-007 is defended by verifying that golden selection preserves pin score order ranks and
+    greedy skips; this prevents drift in the deterministic scorer contract.
+    """
     pins = (
         _candidate(2, pin=True, body="one two"),
         _candidate(1, pin=True, body="pin"),
@@ -188,6 +197,9 @@ def test_golden_selection_preserves_pin_score_order_ranks_and_greedy_skips() -> 
 def test_golden_pins_can_exceed_budget_and_bypass_a_below_tau_score() -> None:
     # The pin has sem=0 (negative cosine clamps), kw=0, time=1 (future age
     # clamps), proj=.5, freq=1, hist=1. Its score is .11+.08+.08+.07=.34.
+    """A-007 is defended by verifying that golden pins can exceed budget and bypass a below tau
+    score; this prevents drift in the deterministic scorer contract.
+    """
     pin = _candidate(
         1,
         body="one two three",
@@ -222,6 +234,9 @@ def test_golden_pins_can_exceed_budget_and_bypass_a_below_tau_score() -> None:
 
 
 def test_confirmed_lock_bypasses_threshold_top_k_and_reduces_regular_budget() -> None:
+    """A-007 is defended by verifying that confirmed lock bypasses threshold top k and reduces
+    regular budget; this prevents drift in the deterministic scorer contract.
+    """
     locked = _candidate(2, body="one two three", embedding=(-1.0, 0.0))
     ordinary = _candidate(1, body="one")
 
@@ -249,6 +264,9 @@ def test_confirmed_lock_bypasses_threshold_top_k_and_reduces_regular_budget() ->
 
 
 def test_confirmed_pin_is_already_forced_and_does_not_require_regular_membership() -> None:
+    """A-007 is defended by verifying that confirmed pin is already forced and does not require
+    regular membership; this prevents drift in the deterministic scorer contract.
+    """
     pinned_and_confirmed = _candidate(7, body="one two", pin=True)
 
     result = score_and_select(
@@ -274,6 +292,10 @@ def test_every_supplied_pool_candidate_is_scored_before_threshold_and_budget_sel
     # Candidate retrieval owns the vector/FTS bounds. Even with the historical
     # candidate_pool config set to one, the scorer must rank every member of
     # the already-bounded union supplied by the service.
+    """A-007 is defended by verifying that every supplied pool candidate is scored before
+    threshold and budget selection; this prevents drift in the deterministic scorer
+    contract.
+    """
     highest_but_over_budget = _candidate(
         30,
         label="Needle",
@@ -312,6 +334,9 @@ def test_every_supplied_pool_candidate_is_scored_before_threshold_and_budget_sel
 
 
 def test_postgres_real_quantization_precedes_score_tie_breaking() -> None:
+    """A-007 is defended by verifying that postgres real quantization precedes score tie
+    breaking; this prevents drift in the deterministic scorer contract.
+    """
     lower_id = _candidate(1, bias=0.0)
     higher_raw_score = _candidate(2, bias=1e-9)
 
@@ -331,6 +356,9 @@ def test_postgres_real_quantization_precedes_score_tie_breaking() -> None:
 
 
 def test_percentage_budget_saturates_for_an_arbitrarily_large_context_integer() -> None:
+    """A-007 is defended by verifying that percentage budget saturates for an arbitrarily large
+    context integer; this prevents drift in the deterministic scorer contract.
+    """
     candidate = _candidate(1)
 
     result = score_and_select(
@@ -349,6 +377,9 @@ def test_percentage_budget_saturates_for_an_arbitrarily_large_context_integer() 
 
 
 def test_config_json_boundary_uses_only_the_scoring_fields() -> None:
+    """A-007 is defended by verifying that config json boundary uses only the scoring fields;
+    this prevents drift in the deterministic scorer contract.
+    """
     config = ScorerConfig.from_mappings(
         version="v0",
         weights={"sem": 0.42, "kw": 0.16, "time": 0.11, "proj": 0.16, "freq": 0.08, "hist": 0.07},
@@ -370,6 +401,9 @@ def test_config_json_boundary_uses_only_the_scoring_fields() -> None:
 
 
 def test_active_learner_version_adds_immutable_offset_to_online_head_bias() -> None:
+    """A-007 is defended by verifying that active learner version adds immutable offset to
+    online head bias; this prevents drift in the deterministic scorer contract.
+    """
     memory_id = UUID(int=1)
     config = ScorerConfig.from_mappings(
         version="m2f-proposal",

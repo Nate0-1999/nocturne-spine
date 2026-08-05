@@ -40,8 +40,7 @@ def upgrade() -> None:
         "AND source_name IS NOT NULL AND source_sha256 IS NOT NULL))"
     )
     op.execute(
-        "CREATE INDEX approval_queue_item_batch_state_idx "
-        "ON approval_queue_item (batch_uid, state)"
+        "CREATE INDEX approval_queue_item_batch_state_idx ON approval_queue_item (batch_uid, state)"
     )
 
 

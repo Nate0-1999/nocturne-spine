@@ -50,6 +50,9 @@ def _assert_problem(response: Any, *, status: int, endpoint: str) -> None:
 
 
 async def test_health_endpoints_and_auth_are_live(app: FastAPI) -> None:
+    """SPEC C.4 is defended by verifying that health endpoints and auth are live; this prevents
+    drift in the public API and error contract.
+    """
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         unauthorized_healthz = await client.get("/healthz")
         unauthorized_health = await client.get("/health")
@@ -68,6 +71,9 @@ async def test_health_endpoints_and_auth_are_live(app: FastAPI) -> None:
 
 
 async def test_retrain_is_bearer_protected_before_any_training_work(app: FastAPI) -> None:
+    """SPEC C.4 is defended by verifying that retrain is bearer protected before any training
+    work; this prevents drift in the public API and error contract.
+    """
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post("/retrain")
 
@@ -75,6 +81,9 @@ async def test_retrain_is_bearer_protected_before_any_training_work(app: FastAPI
 
 
 async def test_validation_errors_are_rfc7807(app: FastAPI) -> None:
+    """SPEC C.4 is defended by verifying that validation errors are rfc7807; this prevents
+    drift in the public API and error contract.
+    """
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(
             "/v1/memories",
@@ -87,6 +96,9 @@ async def test_validation_errors_are_rfc7807(app: FastAPI) -> None:
 
 
 async def test_exact_c4_bodies_reject_extra_fields(app: FastAPI) -> None:
+    """SPEC C.4 is defended by verifying that exact c4 bodies reject extra fields; this
+    prevents drift in the public API and error contract.
+    """
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(
             "/v1/search",
@@ -99,6 +111,9 @@ async def test_exact_c4_bodies_reject_extra_fields(app: FastAPI) -> None:
 
 
 async def test_v15_machine_id_is_required_on_create_and_patch(app: FastAPI) -> None:
+    """SPEC C.4 is defended by verifying that v15 machine id is required on create and patch;
+    this prevents drift in the public API and error contract.
+    """
     headers = {"Authorization": f"Bearer {TOKEN}"}
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         create = await client.post(
@@ -125,6 +140,9 @@ async def test_v15_machine_id_is_required_on_create_and_patch(app: FastAPI) -> N
 
 
 async def test_v15_list_paging_contract_is_validated(app: FastAPI) -> None:
+    """SPEC C.4 is defended by verifying that v15 list paging contract is validated; this
+    prevents drift in the public API and error contract.
+    """
     headers = {"Authorization": f"Bearer {TOKEN}"}
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         excessive = await client.get("/v1/memories?limit=201", headers=headers)
@@ -137,6 +155,9 @@ async def test_v15_list_paging_contract_is_validated(app: FastAPI) -> None:
 
 
 async def test_http_errors_are_rfc7807(app: FastAPI) -> None:
+    """SPEC C.4 is defended by verifying that http errors are rfc7807; this prevents drift in
+    the public API and error contract.
+    """
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get(
             "/not-a-route",
@@ -147,6 +168,9 @@ async def test_http_errors_are_rfc7807(app: FastAPI) -> None:
 
 
 async def test_unexpected_service_errors_are_sanitized_rfc7807(app: FastAPI) -> None:
+    """SPEC C.4 is defended by verifying that unexpected service errors are sanitized rfc7807;
+    this prevents drift in the public API and error contract.
+    """
     transport = ASGITransport(app=app, raise_app_exceptions=False)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.get(
@@ -159,6 +183,9 @@ async def test_unexpected_service_errors_are_sanitized_rfc7807(app: FastAPI) -> 
 
 
 def test_exactly_the_lawful_spine_routes_are_registered(app: FastAPI) -> None:
+    """SPEC C.4 is defended by verifying that exactly the lawful spine routes are registered;
+    this prevents drift in the public API and error contract.
+    """
     actual = {
         (method.upper(), path)
         for path, operations in app.openapi()["paths"].items()

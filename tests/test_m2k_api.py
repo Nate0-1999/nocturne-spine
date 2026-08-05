@@ -134,6 +134,10 @@ async def test_memory_graph_uses_exact_encodings_and_current_membership(
     memory_client: AsyncClient,
     memory_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
+    """A-035 is defended by verifying that memory graph uses exact encodings and current
+    membership; this prevents drift in the authoritative graph, console, and accuracy
+    boundary.
+    """
     first_id, second_id = await _insert_graph_fixture(memory_session_factory)
 
     global_response = await memory_client.post(
@@ -160,8 +164,7 @@ async def test_memory_graph_uses_exact_encodings_and_current_membership(
     assert first["memory"]["pin"] is True
     assert [revision["revision"] for revision in first["revisions"]] == [1, 2]
     assert {
-        (edge["kind"], edge["edge_type"], edge["revision_count"])
-        for edge in graph["edges"]
+        (edge["kind"], edge["edge_type"], edge["revision_count"]) for edge in graph["edges"]
     } >= {
         ("similarity", None, None),
         ("lineage", "contradicts", None),
@@ -179,6 +182,10 @@ async def test_console_contributions_sum_exactly_and_control_inserts_a_version(
     memory_client: AsyncClient,
     memory_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
+    """A-035 is defended by verifying that console contributions sum exactly and control
+    inserts a version; this prevents drift in the authoritative graph, console, and accuracy
+    boundary.
+    """
     thread_id = UUID(int=9201)
     memory_id = UUID(int=9202)
     async with memory_session_factory() as session, session.begin():
@@ -249,22 +256,14 @@ async def test_console_contributions_sum_exactly_and_control_inserts_a_version(
     assert created.json()["status"] == "active"
     async with memory_session_factory() as session:
         active = (
-            (
-                await session.execute(
-                    select(ScorerConfigRow).where(ScorerConfigRow.active.is_(True))
-                )
-            )
+            (await session.execute(select(ScorerConfigRow).where(ScorerConfigRow.active.is_(True))))
             .scalars()
             .one()
         )
-        activations = (
-            (await session.execute(select(ScorerActivationRow))).scalars().all()
-        )
+        activations = (await session.execute(select(ScorerActivationRow))).scalars().all()
     assert active.version == f"m2k-{event_uid}"
     assert len(activations) == 1
-    assert activations[0].changes == {
-        "scorer.tau": {"old": 0.55, "new": 0.6}
-    }
+    assert activations[0].changes == {"scorer.tau": {"old": 0.55, "new": 0.6}}
 
 
 @pytest.mark.asyncio
@@ -272,6 +271,10 @@ async def test_only_learner_proposals_can_be_activated_and_accuracy_is_measured(
     memory_client: AsyncClient,
     memory_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
+    """A-035 is defended by verifying that only learner proposals can be activated and accuracy
+    is measured; this prevents drift in the authoritative graph, console, and accuracy
+    boundary.
+    """
     async with memory_session_factory() as session, session.begin():
         base = await session.get(ScorerConfigRow, "v0")
         assert base is not None
@@ -298,9 +301,7 @@ async def test_only_learner_proposals_can_be_activated_and_accuracy_is_measured(
         json={"principal_id": "owner", "thread_id": None, "as_of": "now"},
     )
     assert before.status_code == 200
-    accuracy = {
-        item["version"]: item for item in before.json()["accuracy"]
-    }
+    accuracy = {item["version"]: item for item in before.json()["accuracy"]}
     assert accuracy["learner-proposal"]["accuracy_percent"] == "90"
 
     activated = await memory_client.post(

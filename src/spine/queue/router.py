@@ -39,9 +39,7 @@ async def extract(
     response_model=SeedResponse,
     responses=ERRORS | {409: problem_openapi("Seed batch conflict")},
 )
-async def ingest_seed(
-    body: SeedRequest, request: Request
-) -> SeedResponse | ProblemJSONResponse:
+async def ingest_seed(body: SeedRequest, request: Request) -> SeedResponse | ProblemJSONResponse:
     try:
         return await request.app.state.queue_service.ingest_seed(body)
     except QueueConflictError as exc:
@@ -57,9 +55,7 @@ async def queue(
     thread_id: UUID | None = None,
     birthplace: str | None = Query(default=None, pattern="^(thread|seed)$"),
 ) -> QueueResponse:
-    return await request.app.state.queue_service.list_pending(
-        principal_id, thread_id, birthplace
-    )
+    return await request.app.state.queue_service.list_pending(principal_id, thread_id, birthplace)
 
 
 @router.post(

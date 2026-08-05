@@ -43,6 +43,9 @@ async def test_candidate_is_queue_only_and_denial_is_revisioned_signal(
     embedding_provider: ScriptedEmbeddingProvider,
     memory_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
+    """A-032 is defended by verifying that candidate is queue only and denial is revisioned
+    signal; this prevents drift in the unified queue decision and lineage contract.
+    """
     thread_id = uuid4()
     embedding_provider.set("candidate lesson", basis_vector(0))
     embedding_provider.set("find candidate", basis_vector(0))
@@ -87,6 +90,10 @@ async def test_merge_approval_activates_candidate_tombstones_target_and_is_idemp
     embedding_provider: ScriptedEmbeddingProvider,
     memory_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
+    """A-032 is defended by verifying that merge approval activates candidate tombstones target
+    and is idempotent; this prevents drift in the unified queue decision and lineage
+    contract.
+    """
     thread_id = uuid4()
     embedding_provider.set("old lesson", basis_vector(0))
     embedding_provider.set("merged lesson", vector_with_cosine(0.85))
@@ -138,6 +145,9 @@ async def test_contradiction_cannot_passively_approve(
     memory_client: AsyncClient,
     embedding_provider: ScriptedEmbeddingProvider,
 ) -> None:
+    """A-032 is defended by verifying that contradiction cannot passively approve; this
+    prevents drift in the unified queue decision and lineage contract.
+    """
     thread_id = uuid4()
     embedding_provider.set("first claim", basis_vector(0))
     embedding_provider.set("opposite claim", vector_with_cosine(0.85))
@@ -176,6 +186,9 @@ async def test_seed_batch_preserves_split_lineage_and_decides_atomically(
     embedding_provider: ScriptedEmbeddingProvider,
     memory_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
+    """A-032 is defended by verifying that seed batch preserves split lineage and decides
+    atomically; this prevents drift in the unified queue decision and lineage contract.
+    """
     markdown = "# Durable notes\n\nAlpha stands alone. Beta stands alone."
     batch_uid = uuid4()
     embedding_provider.set(markdown, basis_vector(0))
@@ -256,18 +269,22 @@ async def test_seed_batch_preserves_split_lineage_and_decides_atomically(
             )
         ).scalar_one()
         child_revisions = (
-            await session.execute(
-                select(MemoryRevision).where(
-                    MemoryRevision.memory_id.in_(child_ids),
-                    MemoryRevision.revision == 1,
+            (
+                await session.execute(
+                    select(MemoryRevision).where(
+                        MemoryRevision.memory_id.in_(child_ids),
+                        MemoryRevision.revision == 1,
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         relates = (
-            await session.execute(
-                select(MemoryEdge).where(MemoryEdge.edge_type == "relates_to")
-            )
-        ).scalars().all()
+            (await session.execute(select(MemoryEdge).where(MemoryEdge.edge_type == "relates_to")))
+            .scalars()
+            .all()
+        )
     assert source.status == "tombstoned"
     assert source.body == markdown
     assert {revision.parent_uid for revision in child_revisions} == {source_revision.rev_uid}

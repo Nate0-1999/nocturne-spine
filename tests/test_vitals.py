@@ -108,6 +108,9 @@ async def _insert_memory_heads(
 
 
 def test_spend_snapshot_escapes_reserved_and_tilde_model_keys_without_merging() -> None:
+    """A-028 is defended by verifying that spend snapshot escapes reserved and tilde model keys
+    without merging; this prevents drift in the honest canonical Vitals projection.
+    """
     minute = datetime(2026, 8, 2, 12, tzinfo=UTC)
     snapshot = _spend_snapshot(
         [
@@ -166,6 +169,9 @@ async def test_vitals_snapshot_is_canonical_conserving_and_honest(
     memory_client: AsyncClient,
     memory_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
+    """A-028 is defended by verifying that vitals snapshot is canonical conserving and honest;
+    this prevents drift in the honest canonical Vitals projection.
+    """
     async with memory_session_factory() as session:
         anchor = await session.scalar(select(func.date_trunc("minute", func.now())))
     assert isinstance(anchor, datetime) and anchor.tzinfo is not None
@@ -324,6 +330,9 @@ async def test_vitals_snapshot_is_canonical_conserving_and_honest(
 async def test_thread_vitals_reads_only_authoritative_receipts_for_that_thread(
     memory_client: AsyncClient,
 ) -> None:
+    """A-028 is defended by verifying that thread vitals reads only authoritative receipts for
+    that thread; this prevents drift in the honest canonical Vitals projection.
+    """
     now = datetime.now(UTC).replace(second=0, microsecond=0)
     selected = UUID(int=8801)
     other = UUID(int=8802)
@@ -363,6 +372,9 @@ async def test_vitals_has_an_empty_total_lane_and_rejects_query_parameters(
     memory_client: AsyncClient,
     memory_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
+    """A-028 is defended by verifying that vitals has an empty total lane and rejects query
+    parameters; this prevents drift in the honest canonical Vitals projection.
+    """
     await SpendViewRefresher(memory_session_factory).refresh_once()
     live = await memory_client.get("/v1/vitals")
     rejected = await memory_client.get("/v1/vitals?window_minutes=30")
@@ -386,6 +398,9 @@ async def test_vitals_has_an_empty_total_lane_and_rejects_query_parameters(
 
 
 async def test_vitals_requires_the_service_bearer(memory_app: FastAPI) -> None:
+    """A-028 is defended by verifying that vitals requires the service bearer; this prevents
+    drift in the honest canonical Vitals projection.
+    """
     async with AsyncClient(
         transport=ASGITransport(app=memory_app),
         base_url="http://test",

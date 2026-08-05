@@ -17,8 +17,7 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     op.execute(
-        "CREATE UNIQUE INDEX scorer_config_one_active_idx "
-        "ON scorer_config (active) WHERE active"
+        "CREATE UNIQUE INDEX scorer_config_one_active_idx ON scorer_config (active) WHERE active"
     )
     op.execute(
         """

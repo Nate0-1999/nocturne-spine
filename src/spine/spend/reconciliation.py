@@ -108,9 +108,7 @@ class ReconciliationService:
                 except BrokerUnavailable:
                     row = _unavailable_row("broker_unavailable", self._tolerance, unpriced)
                 except (InvalidBrokerResponse, InvalidOperation, TypeError, ValueError):
-                    row = _unavailable_row(
-                        "invalid_broker_response", self._tolerance, unpriced
-                    )
+                    row = _unavailable_row("invalid_broker_response", self._tolerance, unpriced)
                 session.add(row)
             return row
 
@@ -232,9 +230,7 @@ def _row(
     )
 
 
-def _unavailable_row(
-    error_code: str, tolerance: Decimal, unpriced: int
-) -> SpendReconciliation:
+def _unavailable_row(error_code: str, tolerance: Decimal, unpriced: int) -> SpendReconciliation:
     return SpendReconciliation(
         event_uid=mint_ulid(),
         provider="openrouter",

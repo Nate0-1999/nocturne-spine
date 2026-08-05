@@ -80,18 +80,14 @@ SCORER_DESCRIPTORS = (
         id="scorer.half_life_time_days",
         label="Recency half-life (days)",
         type="number",
-        range=ParameterRange(
-            minimum=0, maximum=None, step=0.5, exclusive_minimum=True
-        ),
+        range=ParameterRange(minimum=0, maximum=None, step=0.5, exclusive_minimum=True),
         default=14,
     ),
     ScorerDescriptor(
         id="scorer.half_life_hist_days",
         label="Edit-history half-life (days)",
         type="number",
-        range=ParameterRange(
-            minimum=0, maximum=None, step=0.5, exclusive_minimum=True
-        ),
+        range=ParameterRange(minimum=0, maximum=None, step=0.5, exclusive_minimum=True),
         default=7,
     ),
     *(
@@ -180,9 +176,7 @@ class M2KService:
             return []
         left = aliased(MemoryUnitRow)
         right = aliased(MemoryUnitRow)
-        similarity = (1 - left.embedding.cosine_distance(right.embedding)).label(
-            "similarity"
-        )
+        similarity = (1 - left.embedding.cosine_distance(right.embedding)).label("similarity")
         similarity_rows = (
             await session.execute(
                 select(left.id, right.id, similarity)
@@ -287,9 +281,7 @@ class M2KService:
                 events = (
                     (
                         await session.execute(
-                            event_statement.order_by(
-                                InjectionEvent.ts, InjectionEvent.event_uid
-                            )
+                            event_statement.order_by(InjectionEvent.ts, InjectionEvent.event_uid)
                         )
                     )
                     .scalars()
@@ -324,9 +316,7 @@ class M2KService:
                 )
                 replay = await session.get(ScorerActivationRow, body.event_uid)
                 if replay is not None:
-                    return await _validate_control_replay(
-                        session, replay, target_version, body
-                    )
+                    return await _validate_control_replay(session, replay, target_version, body)
                 active = await _active_config(session)
                 if active.version != body.base_version:
                     raise M2KStateError("stale_base")
@@ -542,9 +532,7 @@ def _accuracy_point(row: ScorerConfigRow) -> AccuracyPoint:
     replay = learner.get("replay") if isinstance(learner, Mapping) else None
     challenger = replay.get("challenger") if isinstance(replay, Mapping) else None
     holdout = learner.get("holdout_dispositions") if isinstance(learner, Mapping) else None
-    disagreements = (
-        challenger.get("disagreements") if isinstance(challenger, Mapping) else None
-    )
+    disagreements = challenger.get("disagreements") if isinstance(challenger, Mapping) else None
     if (
         isinstance(holdout, int)
         and not isinstance(holdout, bool)
@@ -589,9 +577,7 @@ def _candidate_histories(
             label if isinstance(label, str) else "",
             event.memory_kind,
         )
-        features = MemoryFeatures(
-            **{name: float(event.features[name]) for name in FEATURE_NAMES}
-        )
+        features = MemoryFeatures(**{name: float(event.features[name]) for name in FEATURE_NAMES})
         contributions = {
             name: Decimal(str(getattr(features, name))) * Decimal(str(config.weights[name]))
             for name in FEATURE_NAMES
@@ -645,9 +631,7 @@ def _flat_values(values: ScorerValues) -> dict[str, float | int]:
         "scorer.half_life_time_days": values.half_life_time_days,
         "scorer.half_life_hist_days": values.half_life_hist_days,
     }
-    result.update(
-        {f"scorer.weight.{name}": value for name, value in values.weights.items()}
-    )
+    result.update({f"scorer.weight.{name}": value for name, value in values.weights.items()})
     return result
 
 
@@ -664,11 +648,7 @@ def _validate_runtime_config(
 
 async def _active_config(session: AsyncSession) -> ScorerConfigRow:
     rows = (
-        (
-            await session.execute(
-                select(ScorerConfigRow).where(ScorerConfigRow.active.is_(True))
-            )
-        )
+        (await session.execute(select(ScorerConfigRow).where(ScorerConfigRow.active.is_(True))))
         .scalars()
         .all()
     )

@@ -114,6 +114,9 @@ async def test_retrain_proposes_inactive_content_addressed_winner_idempotently(
     memory_client: AsyncClient,
     memory_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
+    """A-031 is defended by verifying that retrain proposes inactive content addressed winner
+    idempotently; this prevents drift in the learner proposal authority.
+    """
     await _reset_proposals(memory_session_factory)
     memory_app.state.learner_service = _service(memory_session_factory)
     await _insert_gate(memory_session_factory, gate=1)
@@ -135,11 +138,7 @@ async def test_retrain_proposes_inactive_content_addressed_winner_idempotently(
     assert second.json()["proposal_version"] == payload["proposal_version"]
     async with memory_session_factory() as session:
         proposals = (
-            (
-                await session.execute(
-                    select(ScorerConfigRow).where(ScorerConfigRow.version != "v0")
-                )
-            )
+            (await session.execute(select(ScorerConfigRow).where(ScorerConfigRow.version != "v0")))
             .scalars()
             .all()
         )
@@ -160,6 +159,9 @@ async def test_retrain_hygiene_excludes_whole_verification_gate(
     memory_client: AsyncClient,
     memory_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
+    """A-031 is defended by verifying that retrain hygiene excludes whole verification gate;
+    this prevents drift in the learner proposal authority.
+    """
     await _reset_proposals(memory_session_factory)
     memory_app.state.learner_service = _service(memory_session_factory, min_dispositions=1)
     await _insert_gate(memory_session_factory, gate=3, machine_id="m2f-sop-verification")

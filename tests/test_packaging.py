@@ -43,10 +43,16 @@ def packaged_spine_resources(
 
 
 def test_distribution_metadata_uses_the_package_version() -> None:
+    """P4 is defended by verifying that distribution metadata uses the package version; this
+    prevents drift in the reproducible and least-surprise packaging boundary.
+    """
     assert version("nocturne-spine") == __version__ == "0.1.0"
 
 
 def test_container_base_is_an_exact_multiarch_python_release() -> None:
+    """P4 is defended by verifying that container base is an exact multiarch python release;
+    this prevents drift in the reproducible and least-surprise packaging boundary.
+    """
     dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
 
     assert dockerfile.startswith(
@@ -60,6 +66,9 @@ def test_materialize_app_source_is_an_allowlisted_rebuildable_context(
     tmp_path: Path,
     packaged_spine_resources: Path,
 ) -> None:
+    """P4 is defended by verifying that materialize app source is an allowlisted rebuildable
+    context; this prevents drift in the reproducible and least-surprise packaging boundary.
+    """
     destination = deploy_resources.materialize_app_source(tmp_path / "app-source")
 
     assert {path.name for path in destination.iterdir()} == {
@@ -80,6 +89,9 @@ def test_materialize_billing_breaker_preserves_human_deploy_path(
     tmp_path: Path,
     packaged_spine_resources: Path,
 ) -> None:
+    """P4 is defended by verifying that materialize billing breaker preserves human deploy
+    path; this prevents drift in the reproducible and least-surprise packaging boundary.
+    """
     destination = deploy_resources.materialize_billing_breaker_source(tmp_path / "d2-source")
 
     assert {path.name for path in destination.iterdir()} == D2_FILES
@@ -90,6 +102,9 @@ def test_materializers_refuse_nonempty_destinations(
     tmp_path: Path,
     packaged_spine_resources: Path,
 ) -> None:
+    """P4 is defended by verifying that materializers refuse nonempty destinations; this
+    prevents drift in the reproducible and least-surprise packaging boundary.
+    """
     destination = tmp_path / "occupied"
     destination.mkdir()
     (destination / "keep.txt").write_text("owned by caller", encoding="utf-8")

@@ -134,9 +134,7 @@ class QueueService:
                 duplicates += 1
                 continue
             cards.append(
-                await self._enqueue_seed(
-                    request, draft.verdict, draft.target_ids, created
-                )
+                await self._enqueue_seed(request, draft.verdict, draft.target_ids, created)
             )
         await self._relate_siblings([card.candidate.memory_id for card in cards])
         return SeedResponse(
@@ -211,9 +209,7 @@ class QueueService:
                 )
                 if not rows:
                     raise QueueNotFoundError(str(batch_uid))
-                responses = [
-                    await self._decide_row(session, row, request) for row in rows
-                ]
+                responses = [await self._decide_row(session, row, request) for row in rows]
                 return BatchDecisionResponse(
                     batch_uid=batch_uid,
                     decision=request.decision,
@@ -230,20 +226,28 @@ class QueueService:
                 await session.execute(
                     select(*decisions.c).where(decisions.c.item_uid == row["item_uid"])
                 )
-            ).mappings().one_or_none()
+            )
+            .mappings()
+            .one_or_none()
         )
         if prior_row is not None:
             prior = _ExistingDecision(
-                prior_row["decision_uid"], prior_row["decision"],
-                prior_row["approval_mode"], prior_row["actor_class"],
+                prior_row["decision_uid"],
+                prior_row["decision"],
+                prior_row["approval_mode"],
+                prior_row["actor_class"],
             )
             if (prior.decision, prior.approval_mode, prior.actor_class) != (
-                request.decision, request.approval_mode, request.actor_class,
+                request.decision,
+                request.approval_mode,
+                request.actor_class,
             ):
                 raise QueueConflictError("queue item already has a different decision")
             return QueueDecisionResponse(
-                card=await self._card(session, row), decision=prior.decision,
-                approval_mode=prior.approval_mode, actor_class=prior.actor_class,
+                card=await self._card(session, row),
+                decision=prior.decision,
+                approval_mode=prior.approval_mode,
+                actor_class=prior.actor_class,
                 decision_uid=prior.decision_uid,
             )
         if row["verdict"] == "contradict" and request.approval_mode == "passive":
@@ -255,7 +259,8 @@ class QueueService:
         await cas_update_memory_unit(
             session,
             CasUpdate(
-                memory_id=candidate["id"], expected_revision=candidate["revision"],
+                memory_id=candidate["id"],
+                expected_revision=candidate["revision"],
                 rev_uid=mint_ulid(),
                 editor="human" if request.actor_class == "human" else "passive",
                 origin_machine_id=request.machine_id,
@@ -268,21 +273,32 @@ class QueueService:
         if request.decision == "approve":
             await self._enact_targets(session, row, candidate, request.machine_id)
         decision_uid = mint_ulid()
-        await session.execute(insert(decisions).values(
-            decision_uid=decision_uid, item_uid=row["item_uid"], decision=request.decision,
-            approval_mode=request.approval_mode, actor_class=request.actor_class,
-        ))
+        await session.execute(
+            insert(decisions).values(
+                decision_uid=decision_uid,
+                item_uid=row["item_uid"],
+                decision=request.decision,
+                approval_mode=request.approval_mode,
+                actor_class=request.actor_class,
+            )
+        )
         updated = (
             (
                 await session.execute(
-                    update(queue).where(queue.c.item_uid == row["item_uid"])
-                    .values(state=expected, decided_at=func.now()).returning(*queue.c)
+                    update(queue)
+                    .where(queue.c.item_uid == row["item_uid"])
+                    .values(state=expected, decided_at=func.now())
+                    .returning(*queue.c)
                 )
-            ).mappings().one()
+            )
+            .mappings()
+            .one()
         )
         return QueueDecisionResponse(
-            card=await self._card(session, updated), decision=request.decision,
-            approval_mode=request.approval_mode, actor_class=request.actor_class,
+            card=await self._card(session, updated),
+            decision=request.decision,
+            approval_mode=request.approval_mode,
+            actor_class=request.actor_class,
             decision_uid=decision_uid,
         )
 
@@ -366,7 +382,9 @@ class QueueService:
                             )
                             .returning(*ApprovalQueueItem.__table__.c)
                         )
-                    ).mappings().one()
+                    )
+                    .mappings()
+                    .one()
                 )
                 return await self._card(session, row, neighbors=active_neighbors)
 
@@ -380,7 +398,9 @@ class QueueService:
                         .where(queue.c.batch_uid == request.batch_uid)
                         .order_by(queue.c.created_at, queue.c.item_uid)
                     )
-                ).mappings().all()
+                )
+                .mappings()
+                .all()
             )
             if rows:
                 first = rows[0]
@@ -399,14 +419,15 @@ class QueueService:
                             MemoryUnit.thread_origin == f"seed:{request.batch_uid}",
                         )
                     )
-                ).mappings().one_or_none()
+                )
+                .mappings()
+                .one_or_none()
             )
             if source is None:
                 return None
             if (
                 source["origin_path"] != request.source_name
-                or sha256(source["body"].encode("utf-8")).hexdigest()
-                != request.source_sha256
+                or sha256(source["body"].encode("utf-8")).hexdigest() != request.source_sha256
             ):
                 raise QueueConflictError("seed batch UID already names a different document")
             return []

@@ -20,4 +20,7 @@ def test_dedup_boundaries_are_inclusive_exactly_where_enacted(
     score: float | None,
     expected: str,
 ) -> None:
+    """SPEC C.4 is defended by verifying that dedup boundaries are inclusive exactly where
+    enacted; this prevents drift in the memory deduplication contract.
+    """
     assert _classify_dedup_score(score, dedup_sim=0.80, dedup_dup=0.92) == expected

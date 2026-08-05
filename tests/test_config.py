@@ -20,6 +20,9 @@ def _settings(**overrides: object) -> Settings:
 
 
 def test_c5_dedup_and_embedding_defaults_are_exact() -> None:
+    """SPEC C.5 is defended by verifying that c5 dedup and embedding defaults are exact; this
+    prevents drift in the runtime configuration boundary.
+    """
     settings = _settings()
 
     assert settings.dedup_dup == 0.92
@@ -41,6 +44,9 @@ def test_c5_dedup_and_embedding_defaults_are_exact() -> None:
 def test_runtime_environment_cannot_override_artifact_version(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """SPEC C.5 is defended by verifying that runtime environment cannot override artifact
+    version; this prevents drift in the runtime configuration boundary.
+    """
     monkeypatch.setenv("SPINE_VERSION", "not-the-installed-version")
 
     assert "version" not in Settings.model_fields
@@ -48,6 +54,9 @@ def test_runtime_environment_cannot_override_artifact_version(
 
 
 def test_config_rejects_overlapping_bands_and_wrong_storage_dimension() -> None:
+    """SPEC C.5 is defended by verifying that config rejects overlapping bands and wrong
+    storage dimension; this prevents drift in the runtime configuration boundary.
+    """
     with pytest.raises(ValidationError, match="dedup_sim must be less than dedup_dup"):
         _settings(dedup_sim=0.92, dedup_dup=0.92)
 
@@ -81,6 +90,9 @@ def test_embedding_runtime_wires_default_and_direct_provider_without_network(
     expected_base_url: str,
     expected_model: str,
 ) -> None:
+    """SPEC C.5 is defended by verifying that embedding runtime wires default and direct
+    provider without network; this prevents drift in the runtime configuration boundary.
+    """
     monkeypatch.delenv("SPINE_EMBED_BASE_URL", raising=False)
     monkeypatch.delenv("SPINE_EMBED_MODEL", raising=False)
     for name, value in environment.items():

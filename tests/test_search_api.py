@@ -99,6 +99,9 @@ async def test_search_uses_raw_cosine_and_exact_principal_status_project_filters
     embedding_provider: ScriptedEmbeddingProvider,
     memory_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
+    """SPEC C.4 is defended by verifying that search uses raw cosine and exact principal status
+    project filters; this prevents drift in the principal-scoped vector search contract.
+    """
     query = "alpha context"
     embedding_provider.set(query, basis_vector(0))
     fixtures = [
@@ -157,6 +160,9 @@ async def test_search_omitted_and_null_project_are_principal_wide(
     embedding_provider: ScriptedEmbeddingProvider,
     memory_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
+    """SPEC C.4 is defended by verifying that search omitted and null project are principal
+    wide; this prevents drift in the principal-scoped vector search contract.
+    """
     query = "all project contexts"
     embedding_provider.set(query, basis_vector(0))
     await _insert_memories(
@@ -192,6 +198,9 @@ async def test_search_default_k_has_uuid_cutoff_and_invalid_k_does_not_embed(
     embedding_provider: ScriptedEmbeddingProvider,
     memory_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
+    """SPEC C.4 is defended by verifying that search default k has uuid cutoff and invalid k
+    does not embed; this prevents drift in the principal-scoped vector search contract.
+    """
     query = "equal candidates"
     embedding_provider.set(query, basis_vector(0))
     await _insert_memories(
@@ -232,6 +241,9 @@ async def test_search_empty_and_invalid_provider_vector_have_exact_responses(
     memory_client: AsyncClient,
     embedding_provider: ScriptedEmbeddingProvider,
 ) -> None:
+    """SPEC C.4 is defended by verifying that search empty and invalid provider vector have
+    exact responses; this prevents drift in the principal-scoped vector search contract.
+    """
     valid_query, invalid_query = "nothing here", "zero vector"
     embedding_provider.set(valid_query, basis_vector(0)).set(invalid_query, [0.0] * 1536)
 

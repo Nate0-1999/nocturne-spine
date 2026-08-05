@@ -45,11 +45,7 @@ class SpendService:
                     .on_conflict_do_nothing(index_elements=[SpendEvent.event_uid])
                 )
                 rows = (
-                    (
-                        await session.execute(
-                            select(SpendEvent).where(SpendEvent.event_uid.in_(ids))
-                        )
-                    )
+                    (await session.execute(select(SpendEvent).where(SpendEvent.event_uid.in_(ids))))
                     .scalars()
                     .all()
                 )

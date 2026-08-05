@@ -147,6 +147,9 @@ async def test_prepare_commit_replays_gate_and_prepare_updates_only_injected(
     embedding_provider: ScriptedEmbeddingProvider,
     memory_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
+    """A-030 is defended by verifying that prepare commit replays gate and prepare updates only
+    injected; this prevents drift in the per-message injection transaction contract.
+    """
     now = datetime.now(UTC)
     injected_id = UUID(int=101)
     near_id = UUID(int=102)
@@ -416,6 +419,9 @@ async def test_exact_keyword_with_weak_embedding_reaches_the_gate_via_fts(
     embedding_provider: ScriptedEmbeddingProvider,
     memory_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
+    """A-030 is defended by verifying that exact keyword with weak embedding reaches the gate
+    via fts; this prevents drift in the per-message injection transaction contract.
+    """
     now = datetime.now(UTC)
     stale = now - timedelta(days=3650)
     target_id = UUID(int=999)
@@ -475,6 +481,9 @@ async def test_exact_keyword_with_weak_embedding_reaches_the_gate_via_fts(
 async def test_hybrid_pool_uses_or_terms_and_exact_uuid_tie_boundaries(
     memory_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
+    """A-030 is defended by verifying that hybrid pool uses or terms and exact uuid tie
+    boundaries; this prevents drift in the per-message injection transaction contract.
+    """
     memory_ids = [UUID(int=value) for value in range(2000, 2051)]
     for memory_id in reversed(memory_ids):
         await _insert_memory(
@@ -518,6 +527,9 @@ async def test_pins_bypass_threshold_and_budget_and_regular_ties_use_memory_id(
     embedding_provider: ScriptedEmbeddingProvider,
     memory_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
+    """A-030 is defended by verifying that pins bypass threshold and budget and regular ties
+    use memory id; this prevents drift in the per-message injection transaction contract.
+    """
     pin_ids = [UUID(int=201), UUID(int=202)]
     regular_ids = [UUID(int=value) for value in (203, 204, 205, 206)]
     same_timestamp = datetime.now(UTC)
@@ -607,6 +619,9 @@ async def test_budget_skip_continues_to_lower_scoring_candidate(
     embedding_provider: ScriptedEmbeddingProvider,
     memory_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
+    """A-030 is defended by verifying that budget skip continues to lower scoring candidate;
+    this prevents drift in the per-message injection transaction contract.
+    """
     high_id = UUID(int=301)
     lower_id = UUID(int=302)
     timestamp = datetime.now(UTC)
@@ -657,6 +672,9 @@ async def test_concurrent_prepare_is_one_shot_per_thread(
     embedding_provider: ScriptedEmbeddingProvider,
     memory_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
+    """A-030 is defended by verifying that concurrent prepare is one shot per thread; this
+    prevents drift in the per-message injection transaction contract.
+    """
     prompt = "prepare exactly once"
     embedding_provider.set(prompt, basis_vector(0))
     thread_id = uuid4()
@@ -687,6 +705,9 @@ async def test_autonomous_prepare_preserves_locks_and_logs_entry_keep_exit(
     embedding_provider: ScriptedEmbeddingProvider,
     memory_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
+    """A-030 is defended by verifying that autonomous prepare preserves locks and logs entry
+    keep exit; this prevents drift in the per-message injection transaction contract.
+    """
     confirmed_id = UUID(int=310)
     autonomous_id = UUID(int=311)
     entered_id = UUID(int=312)
@@ -789,6 +810,9 @@ async def test_unstamped_thread_requires_exact_identity_before_stamping(
     embedding_provider: ScriptedEmbeddingProvider,
     memory_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
+    """A-030 is defended by verifying that unstamped thread requires exact identity before
+    stamping; this prevents drift in the per-message injection transaction contract.
+    """
     thread_id = uuid4()
     prompt = "existing thread"
     embedding_provider.set(prompt, basis_vector(0))
@@ -832,6 +856,9 @@ async def test_concurrent_threads_do_not_lose_injection_cas_updates(
     embedding_provider: ScriptedEmbeddingProvider,
     memory_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
+    """A-030 is defended by verifying that concurrent threads do not lose injection cas
+    updates; this prevents drift in the per-message injection transaction contract.
+    """
     memory_id = UUID(int=350)
     await _insert_memory(
         memory_session_factory,
@@ -882,6 +909,9 @@ async def test_prepare_reads_one_frozen_database_snapshot(
     memory_session_factory: async_sessionmaker[AsyncSession],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """A-030 is defended by verifying that prepare reads one frozen database snapshot; this
+    prevents drift in the per-message injection transaction contract.
+    """
     frozen_id = UUID(int=401)
     post_snapshot_id = UUID(int=402)
     await _insert_memory(
@@ -972,6 +1002,10 @@ async def test_prepare_provider_failure_and_request_validation_are_write_free(
     memory_session_factory: async_sessionmaker[AsyncSession],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """A-030 is defended by verifying that prepare provider failure and request validation are
+    write free; this prevents drift in the per-message injection transaction contract.
+    """
+
     async def unavailable(_: object) -> list[list[float]]:
         raise EmbeddingTransportError("offline")
 

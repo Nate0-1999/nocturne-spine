@@ -67,9 +67,7 @@ def create_app(
         session_factory = make_session_factory(owned_engine)
 
     spend_service = SpendService(session_factory)
-    configured_key = (
-        resolved.openai_api_key.get_secret_value() if resolved.openai_api_key else None
-    )
+    configured_key = resolved.openai_api_key.get_secret_value() if resolved.openai_api_key else None
     reconciliation_configured = bool(
         configured_key and urlparse(resolved.embed_base_url).hostname == "openrouter.ai"
     )

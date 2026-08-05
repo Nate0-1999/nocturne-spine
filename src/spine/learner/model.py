@@ -15,9 +15,7 @@ from uuid import UUID
 
 FEATURE_NAMES = ("sem", "kw", "time", "proj", "freq", "hist")
 EXPLICIT_POSITIVE_OUTCOMES = frozenset({"added_back", "cited", "mid_thread_added"})
-NEGATIVE_OUTCOMES = frozenset(
-    {"removed:not_relevant", "removed:never", "mid_thread_removed"}
-)
+NEGATIVE_OUTCOMES = frozenset({"removed:not_relevant", "removed:never", "mid_thread_removed"})
 PASSIVE_POSITIVE_OUTCOMES = frozenset({"kept", "auto_entered"})
 
 
@@ -284,8 +282,7 @@ def _objective_and_gradient(
 ) -> tuple[float, list[float], dict[UUID, float]]:
     weight_gradient = [0.0] * len(FEATURE_NAMES)
     bias_gradient = {
-        memory_id: 2.0 * settings.bias_l2 * value
-        for memory_id, value in biases.items()
+        memory_id: 2.0 * settings.bias_l2 * value for memory_id, value in biases.items()
     }
     objective = settings.bias_l2 * math.fsum(value * value for value in biases.values())
     for positive, negative, actor_weight in pairs:

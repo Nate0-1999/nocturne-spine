@@ -14,6 +14,9 @@ from spine.db.migrate import DATABASE_URL_ATTRIBUTE, make_alembic_config
 
 
 def test_packaged_migration_tree_has_one_expected_head() -> None:
+    """SPEC C.2 is defended by verifying that packaged migration tree has one expected head;
+    this prevents drift in the packaged schema migration contract.
+    """
     database_url = "postgresql+asyncpg://spine:percent%25@localhost/spine"
     config = make_alembic_config(database_url)
     scripts = ScriptDirectory.from_config(config)
@@ -26,7 +29,9 @@ def test_packaged_migration_tree_has_one_expected_head() -> None:
 def test_0004_backfills_legacy_rows_and_downgrades_cleanly(
     migrated_database_url: str,
 ) -> None:
-    """Prove the packaged revision upgrades real 0003 data, not only an empty schema."""
+    """SPEC C.2 requires packaged revisions to upgrade real historical data and downgrade
+    cleanly, preventing a migration that works only from an empty schema.
+    """
 
     config = make_alembic_config(migrated_database_url)
     memory_id = uuid4()
@@ -50,6 +55,9 @@ def test_0004_backfills_legacy_rows_and_downgrades_cleanly(
 
 
 async def test_c2_migration_and_v0_seed(migrated_database_url: str) -> None:
+    """SPEC C.2 is defended by verifying that c2 migration and v0 seed; this prevents drift in
+    the packaged schema migration contract.
+    """
     engine = create_async_engine(migrated_database_url)
     try:
         async with engine.connect() as connection:
@@ -306,6 +314,9 @@ async def _delete_memory(database_url: str, memory_id: UUID) -> None:
 async def test_active_label_is_unique_while_unit_is_active(
     migrated_database_url: str,
 ) -> None:
+    """SPEC C.2 is defended by verifying that active label is unique while unit is active; this
+    prevents drift in the packaged schema migration contract.
+    """
     engine = create_async_engine(migrated_database_url)
     embedding = f"[{','.join(['0'] * 1536)}]"
     insert = text(

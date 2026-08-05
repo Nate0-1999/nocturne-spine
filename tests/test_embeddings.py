@@ -53,6 +53,9 @@ class _RecordingReceiptSink:
 
 
 async def test_embed_one_normalizes_and_validates_an_injected_provider() -> None:
+    """ADR-024 is defended by verifying that embed one normalizes and validates an injected
+    provider; this prevents drift in the brokered embedding and receipt boundary.
+    """
     provider = _InjectedProvider([[1, 2.5, 3]])
 
     assert await embed_one(provider, "memory") == [1.0, 2.5, 3.0]  # type: ignore[arg-type]
@@ -67,6 +70,10 @@ async def test_embed_one_normalizes_and_validates_an_injected_provider() -> None
 
 
 async def test_openai_request_and_response_order_follow_the_provider_contract() -> None:
+    """ADR-024 is defended by verifying that openai request and response order follow the
+    provider contract; this prevents drift in the brokered embedding and receipt boundary.
+    """
+
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.method == "POST"
         assert request.url == "https://openai.example/v1/embeddings"
@@ -103,6 +110,9 @@ async def test_openai_request_and_response_order_follow_the_provider_contract() 
 
 
 async def test_production_embedding_is_receipted_before_vector_return() -> None:
+    """ADR-024 is defended by verifying that production embedding is receipted before vector
+    return; this prevents drift in the brokered embedding and receipt boundary.
+    """
     sink = _RecordingReceiptSink()
 
     def handler(_: httpx.Request) -> httpx.Response:
@@ -149,6 +159,9 @@ async def test_production_embedding_is_receipted_before_vector_return() -> None:
 
 
 async def test_embedding_receipt_failure_does_not_release_vectors() -> None:
+    """ADR-024 is defended by verifying that embedding receipt failure does not release
+    vectors; this prevents drift in the brokered embedding and receipt boundary.
+    """
     sink = _RecordingReceiptSink(fail=True)
     payload = {
         "usage": {"prompt_tokens": 1},
@@ -170,6 +183,9 @@ async def test_embedding_receipt_failure_does_not_release_vectors() -> None:
 
 
 async def test_missing_api_key_fails_at_call_time_without_an_http_request() -> None:
+    """ADR-024 is defended by verifying that missing api key fails at call time without an http
+    request; this prevents drift in the brokered embedding and receipt boundary.
+    """
     called = False
 
     def handler(_: httpx.Request) -> httpx.Response:
@@ -186,6 +202,9 @@ async def test_missing_api_key_fails_at_call_time_without_an_http_request() -> N
 
 
 async def test_empty_batch_is_local_but_still_requires_provider_configuration() -> None:
+    """ADR-024 is defended by verifying that empty batch is local but still requires provider
+    configuration; this prevents drift in the brokered embedding and receipt boundary.
+    """
     called = False
 
     def handler(_: httpx.Request) -> httpx.Response:
@@ -201,6 +220,9 @@ async def test_empty_batch_is_local_but_still_requires_provider_configuration() 
 
 
 async def test_non_sequence_and_mixed_inputs_raise_typed_errors() -> None:
+    """ADR-024 is defended by verifying that non sequence and mixed inputs raise typed errors;
+    this prevents drift in the brokered embedding and receipt boundary.
+    """
     async with _client(lambda _: httpx.Response(500)) as client:
         provider = OpenAIEmbeddingProvider(api_key="test-key", dimensions=3, client=client)
         with pytest.raises(EmbeddingInputError, match="not a string"):
@@ -210,6 +232,10 @@ async def test_non_sequence_and_mixed_inputs_raise_typed_errors() -> None:
 
 
 async def test_transport_and_api_failures_remain_distinct() -> None:
+    """ADR-024 is defended by verifying that transport and api failures remain distinct; this
+    prevents drift in the brokered embedding and receipt boundary.
+    """
+
     def disconnected(request: httpx.Request) -> httpx.Response:
         raise httpx.ConnectError("offline", request=request)
 
@@ -250,6 +276,9 @@ async def test_malformed_success_responses_raise_typed_errors(
     payload: object,
     message: str,
 ) -> None:
+    """ADR-024 is defended by verifying that malformed success responses raise typed errors;
+    this prevents drift in the brokered embedding and receipt boundary.
+    """
     response_content = json.dumps(payload).encode()
     async with _client(
         lambda _: httpx.Response(
