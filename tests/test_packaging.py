@@ -85,6 +85,18 @@ def test_materialize_app_source_is_an_allowlisted_rebuildable_context(
     assert {path.name for path in (destination / "infra" / "billing-breaker").iterdir()} == D2_FILES
 
 
+def test_editable_checkout_materializes_the_same_deploy_context(tmp_path: Path) -> None:
+    """M2T keeps the owner deploy command usable from the canonical editable workspace."""
+
+    destination = deploy_resources.materialize_app_source(tmp_path / "checkout-source")
+
+    assert (destination / "Dockerfile").read_bytes() == (ROOT / "Dockerfile").read_bytes()
+    assert (destination / "src" / "spine" / "main.py").read_bytes() == (
+        ROOT / "src" / "spine" / "main.py"
+    ).read_bytes()
+    assert {path.name for path in (destination / "infra" / "billing-breaker").iterdir()} == D2_FILES
+
+
 def test_materialize_billing_breaker_preserves_human_deploy_path(
     tmp_path: Path,
     packaged_spine_resources: Path,

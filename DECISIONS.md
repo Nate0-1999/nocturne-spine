@@ -859,3 +859,20 @@ liveness into a database diagnostic.
 schema wave and cannot detect skew. Querying `alembic_version` on every health
 request couples liveness to database access and breaks the contract-only app.
 Hard-coding `0009` would drift from the migration graph.
+
+## 032 — Materialize identical deploy input from wheel or canonical checkout [P4]
+
+**Decision.** Keep the wheel's embedded allowlist as the public deployment
+source. When Spine is imported from its canonical editable checkout and those
+embedded files do not exist, materialize the same allowlist from the repository
+root, canonical package tree, and billing-breaker directory.
+
+**Motivation.** The owner's fixed-cloud command currently runs from this
+workspace. Editable installs intentionally do not synthesize Hatch's wheel-only
+`_deploy` directory, so requiring it made `nocturne up → y` fail before any
+cloud mutation even though every exact source file was present.
+
+**Rejected alternatives.** Building and reinstalling a wheel behind the prompt
+would mutate the running environment and obscure which code is deploying.
+Copying the entire repository would widen the image context beyond the existing
+allowlist. Removing embedded wheel resources would break standalone installs.

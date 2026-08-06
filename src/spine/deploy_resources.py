@@ -57,15 +57,21 @@ def _copy_tree(
 
 def _packaged_deploy_resources() -> Traversable:
     resources = files("spine").joinpath(_DEPLOY_RESOURCE_DIRECTORY)
-    if not resources.is_dir():
-        raise RuntimeError(
-            "Spine deploy resources are unavailable; install a built nocturne-spine wheel"
-        )
-    return resources
+    if resources.is_dir():
+        return resources
+    checkout = Path(__file__).resolve().parents[2]
+    required = (checkout / "pyproject.toml", checkout / "Dockerfile", checkout / "infra")
+    if all(path.exists() for path in required):
+        return checkout
+    raise RuntimeError(
+        "Spine deploy resources are unavailable; install a built nocturne-spine wheel"
+    )
 
 
 def _copy_d2_source(resources: Traversable, destination: Path) -> None:
     d2_resources = resources.joinpath("billing-breaker")
+    if not d2_resources.is_dir():
+        d2_resources = resources.joinpath("infra", "billing-breaker")
     for filename in _D2_FILES:
         source = d2_resources.joinpath(filename)
         if not source.is_file():
