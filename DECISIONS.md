@@ -843,3 +843,19 @@ the time-of-check/time-of-use gap without another persistence table.
 **Rejected alternatives.** A confirmation dialog proves only that a click
 happened. Trusting a browser-computed score would split authority. Persisting
 audition state would let a presentation overlay leak into commit or feedback.
+
+## 031 — Report the packaged schema head in authenticated health [P1.3, P4]
+
+**Decision.** Add the installed wheel's single Alembic head to the authenticated
+health response and derive it from the packaged migration graph. The health
+endpoint does not query PostgreSQL.
+
+**Motivation.** A remote `nocturne up` needs a cheap version handshake before it
+starts a UI that may call newer endpoints. The packaged head is the app's schema
+expectation and remains available during scale-to-zero wake-up without turning
+liveness into a database diagnostic.
+
+**Rejected alternatives.** The package version remained `0.1.0` across the M2
+schema wave and cannot detect skew. Querying `alembic_version` on every health
+request couples liveness to database access and breaks the contract-only app.
+Hard-coding `0009` would drift from the migration graph.

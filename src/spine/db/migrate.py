@@ -8,6 +8,7 @@ from contextlib import contextmanager
 
 from alembic import command
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
@@ -46,6 +47,17 @@ def upgrade_head(database_url: str) -> None:
     """Upgrade one database to the single packaged migration head."""
 
     command.upgrade(make_alembic_config(database_url), "head")
+
+
+def packaged_head() -> str:
+    """Return the single schema revision expected by this installed Spine build."""
+
+    heads = ScriptDirectory.from_config(
+        make_alembic_config("postgresql+asyncpg://unused:unused@127.0.0.1/unused")
+    ).get_heads()
+    if len(heads) != 1:
+        raise RuntimeError("packaged Spine migrations must have one head")
+    return heads[0]
 
 
 def main() -> None:

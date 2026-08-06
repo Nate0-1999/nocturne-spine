@@ -755,6 +755,17 @@
             "title": "Ok",
             "type": "boolean"
           },
+          "schema_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schema Version"
+          },
           "version": {
             "title": "Version",
             "type": "string"
@@ -762,7 +773,8 @@
         },
         "required": [
           "ok",
-          "version"
+          "version",
+          "schema_version"
         ],
         "title": "HealthResponse",
         "type": "object"

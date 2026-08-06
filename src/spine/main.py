@@ -18,6 +18,7 @@ from spine import __version__
 from spine.auth import StaticBearerAuthMiddleware
 from spine.config import Settings
 from spine.db.engine import make_engine
+from spine.db.migrate import packaged_head
 from spine.db.session import make_session_factory
 from spine.embeddings import EmbeddingProvider, OpenAIEmbeddingProvider
 from spine.inject.decisions import DecisionService
@@ -50,6 +51,7 @@ logger = logging.getLogger(__name__)
 class HealthResponse(BaseModel):
     ok: bool
     version: str
+    schema_version: str | None
 
 
 def create_app(
@@ -255,7 +257,7 @@ def create_app(
         responses={401: problem_openapi("Bearer token missing or invalid")},
     )
     async def healthz() -> HealthResponse:
-        return HealthResponse(ok=True, version=__version__)
+        return HealthResponse(ok=True, version=__version__, schema_version=packaged_head())
 
     app.include_router(inject_router)
     app.include_router(learner_router)
