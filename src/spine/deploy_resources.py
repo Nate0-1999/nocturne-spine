@@ -35,6 +35,7 @@ def _copy_file(source: Traversable, destination: Path) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
     with source.open("rb") as source_file, destination.open("wb") as destination_file:
         shutil.copyfileobj(source_file, destination_file)
+    destination.chmod(0o644)
 
 
 def _copy_tree(

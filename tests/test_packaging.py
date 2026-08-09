@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import shutil
+import stat
 from importlib.metadata import version
 from pathlib import Path
 
@@ -83,6 +84,22 @@ def test_materialize_app_source_is_an_allowlisted_rebuildable_context(
         ROOT / "src" / "spine" / "main.py"
     ).read_bytes()
     assert {path.name for path in (destination / "infra" / "billing-breaker").iterdir()} == D2_FILES
+
+
+def test_materialized_source_modes_are_independent_of_the_callers_umask(
+    tmp_path: Path,
+    packaged_spine_resources: Path,
+) -> None:
+    """SPEC D.2 099 makes release-source provenance stable across owner machines."""
+
+    destination = deploy_resources.materialize_app_source(tmp_path / "mode-source")
+
+    assert stat.S_IMODE((destination / "Dockerfile").stat().st_mode) == 0o644
+    assert stat.S_IMODE((destination / "src" / "spine" / "main.py").stat().st_mode) == 0o644
+    assert (
+        stat.S_IMODE((destination / "infra" / "billing-breaker" / "deploy.sh").stat().st_mode)
+        == 0o755
+    )
 
 
 def test_editable_checkout_materializes_the_same_deploy_context(tmp_path: Path) -> None:
