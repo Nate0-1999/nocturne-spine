@@ -31,12 +31,12 @@ class LearningExample:
     baseline_bias: float
     target_injected: bool
     actor_weight: Decimal
-    shown_as: Literal["injected", "near_miss", "pinned"]
+    shown_as: Literal["injected", "near_miss", "pinned", "budget_cut"]
     body_tokens: int
 
     @property
     def recorded_injected(self) -> bool:
-        return self.shown_as != "near_miss"
+        return self.shown_as not in {"near_miss", "budget_cut"}
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

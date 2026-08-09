@@ -197,7 +197,7 @@ class CandidateScorePoint(M2KContract):
     scorer_version: NonBlankString
     score: SignedDecimalString
     rank: PositiveInt
-    shown_as: Literal["injected", "near_miss", "pinned"]
+    shown_as: Literal["injected", "near_miss", "pinned", "budget_cut"]
     outcome: str | None
     features: MemoryFeatures
     contributions: ContributionBreakdown

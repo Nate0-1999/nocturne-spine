@@ -267,6 +267,8 @@ def _plan_commit(
 ) -> list[_PlannedOutcome]:
     by_memory: dict[UUID, Mapping[str, Any]] = {}
     for event in events:
+        if event["shown_as"] == "budget_cut":
+            continue
         memory_id = _event_uuid(event, "memory_id")
         if memory_id in by_memory:
             raise DecisionStateError(f"injection contains duplicate memory {memory_id}")
@@ -309,6 +311,8 @@ def _plan_commit(
 
     planned = []
     for event in events:
+        if event["shown_as"] == "budget_cut":
+            continue
         memory_id = _event_uuid(event, "memory_id")
         shown_as = event["shown_as"]
         if shown_as == "near_miss":

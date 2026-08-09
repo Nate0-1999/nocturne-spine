@@ -566,6 +566,19 @@ async def _insert_events(
                 ),
             )
         )
+    for item in selection.budget_cuts:
+        values.append(
+            _event_values(
+                command=command,
+                snapshot_ts=snapshot_ts,
+                injection_id=injection_id,
+                scorer_version=scorer_version,
+                item=item,
+                shown_as="budget_cut",
+                actor_class="passive" if command.mode == "autonomous" else "human",
+                outcome="budget_cut",
+            )
+        )
     if command.mode == "autonomous":
         for item in selection.unselected:
             if item.candidate.memory_id not in current_ids - recorded_ids:

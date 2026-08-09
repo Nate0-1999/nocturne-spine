@@ -155,8 +155,8 @@ def test_golden_selection_preserves_pin_score_order_ranks_and_greedy_skips() -> 
     # With only stopwords in the prompt, every regular has the same .61 base:
     # .42*1 sem + .11*1 time + .16*.5 global project = .61.
     # Biases therefore make regular scores .90, .80, .70, .60, .50.
-    """A-007 is defended by verifying that golden selection preserves pin score order ranks and
-    greedy skips; this prevents drift in the deterministic scorer contract.
+    """A-007 and D.2 101(3) require deterministic greedy skips and an exact budget-cut band;
+    this prevents replay instrumentation from changing scorer behavior.
     """
     pins = (
         _candidate(2, pin=True, body="one two"),
@@ -190,6 +190,7 @@ def test_golden_selection_preserves_pin_score_order_ranks_and_greedy_skips() -> 
     assert [item.rank for item in result.injected] == [1, 2, 3, 5]
     assert [item.candidate.memory_id.int for item in result.near_misses] == [11, 13, 14]
     assert [item.rank for item in result.near_misses] == [4, 6, 7]
+    assert [item.candidate.memory_id.int for item in result.budget_cuts] == [11]
     assert [item.score for item in result.injected[2:]] == pytest.approx([0.90, 0.70])
     assert [item.score for item in result.near_misses] == pytest.approx([0.80, 0.60, 0.50])
 

@@ -1129,7 +1129,7 @@ async def _instant(
 
 def _event_selected(row: InjectionEvent) -> bool:
     if row.outcome is None:
-        return row.shown_as != "near_miss"
+        return row.shown_as not in {"near_miss", "budget_cut"}
     return row.outcome in {"kept", "added_back", "cited", "auto_entered", "mid_thread_added"}
 
 

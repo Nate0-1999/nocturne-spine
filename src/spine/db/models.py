@@ -277,7 +277,7 @@ class InjectionEvent(Base):
     __tablename__ = "injection_event"
     __table_args__ = (
         CheckConstraint(
-            "shown_as IN ('injected','near_miss','pinned')",
+            "shown_as IN ('injected','near_miss','pinned','budget_cut')",
             name="injection_event_shown_as_check",
         ),
         CheckConstraint(

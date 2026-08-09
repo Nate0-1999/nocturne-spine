@@ -596,7 +596,9 @@ async def test_models_match_authoritative_c2_schema(
         "thread": {},
         "injection_event": {
             "injection_event_actor_class_check": ("actor_class IN ('human','passive')"),
-            "injection_event_shown_as_check": ("shown_as IN ('injected','near_miss','pinned')"),
+            "injection_event_shown_as_check": (
+                "shown_as IN ('injected','near_miss','pinned','budget_cut')"
+            ),
         },
         "spend_event": {
             "spend_event_product_type_check": (

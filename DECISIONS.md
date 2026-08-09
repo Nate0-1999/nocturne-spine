@@ -876,3 +876,24 @@ cloud mutation even though every exact source file was present.
 would mutate the running environment and obscure which code is deploying.
 Copying the entire repository would widen the image context beyond the existing
 allowlist. Removing embedded wheel resources would break standalone installs.
+
+## 033 — Preserve presentation while recording the budget boundary [P1.2]
+
+**Decision.** Record every above-threshold candidate rejected solely by the
+remaining token budget as a dedicated injection event with
+`shown_as=budget_cut`, outcome `budget_cut`, its complete feature vector, rank,
+score, and scorer version. A candidate that is also displayed retains its
+separate `shown_as=near_miss` event, so gate commit sees exactly the same batch
+member it did before. Migration 0010 extends only the `shown_as` check.
+
+**Motivation.** D.2 101 needs the counterfactual boundary for the existing
+Chrysopoeia replay, but `shown_as` answers what the owner saw while `outcome`
+answers why selection stopped. Keeping those facts separate prevents learning
+instrumentation from changing the gate or scorer behavior it is meant to
+observe.
+
+**Rejected alternatives.** Reclassifying a visible near miss as `budget_cut`
+would break its add-back and veto controls. Overloading the mutable disposition
+on that same event would erase one of the two facts. Logging only the displayed slice
+would censor the band at `near_miss_k`. Adding a second tuning system or changing
+the selection budget belongs to later memory-share work, not this packet.

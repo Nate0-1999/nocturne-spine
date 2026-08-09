@@ -593,25 +593,29 @@ async def test_pins_bypass_threshold_and_budget_and_regular_ties_use_memory_id(
             ).all()
         }
 
-    assert [event.shown_as for event in events] == [
+    presented = [event for event in events if event.shown_as != "budget_cut"]
+    budget_cuts = [event for event in events if event.shown_as == "budget_cut"]
+    assert [event.shown_as for event in presented] == [
         "pinned",
         "pinned",
         "near_miss",
         "near_miss",
         "near_miss",
     ]
-    assert [event.features["_retrieval"] for event in events] == [
+    assert [event.features["_retrieval"] for event in presented] == [
         {"sources": ["pinned"]},
         {"sources": ["pinned"]},
         {"sources": ["vector"]},
         {"sources": ["vector"]},
         {"sources": ["vector"]},
     ]
+    assert [event.memory_id for event in budget_cuts] == regular_ids
+    assert all(event.outcome == "budget_cut" for event in budget_cuts)
     assert all(heads[memory_id].revision == 2 for memory_id in pin_ids)
     assert all(heads[memory_id].stats["injections"] == 1 for memory_id in pin_ids)
     assert all(heads[memory_id].revision == 1 for memory_id in regular_ids)
     assert all(heads[memory_id].stats == DEFAULT_STATS for memory_id in regular_ids)
-    assert regular_ids[-1] not in {event.memory_id for event in events}
+    assert regular_ids[-1] not in {event.memory_id for event in presented}
 
 
 async def test_budget_skip_continues_to_lower_scoring_candidate(
@@ -619,8 +623,8 @@ async def test_budget_skip_continues_to_lower_scoring_candidate(
     embedding_provider: ScriptedEmbeddingProvider,
     memory_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    """A-030 is defended by verifying that budget skip continues to lower scoring candidate;
-    this prevents drift in the per-message injection transaction contract.
+    """D.2 101(3) and B.6 rule 12 require budget skips to remain behaviorally inert but
+    replay-visible; this prevents the memory-share learner from losing its lower boundary.
     """
     high_id = UUID(int=301)
     lower_id = UUID(int=302)
@@ -662,9 +666,19 @@ async def test_budget_skip_continues_to_lower_scoring_candidate(
     async with memory_session_factory() as session:
         high = await session.get(MemoryUnit, high_id)
         lower = await session.get(MemoryUnit, lower_id)
+        events = list(
+            (await session.execute(select(InjectionEvent).order_by(InjectionEvent.rank))).scalars()
+        )
     assert high is not None and lower is not None
     assert (high.revision, high.stats["injections"]) == (1, 0)
     assert (lower.revision, lower.stats["injections"]) == (2, 1)
+    assert [(event.memory_id, event.shown_as, event.outcome) for event in events] == [
+        (high_id, "near_miss", None),
+        (high_id, "budget_cut", "budget_cut"),
+        (lower_id, "injected", None),
+    ]
+    assert set(events[1].features) >= {"sem", "kw", "time", "proj", "freq", "hist"}
+    assert events[1].scorer_version
 
 
 async def test_concurrent_prepare_is_one_shot_per_thread(

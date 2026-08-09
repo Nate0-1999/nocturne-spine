@@ -226,6 +226,7 @@ class ScoringSelection:
 
     injected: tuple[ScoredCandidate, ...]
     near_misses: tuple[ScoredCandidate, ...]
+    budget_cuts: tuple[ScoredCandidate, ...]
     unselected: tuple[ScoredCandidate, ...]
     regular_budget: int
     pin_token_cost: int
@@ -317,8 +318,14 @@ def score_and_select(
     remaining_budget = regular_budget
     selected_regular: list[ScoredCandidate] = []
     unselected_regular: list[ScoredCandidate] = []
+    budget_cuts: list[ScoredCandidate] = []
 
     for scored in ranked_regular:
+        cut_by_budget = (
+            len(selected_regular) < config.params.top_k
+            and scored.score >= config.params.tau
+            and scored.token_cost > remaining_budget
+        )
         selectable = (
             len(selected_regular) < config.params.top_k
             and scored.score >= config.params.tau
@@ -329,10 +336,13 @@ def score_and_select(
             remaining_budget -= scored.token_cost
         else:
             unselected_regular.append(scored)
+            if cut_by_budget:
+                budget_cuts.append(scored)
 
     return ScoringSelection(
         injected=(*ranked_pins, *ranked_locked, *selected_regular),
         near_misses=tuple(unselected_regular[: config.params.near_miss_k]),
+        budget_cuts=tuple(budget_cuts),
         unselected=tuple(unselected_regular),
         regular_budget=regular_budget,
         pin_token_cost=pin_token_cost,
