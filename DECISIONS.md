@@ -897,3 +897,27 @@ would break its add-back and veto controls. Overloading the mutable disposition
 on that same event would erase one of the two facts. Logging only the displayed slice
 would censor the band at `near_miss_k`. Adding a second tuning system or changing
 the selection budget belongs to later memory-share work, not this packet.
+
+## 034 — Measure reviewed normative-bearing headings, not prose tone [P4]
+
+**Decision.** Classify every current SPEC/ADR catalog heading through one
+exhaustive reviewed registry as CONTRACT, RULE, MIXED_GUARDRAIL, or
+REFERENCE_ONLY. The first three classes form a heading-level coverage
+denominator; the report keeps contextual references and all test-to-statute
+mention links visible outside that denominator. `D.2` is reference-only for
+this measurement because the citation grammar collapses accepted and proposed
+rows into one heading token. Any new, removed, or invalidly classified heading
+fails the ordinary motivation check until the registry is consciously updated.
+
+**Motivation.** SPEC B.6 rule 12 asks which executable tests defend law, while
+SPEC 1.4 deliberately gives contracts, guidance, and horizon guardrails
+different force. A reviewed heading inventory makes that denominator
+reproducible and exposes its granularity without pretending that one heading
+citation proves every clause beneath it.
+
+**Rejected alternatives.** Inferring force from `MUST`, `NEVER`, or
+`FORBIDDEN` would elevate examples, rejected alternatives, and historical
+prose while missing contracts written without modal words. Calling the result
+clause coverage would manufacture precision the current citation grammar does
+not contain. Treating all accepted `D.2` history as one covered law would hide
+the exact-row ambiguity rather than resolve it.
