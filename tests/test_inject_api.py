@@ -623,7 +623,7 @@ async def test_budget_skip_continues_to_lower_scoring_candidate(
     embedding_provider: ScriptedEmbeddingProvider,
     memory_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    """D.2 101(3) and B.6 rule 12 require budget skips to remain behaviorally inert but
+    """D.2 101(3) and SPEC B.6 rule 12 require budget skips to remain behaviorally inert but
     replay-visible; this prevents the memory-share learner from losing its lower boundary.
     """
     high_id = UUID(int=301)
