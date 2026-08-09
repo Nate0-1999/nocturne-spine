@@ -96,6 +96,11 @@ class CreatedMemoryResponse(ContractModel):
     created: MemoryUnit
 
 
+class MemorySplitResponse(ContractModel):
+    source: MemoryUnit
+    created: list[MemoryUnit]
+
+
 class SimilarMemoryResponse(ContractModel):
     created: None
     similar: list[SimilarityMemoryCard]

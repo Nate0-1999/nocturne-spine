@@ -16,6 +16,7 @@ from spine.contracts import (
     LabelConflictResponse,
     MemoryKind,
     MemoryListResponse,
+    MemorySplitResponse,
     MemoryUnit,
     PatchMemoryConflictResponse,
     RevisionConflictResponse,
@@ -34,11 +35,14 @@ from spine.memory.service import (
     MemoryCreated,
     MemoryNotFoundError,
     MemoryService,
+    MemorySplitCreated,
     MemoryValidationError,
     PatchMemoryCommand,
     RevisionConflictError,
     SearchMemoriesQuery,
     SimilarMemories,
+    SplitMemoryChild,
+    SplitMemoryCommand,
 )
 from spine.problems import (
     ProblemJSONResponse,
@@ -72,6 +76,22 @@ class CreateMemoryRequest(ContractRequest):
     editor: str
     machine_id: str
     force: bool = False
+
+
+class SplitMemoryChildRequest(ContractRequest):
+    label: str
+    body: str
+    keywords: Annotated[list[str], Field(min_length=2, max_length=5)]
+
+
+class SplitMemoryRequest(ContractRequest):
+    principal_id: str
+    source_body: str
+    children: Annotated[list[SplitMemoryChildRequest], Field(min_length=2, max_length=64)]
+    thread_origin: str | None = None
+    origin_path: str | None = None
+    editor: str
+    machine_id: str
 
 
 class PatchMemoryRequest(ContractRequest):
@@ -148,6 +168,63 @@ async def create_memory(
     if not isinstance(outcome, MemoryCreated):  # pragma: no cover - closed service union
         raise TypeError(f"unexpected create outcome: {type(outcome).__name__}")
     return CreatedMemoryResponse(created=outcome.memory)
+
+
+@router.post(
+    "/v1/memory-splits",
+    status_code=201,
+    response_model=MemorySplitResponse,
+    responses=EMBEDDING_RESPONSES
+    | {
+        200: {
+            "description": "The first near-similar child requires an ordinary create decision",
+            "model": SimilarMemoryResponse,
+        },
+        409: {
+            "description": "The first child with an active-label collision or hard duplicate",
+            "model": CreateMemoryConflictResponse,
+        },
+    },
+)
+async def split_memory(
+    body: SplitMemoryRequest,
+    request: Request,
+) -> MemorySplitResponse | JSONResponse:
+    try:
+        outcome = await _memory_service(request).split(
+            SplitMemoryCommand(
+                principal_id=body.principal_id,
+                source_body=body.source_body,
+                children=tuple(
+                    SplitMemoryChild(
+                        label=child.label,
+                        body=child.body,
+                        keywords=tuple(child.keywords),
+                    )
+                    for child in body.children
+                ),
+                thread_origin=body.thread_origin,
+                origin_path=body.origin_path,
+                editor=body.editor,
+                machine_id=body.machine_id,
+            )
+        )
+    except LabelConflictError as error:
+        return _label_conflict(error)
+    except DuplicateMemoryError as error:
+        conflict = DuplicateMemoryResponse(duplicate_of=error.duplicate_of)
+        return JSONResponse(status_code=409, content=conflict.model_dump(mode="json"))
+    except MemoryValidationError as error:
+        return _unprocessable(request, str(error))
+    except EmbeddingProviderError:
+        return _provider_unavailable(request)
+
+    if isinstance(outcome, SimilarMemories):
+        response = SimilarMemoryResponse(created=None, similar=list(outcome.similar))
+        return JSONResponse(status_code=200, content=response.model_dump(mode="json"))
+    if not isinstance(outcome, MemorySplitCreated):  # pragma: no cover - closed service union
+        raise TypeError(f"unexpected split outcome: {type(outcome).__name__}")
+    return MemorySplitResponse(source=outcome.source, created=list(outcome.created))
 
 
 @router.patch(

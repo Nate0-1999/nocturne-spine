@@ -11,9 +11,11 @@ import tiktoken
 from conftest import ScriptedEmbeddingProvider, basis_vector, vector_with_cosine
 from httpx import AsyncClient, Response
 from sqlalchemy import func, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from spine.db.models import MemoryRevision, MemoryUnit
+from spine.db.models import MemoryEdge, MemoryRevision, MemoryUnit
+from spine.memory.service import SplitMemoryChild, SplitMemoryCommand
 
 ULID_PATTERN = re.compile(r"[0-7][0-9A-HJKMNP-TV-Z]{25}\Z")
 
@@ -48,6 +50,24 @@ def _patch_body(expected_revision: int, **changes: Any) -> dict[str, Any]:
     return request
 
 
+def _split_body(
+    *,
+    source_body: str,
+    children: list[dict[str, Any]],
+    principal_id: str = "owner",
+    **overrides: Any,
+) -> dict[str, Any]:
+    request: dict[str, Any] = {
+        "principal_id": principal_id,
+        "source_body": source_body,
+        "children": children,
+        "editor": "user",
+        "machine_id": "test-machine",
+    }
+    request.update(overrides)
+    return request
+
+
 def _assert_json(response: Response, status: int) -> dict[str, Any]:
     assert response.status_code == status
     assert response.headers["content-type"].split(";", 1)[0] == "application/json"
@@ -64,6 +84,325 @@ def _assert_problem(response: Response, status: int, endpoint: str) -> dict[str,
     assert problem["detail"]
     assert problem["endpoint"] == endpoint
     return problem
+
+
+async def test_memory_split_preserves_exact_source_and_writes_one_linked_active_family(
+    memory_client: AsyncClient,
+    embedding_provider: ScriptedEmbeddingProvider,
+    memory_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """F027 and ADR-022 are defended under SPEC B.6 rule 12 by verifying that one oversized
+    source becomes exact audit lineage plus independently retrievable linked children.
+    """
+    source_body = ("Exact source evidence with several durable claims. " * 40).strip()
+    first_body = "Alpha is the first standalone durable claim."
+    second_body = "Beta is the second standalone durable claim."
+    embedding_provider.set(source_body, basis_vector(0))
+    # Identical sibling vectors prove that family members are not deduped against each other.
+    embedding_provider.set(first_body, basis_vector(1)).set(second_body, basis_vector(1))
+    thread_id = str(uuid4())
+
+    response = await memory_client.post(
+        "/v1/memory-splits",
+        json=_split_body(
+            source_body=source_body,
+            thread_origin=thread_id,
+            origin_path="notes/durable",
+            children=[
+                {
+                    "label": "Alpha claim",
+                    "body": first_body,
+                    "keywords": ["alpha", "durable"],
+                },
+                {
+                    "label": "Beta claim",
+                    "body": second_body,
+                    "keywords": ["beta", "durable"],
+                },
+            ],
+        ),
+    )
+
+    split = _assert_json(response, 201)
+    assert set(split) == {"source", "created"}
+    source = split["source"]
+    children = split["created"]
+    assert source["label"] == "Split source"
+    assert source["body"] == source_body
+    assert source["kind"] == "fact"
+    assert source["keywords"] == ["split", "source"]
+    assert source["status"] == "tombstoned"
+    assert source["thread_origin"] == thread_id
+    assert source["origin_path"] == "notes/durable"
+    assert [child["label"] for child in children] == ["Alpha claim", "Beta claim"]
+    assert [child["body"] for child in children] == [first_body, second_body]
+    assert {child["status"] for child in children} == {"active"}
+    assert {child["kind"] for child in children} == {"fact"}
+    assert {child["project_key"] for child in children} == {None}
+    assert {child["thread_origin"] for child in children} == {thread_id}
+    assert {child["origin_path"] for child in children} == {"notes/durable"}
+    assert {child["revision"] for child in children} == {1}
+    assert {tuple(child["stats"].values()) for child in children} == {(0, 0, 0, 0, None)}
+    assert embedding_provider.calls == [(source_body,), (first_body,), (second_body,)]
+
+    source_id = UUID(source["memory_id"])
+    child_ids = [UUID(child["memory_id"]) for child in children]
+    async with memory_session_factory() as session:
+        source_revision = (
+            await session.scalars(
+                select(MemoryRevision).where(MemoryRevision.memory_id == source_id)
+            )
+        ).one()
+        child_revisions = (
+            await session.scalars(
+                select(MemoryRevision)
+                .where(MemoryRevision.memory_id.in_(child_ids))
+                .order_by(MemoryRevision.memory_id)
+            )
+        ).all()
+        edges = (
+            await session.scalars(select(MemoryEdge).where(MemoryEdge.edge_type == "relates_to"))
+        ).all()
+
+    assert source_revision.parent_uid is None
+    assert source_revision.body == source_body
+    assert source_revision.reason == "remember/source-split"
+    assert {revision.parent_uid for revision in child_revisions} == {source_revision.rev_uid}
+    assert {revision.reason for revision in child_revisions} == {"remember/split-child"}
+    assert {(edge.from_memory_id, edge.to_memory_id) for edge in edges} == {
+        (child_ids[0], child_ids[1]),
+        (child_ids[1], child_ids[0]),
+    }
+
+
+@pytest.mark.parametrize(
+    "children",
+    [
+        [{"label": "Only", "body": "Only body", "keywords": ["only", "body"]}],
+        [
+            {"label": "Same", "body": "First", "keywords": ["first", "claim"]},
+            {"label": "Same", "body": "Second", "keywords": ["second", "claim"]},
+        ],
+        [
+            {"label": "First", "body": "Same body", "keywords": ["first", "claim"]},
+            {"label": "Second", "body": " Same body ", "keywords": ["second", "claim"]},
+        ],
+        [
+            {"label": "First", "body": "First body", "keywords": ["UPPER", "claim"]},
+            {"label": "Second", "body": "Second body", "keywords": ["second", "claim"]},
+        ],
+        [
+            {"label": "x" * 65, "body": "First body", "keywords": ["first", "claim"]},
+            {"label": "Second", "body": "Second body", "keywords": ["second", "claim"]},
+        ],
+        [
+            {
+                "label": "First",
+                "body": ("token " * 129).strip(),
+                "keywords": ["first", "claim"],
+            },
+            {"label": "Second", "body": "Second body", "keywords": ["second", "claim"]},
+        ],
+    ],
+)
+async def test_memory_split_rejects_invalid_or_lossy_families_before_embedding(
+    memory_client: AsyncClient,
+    embedding_provider: ScriptedEmbeddingProvider,
+    children: list[dict[str, Any]],
+) -> None:
+    """F027 and ADR-022 are defended under SPEC B.6 rule 12 by verifying that invalid, duplicate,
+    or over-limit families write nothing instead of weakening the atomic-memory laws.
+    """
+    response = await memory_client.post(
+        "/v1/memory-splits",
+        json=_split_body(source_body="Exact source", children=children),
+    )
+
+    _assert_problem(response, 422, "POST /v1/memory-splits")
+    assert embedding_provider.calls == []
+    assert _assert_json(await memory_client.get("/v1/memories"), 200)["total"] == 0
+
+
+async def test_memory_split_preserves_existing_label_and_duplicate_conflict_bodies(
+    memory_client: AsyncClient,
+    embedding_provider: ScriptedEmbeddingProvider,
+) -> None:
+    """F027 and C.4 are defended under SPEC B.6 rule 12 by verifying that a split cannot bypass
+    existing active-label or hard-duplicate protections and never leaves a partial family.
+    """
+    embedding_provider.set("Taken body", basis_vector(0))
+    taken = _assert_json(
+        await memory_client.post(
+            "/v1/memories",
+            json=_create_body(label="Taken", body="Taken body", principal_id="label-owner"),
+        ),
+        201,
+    )["created"]
+    embedding_provider.set("Label source", basis_vector(1))
+    embedding_provider.set("Label first", basis_vector(2))
+    embedding_provider.set("Label second", basis_vector(3))
+    calls_before_label_conflict = list(embedding_provider.calls)
+
+    label_response = await memory_client.post(
+        "/v1/memory-splits",
+        json=_split_body(
+            principal_id="label-owner",
+            source_body="Label source",
+            children=[
+                {
+                    "label": "Label first",
+                    "body": "Label first",
+                    "keywords": ["label", "first"],
+                },
+                {
+                    "label": "Taken",
+                    "body": "Label second",
+                    "keywords": ["label", "second"],
+                },
+            ],
+        ),
+    )
+    assert _assert_json(label_response, 409) == {
+        "label_conflict": {"memory_id": taken["memory_id"], "label": "Taken"}
+    }
+    assert embedding_provider.calls == calls_before_label_conflict
+
+    embedding_provider.set("Duplicate source", basis_vector(4))
+    embedding_provider.set("Duplicate child", basis_vector(0))
+    embedding_provider.set("Other child", basis_vector(5))
+    duplicate_response = await memory_client.post(
+        "/v1/memory-splits",
+        json=_split_body(
+            principal_id="label-owner",
+            source_body="Duplicate source",
+            children=[
+                {
+                    "label": "Duplicate child",
+                    "body": "Duplicate child",
+                    "keywords": ["duplicate", "child"],
+                },
+                {
+                    "label": "Other child",
+                    "body": "Other child",
+                    "keywords": ["other", "child"],
+                },
+            ],
+        ),
+    )
+    duplicate = _assert_json(duplicate_response, 409)["duplicate_of"]
+    assert duplicate["memory_id"] == taken["memory_id"]
+    assert duplicate["score"] == pytest.approx(1.0, abs=1e-6)
+
+    listed = _assert_json(await memory_client.get("/v1/memories"), 200)
+    assert listed["total"] == 1
+    assert listed["items"] == [taken]
+
+
+async def test_memory_split_returns_first_near_similar_child_without_any_write(
+    memory_client: AsyncClient,
+    embedding_provider: ScriptedEmbeddingProvider,
+) -> None:
+    """F027 and C.4 are defended under SPEC B.6 rule 12 by verifying source-order near-similar
+    handling returns the existing review shape before a later conflict and writes nothing.
+    """
+    embedding_provider.set("Corpus body", basis_vector(0)).set("Later body", basis_vector(3))
+    corpus = _assert_json(
+        await memory_client.post(
+            "/v1/memories",
+            json=_create_body(label="Corpus", body="Corpus body", principal_id="similar-owner"),
+        ),
+        201,
+    )["created"]
+    later = _assert_json(
+        await memory_client.post(
+            "/v1/memories",
+            json=_create_body(label="Later", body="Later body", principal_id="similar-owner"),
+        ),
+        201,
+    )["created"]
+    embedding_provider.set("Similar source", basis_vector(4))
+    embedding_provider.set("Similar child", vector_with_cosine(0.85))
+    embedding_provider.set("Would collide later", basis_vector(5))
+
+    response = await memory_client.post(
+        "/v1/memory-splits",
+        json=_split_body(
+            principal_id="similar-owner",
+            source_body="Similar source",
+            children=[
+                {
+                    "label": "Similar child",
+                    "body": "Similar child",
+                    "keywords": ["similar", "child"],
+                },
+                {
+                    "label": "Would duplicate later",
+                    "body": "Would collide later",
+                    "keywords": ["later", "collision"],
+                },
+            ],
+        ),
+    )
+
+    similar = _assert_json(response, 200)
+    assert similar["created"] is None
+    assert [item["memory_id"] for item in similar["similar"]] == [corpus["memory_id"]]
+    listed = _assert_json(await memory_client.get("/v1/memories"), 200)
+    assert listed["total"] == 2
+    assert {item["memory_id"] for item in listed["items"]} == {
+        corpus["memory_id"],
+        later["memory_id"],
+    }
+
+
+async def test_memory_split_rolls_back_heads_revisions_and_edges_on_late_insert_failure(
+    memory_app: Any,
+    embedding_provider: ScriptedEmbeddingProvider,
+    memory_session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """F027 and ADR-022 are defended under SPEC B.6 rule 12 by verifying a late edge failure
+    rolls back the exact source, every child head/revision, and every earlier sibling edge.
+    """
+    source_body = "Atomic source"
+    first_body = "Atomic first"
+    second_body = "Atomic second"
+    embedding_provider.set(source_body, basis_vector(0))
+    embedding_provider.set(first_body, basis_vector(1))
+    embedding_provider.set(second_body, basis_vector(2))
+    minted = iter(
+        ["source-revision", "first-revision", "second-revision", "same-edge", "same-edge"]
+    )
+    monkeypatch.setattr("spine.memory.service.mint_ulid", lambda: next(minted))
+
+    with pytest.raises(IntegrityError):
+        await memory_app.state.memory_service.split(
+            SplitMemoryCommand(
+                principal_id="rollback-owner",
+                source_body=source_body,
+                children=(
+                    SplitMemoryChild(
+                        label="Atomic first",
+                        body=first_body,
+                        keywords=("atomic", "first"),
+                    ),
+                    SplitMemoryChild(
+                        label="Atomic second",
+                        body=second_body,
+                        keywords=("atomic", "second"),
+                    ),
+                ),
+                editor="user",
+                machine_id="test-machine",
+            )
+        )
+
+    async with memory_session_factory() as session:
+        counts = [
+            await session.scalar(select(func.count()).select_from(model))
+            for model in (MemoryUnit, MemoryRevision, MemoryEdge)
+        ]
+    assert counts == [0, 0, 0]
 
 
 async def test_create_writes_root_attribution_and_checks_label_before_embedding(

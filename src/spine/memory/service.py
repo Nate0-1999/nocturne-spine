@@ -33,7 +33,7 @@ from spine.db.memory import (
 from spine.db.memory import (
     MemoryUnitNotFoundError as DatabaseMemoryNotFoundError,
 )
-from spine.db.models import MemoryRevision, MemoryUnit
+from spine.db.models import MemoryEdge, MemoryRevision, MemoryUnit
 from spine.embeddings import (
     EmbeddingConfigurationError,
     EmbeddingProvider,
@@ -77,6 +77,24 @@ class CreateMemoryCommand:
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
+class SplitMemoryChild:
+    label: str
+    body: str
+    keywords: Sequence[str]
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class SplitMemoryCommand:
+    principal_id: str
+    source_body: str
+    children: Sequence[SplitMemoryChild]
+    editor: str
+    machine_id: str
+    thread_origin: str | None = None
+    origin_path: str | None = None
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
 class PatchMemoryCommand:
     memory_id: UUID
     expected_revision: int
@@ -117,6 +135,12 @@ class MemoryCreated:
 @dataclass(frozen=True, slots=True, kw_only=True)
 class SimilarMemories:
     similar: tuple[SimilarityMemoryCard, ...]
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class MemorySplitCreated:
+    source: ContractMemoryUnit
+    created: tuple[ContractMemoryUnit, ...]
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -298,6 +322,170 @@ class MemoryService:
                     raise
 
                 return MemoryCreated(memory=contract_memory_from_row(row))
+
+    async def split(
+        self,
+        command: SplitMemoryCommand,
+    ) -> MemorySplitCreated | SimilarMemories:
+        """Create one exact split family or return its first create-band refusal."""
+
+        self._validate_split(command)
+
+        # Preserve C.4's cheap label-before-provider ordering for every child.
+        # The principal-locked pass below remains authoritative against races.
+        async with self._session_factory() as preflight_session:
+            for child in command.children:
+                conflict = await _find_active_label(
+                    preflight_session,
+                    principal_id=command.principal_id,
+                    label=child.label,
+                )
+                if conflict is not None:
+                    raise LabelConflictError(conflict["id"], conflict["label"])
+
+        receipt_context = EmbeddingReceiptContext(
+            principal_id=command.principal_id,
+            machine_id=command.machine_id,
+            origin_agent=_agent_from_editor(command.editor),
+            thread_id=_optional_uuid(command.thread_origin),
+        )
+        source_embedding = await embed_one(
+            self._embedding_provider,
+            command.source_body,
+            expected_dimensions=_EMBEDDING_DIMENSIONS,
+            receipt_context=receipt_context,
+        )
+        child_embeddings = [
+            await embed_one(
+                self._embedding_provider,
+                child.body,
+                expected_dimensions=_EMBEDDING_DIMENSIONS,
+                receipt_context=receipt_context,
+            )
+            for child in command.children
+        ]
+
+        async with self._session_factory() as session:
+            async with session.begin():
+                await session.execute(
+                    text("SELECT pg_advisory_xact_lock(hashtextextended(:principal_id, 0))"),
+                    {"principal_id": command.principal_id},
+                )
+
+                # No family row exists yet: every comparison below is against the
+                # pre-existing ACTIVE corpus, never another semantic sibling.
+                for child, embedding in zip(command.children, child_embeddings, strict=True):
+                    conflict = await _find_active_label(
+                        session,
+                        principal_id=command.principal_id,
+                        label=child.label,
+                    )
+                    if conflict is not None:
+                        raise LabelConflictError(conflict["id"], conflict["label"])
+
+                    matches = await self._dedup_matches(
+                        session,
+                        principal_id=command.principal_id,
+                        embedding=embedding,
+                    )
+                    highest_score = matches[0].score if matches else None
+                    band = _classify_dedup_score(
+                        highest_score,
+                        dedup_sim=self._dedup_sim,
+                        dedup_dup=self._dedup_dup,
+                    )
+                    if band == "duplicate":
+                        raise DuplicateMemoryError(matches[0])
+                    if band == "similar":
+                        return SimilarMemories(similar=tuple(matches))
+
+                source_command = CreateMemoryCommand(
+                    principal_id=command.principal_id,
+                    label="Split source",
+                    body=command.source_body,
+                    kind="fact",
+                    keywords=("split", "source"),
+                    project_key=None,
+                    thread_origin=command.thread_origin,
+                    origin_path=command.origin_path,
+                    editor=command.editor,
+                    machine_id=command.machine_id,
+                    revision_reason="remember/source-split",
+                )
+                try:
+                    async with session.begin_nested():
+                        source_row = await self._insert_root(
+                            session,
+                            source_command,
+                            source_embedding,
+                            status="tombstoned",
+                        )
+                        source_revision_uid = await session.scalar(
+                            select(MemoryRevision.rev_uid).where(
+                                MemoryRevision.memory_id == source_row["id"],
+                                MemoryRevision.revision == 1,
+                            )
+                        )
+                        if source_revision_uid is None:  # pragma: no cover - insert invariant
+                            raise RuntimeError("split source revision was not written")
+
+                        child_rows: list[Mapping[str, Any]] = []
+                        for child, embedding in zip(
+                            command.children,
+                            child_embeddings,
+                            strict=True,
+                        ):
+                            child_rows.append(
+                                await self._insert_root(
+                                    session,
+                                    CreateMemoryCommand(
+                                        principal_id=command.principal_id,
+                                        label=child.label,
+                                        body=child.body,
+                                        kind="fact",
+                                        keywords=child.keywords,
+                                        project_key=None,
+                                        thread_origin=command.thread_origin,
+                                        origin_path=command.origin_path,
+                                        editor=command.editor,
+                                        machine_id=command.machine_id,
+                                        parent_uid=source_revision_uid,
+                                        revision_reason="remember/split-child",
+                                    ),
+                                    embedding,
+                                )
+                            )
+
+                        child_ids = [row["id"] for row in child_rows]
+                        for left in child_ids:
+                            for right in child_ids:
+                                if left == right:
+                                    continue
+                                await session.execute(
+                                    insert(MemoryEdge.__table__).values(
+                                        edge_uid=mint_ulid(),
+                                        from_memory_id=left,
+                                        to_memory_id=right,
+                                        edge_type="relates_to",
+                                    )
+                                )
+                except IntegrityError as error:
+                    if _integrity_constraint_name(error) != _ACTIVE_LABEL_CONSTRAINT:
+                        raise
+                    for child in command.children:
+                        conflict = await _find_active_label(
+                            session,
+                            principal_id=command.principal_id,
+                            label=child.label,
+                        )
+                        if conflict is not None:
+                            raise LabelConflictError(conflict["id"], conflict["label"]) from None
+                    raise
+
+                return MemorySplitCreated(
+                    source=contract_memory_from_row(source_row),
+                    created=tuple(contract_memory_from_row(row) for row in child_rows),
+                )
 
     async def create_candidate(
         self,
@@ -572,6 +760,50 @@ class MemoryService:
                 f"body has {tokens} cl100k_base tokens; maximum is {self._memory_max_tokens}"
             )
 
+    def _validate_split(self, command: SplitMemoryCommand) -> None:
+        if not command.source_body.strip():
+            raise MemoryValidationError("split source_body must be nonblank")
+        if not 2 <= len(command.children) <= 64:
+            raise MemoryValidationError("memory split requires between 2 and 64 children")
+        self._validate_label("Split source")
+
+        labels: set[str] = set()
+        bodies: set[str] = set()
+        for child in command.children:
+            if (
+                not child.label.strip()
+                or child.label != child.label.strip()
+                or "\n" in child.label
+                or "\r" in child.label
+            ):
+                raise MemoryValidationError(
+                    "split child labels must be nonblank trimmed single lines"
+                )
+            self._validate_label(child.label)
+            if child.label in labels:
+                raise MemoryValidationError("split child labels must be distinct")
+            labels.add(child.label)
+
+            if not child.body.strip():
+                raise MemoryValidationError("split child bodies must be nonblank")
+            self._validate_body(child.body)
+            normalized_body = child.body.strip()
+            if normalized_body in bodies:
+                raise MemoryValidationError("split child bodies must be distinct")
+            bodies.add(normalized_body)
+
+            if not 2 <= len(child.keywords) <= 5:
+                raise MemoryValidationError("split children require 2-5 keywords")
+            keywords: set[str] = set()
+            for keyword in child.keywords:
+                if not keyword or keyword != keyword.strip() or keyword != keyword.lower():
+                    raise MemoryValidationError(
+                        "split child keywords must be trimmed nonblank lowercase terms"
+                    )
+                if keyword in keywords:
+                    raise MemoryValidationError("split child keywords must be distinct")
+                keywords.add(keyword)
+
     async def _dedup_matches(
         self,
         session: AsyncSession,
@@ -800,11 +1032,14 @@ __all__ = [
     "MemoryNotFoundError",
     "MemoryService",
     "MemoryServiceError",
+    "MemorySplitCreated",
     "MemoryValidationError",
     "PatchMemoryCommand",
     "RevisionConflictError",
     "SearchMemoriesQuery",
     "SimilarMemories",
+    "SplitMemoryChild",
+    "SplitMemoryCommand",
     "UNSET",
     "UnsetType",
 ]

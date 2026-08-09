@@ -19,6 +19,7 @@ SPINE_ROUTES = {
     ("POST", "/v1/inject/commit"),
     ("POST", "/v1/feedback"),
     ("POST", "/v1/memories"),
+    ("POST", "/v1/memory-splits"),
     ("PATCH", "/v1/memories/{id}"),
     ("GET", "/v1/memories"),
     ("POST", "/v1/search"),
