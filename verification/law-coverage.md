@@ -2,8 +2,8 @@
 
 Generated deterministically by `scripts/check_test_motivations.py`.
 
-- Tests discovered: 154
-- Motivated tests: 154
+- Tests discovered: 161
+- Motivated tests: 161
 - Grandfathered baseline debt: 0
 - Stale baseline entries: 0
 
@@ -121,9 +121,11 @@ Generated deterministically by `scripts/check_test_motivations.py`.
 
 - _None._
 
-### ADR-022 — ZERO DEFENDERS
+### ADR-022 — 3 defender(s)
 
-- _None._
+- `tests/test_memory_api.py::test_memory_split_preserves_exact_source_and_writes_one_linked_active_family`
+- `tests/test_memory_api.py::test_memory_split_rejects_invalid_or_lossy_families_before_embedding`
+- `tests/test_memory_api.py::test_memory_split_rolls_back_heads_revisions_and_edges_on_late_insert_failure`
 
 ### ADR-023 — ZERO DEFENDERS
 
@@ -169,8 +171,13 @@ Generated deterministically by `scripts/check_test_motivations.py`.
 
 - _None._
 
-### B.6 — 1 defender(s)
+### B.6 — 6 defender(s)
 
+- `tests/test_memory_api.py::test_memory_split_preserves_exact_source_and_writes_one_linked_active_family`
+- `tests/test_memory_api.py::test_memory_split_preserves_existing_label_and_duplicate_conflict_bodies`
+- `tests/test_memory_api.py::test_memory_split_rejects_invalid_or_lossy_families_before_embedding`
+- `tests/test_memory_api.py::test_memory_split_returns_first_near_similar_child_without_any_write`
+- `tests/test_memory_api.py::test_memory_split_rolls_back_heads_revisions_and_edges_on_late_insert_failure`
 - `tests/test_test_motivations.py::test_report_indexes_citations_and_marks_uncovered_law`
 
 ### C.1 — ZERO DEFENDERS
@@ -259,9 +266,10 @@ Generated deterministically by `scripts/check_test_motivations.py`.
 
 - _None._
 
-### D.2 — ZERO DEFENDERS
+### D.2 — 2 defender(s)
 
-- _None._
+- `tests/test_packaging.py::test_editable_checkout_materializes_the_same_deploy_context`
+- `tests/test_packaging.py::test_materialized_source_modes_are_independent_of_the_callers_umask`
 
 ### D.3 — ZERO DEFENDERS
 
@@ -374,6 +382,20 @@ Generated deterministically by `scripts/check_test_motivations.py`.
 
 - `tests/test_api.py::test_committed_openapi_is_current`
 - `tests/test_vitals.py::test_vitals_measures_database_size_without_guessing_harness_resources`
+
+### A-047
+
+- `tests/test_api.py::test_exactly_the_lawful_spine_routes_are_registered`
+- `tests/test_m2k_api.py::test_console_contributions_sum_exactly_and_control_inserts_a_version`
+- `tests/test_m2k_api.py::test_only_learner_proposals_can_be_activated_and_accuracy_is_measured`
+
+### F027
+
+- `tests/test_memory_api.py::test_memory_split_preserves_exact_source_and_writes_one_linked_active_family`
+- `tests/test_memory_api.py::test_memory_split_preserves_existing_label_and_duplicate_conflict_bodies`
+- `tests/test_memory_api.py::test_memory_split_rejects_invalid_or_lossy_families_before_embedding`
+- `tests/test_memory_api.py::test_memory_split_returns_first_near_similar_child_without_any_write`
+- `tests/test_memory_api.py::test_memory_split_rolls_back_heads_revisions_and_edges_on_late_insert_failure`
 
 ### P4
 

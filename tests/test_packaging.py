@@ -103,7 +103,9 @@ def test_materialized_source_modes_are_independent_of_the_callers_umask(
 
 
 def test_editable_checkout_materializes_the_same_deploy_context(tmp_path: Path) -> None:
-    """M2T keeps the owner deploy command usable from the canonical editable workspace."""
+    """SPEC D.2 097 keeps M2T's owner deploy command usable from the canonical editable
+    workspace after the wheel-only resource failure that motivated this regression.
+    """
 
     destination = deploy_resources.materialize_app_source(tmp_path / "checkout-source")
 

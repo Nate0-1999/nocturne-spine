@@ -167,8 +167,15 @@ async def test_memory_split_preserves_exact_source_and_writes_one_linked_active_
     assert source_revision.parent_uid is None
     assert source_revision.body == source_body
     assert source_revision.reason == "remember/source-split"
+    assert (source_revision.editor, source_revision.origin_machine_id) == (
+        "user",
+        "test-machine",
+    )
     assert {revision.parent_uid for revision in child_revisions} == {source_revision.rev_uid}
     assert {revision.reason for revision in child_revisions} == {"remember/split-child"}
+    assert {(revision.editor, revision.origin_machine_id) for revision in child_revisions} == {
+        ("user", "test-machine")
+    }
     assert {(edge.from_memory_id, edge.to_memory_id) for edge in edges} == {
         (child_ids[0], child_ids[1]),
         (child_ids[1], child_ids[0]),
@@ -322,7 +329,9 @@ async def test_memory_split_returns_first_near_similar_child_without_any_write(
     )["created"]
     embedding_provider.set("Similar source", basis_vector(4))
     embedding_provider.set("Similar child", vector_with_cosine(0.85))
-    embedding_provider.set("Would collide later", basis_vector(5))
+    # The second child hard-duplicates Later; the first near-similar must win by source order.
+    embedding_provider.set("Would collide later", basis_vector(3))
+    calls_before_split = list(embedding_provider.calls)
 
     response = await memory_client.post(
         "/v1/memory-splits",
@@ -347,6 +356,11 @@ async def test_memory_split_returns_first_near_similar_child_without_any_write(
     similar = _assert_json(response, 200)
     assert similar["created"] is None
     assert [item["memory_id"] for item in similar["similar"]] == [corpus["memory_id"]]
+    assert embedding_provider.calls == calls_before_split + [
+        ("Similar source",),
+        ("Similar child",),
+        ("Would collide later",),
+    ]
     listed = _assert_json(await memory_client.get("/v1/memories"), 200)
     assert listed["total"] == 2
     assert {item["memory_id"] for item in listed["items"]} == {
