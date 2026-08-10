@@ -10,9 +10,17 @@ from spine.contracts import (
     CommitResponse,
     ContractRequest,
     FeedbackResponse,
+    InjectionEventAnnotationsRequest,
+    InjectionEventAnnotationsResponse,
     PrepareResponse,
 )
 from spine.embeddings import EmbeddingProviderError
+from spine.inject.annotations import (
+    AnnotationConflictError,
+    AnnotationFingerprintMismatchError,
+    AnnotationTargetNotFoundError,
+    InjectionEventAnnotationService,
+)
 from spine.inject.decisions import (
     CommitCommand,
     DecisionService,
@@ -55,6 +63,11 @@ DECISION_RESPONSES = ERROR_RESPONSES | {
     409: problem_openapi("Injection outcome conflicts with the request"),
 }
 
+ANNOTATION_RESPONSES = ERROR_RESPONSES | {
+    404: problem_openapi("Injection event does not exist"),
+    409: problem_openapi("Target fingerprint or immutable annotation conflicts"),
+}
+
 
 class PrepareRequest(ContractRequest):
     thread_id: UUID
@@ -86,6 +99,24 @@ class FeedbackRequest(ContractRequest):
     injection_id: UUID
     memory_id: UUID
     signal: Literal["mid_thread_removed", "mid_thread_added", "cited"]
+
+
+@router.post(
+    "/v1/injection-event-annotations",
+    response_model=InjectionEventAnnotationsResponse,
+    responses=ANNOTATION_RESPONSES,
+)
+async def annotate_injection_events(
+    body: InjectionEventAnnotationsRequest,
+    request: Request,
+) -> InjectionEventAnnotationsResponse | ProblemJSONResponse:
+    try:
+        accepted = await _annotation_service(request).append(body.annotations)
+    except AnnotationTargetNotFoundError as error:
+        return _decision_problem(request, 404, "Not Found", str(error))
+    except (AnnotationFingerprintMismatchError, AnnotationConflictError) as error:
+        return _decision_problem(request, 409, "Conflict", str(error))
+    return InjectionEventAnnotationsResponse(accepted=accepted)
 
 
 @router.post(
@@ -204,6 +235,10 @@ def _prepare_service(request: Request) -> PrepareService:
 
 def _decision_service(request: Request) -> DecisionService:
     return request.app.state.decision_service
+
+
+def _annotation_service(request: Request) -> InjectionEventAnnotationService:
+    return request.app.state.injection_event_annotation_service
 
 
 def _learner_worker(request: Request) -> LearnerWorker:

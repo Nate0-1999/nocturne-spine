@@ -1,13 +1,35 @@
 """Shared strict models for the exact SPEC C.4 wire contract."""
 
+from __future__ import annotations
+
 from datetime import datetime
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, RootModel
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    ConfigDict,
+    Field,
+    RootModel,
+    StrictStr,
+    model_validator,
+)
+
+from spine.ids import normalize_ulid
 
 MemoryKind = Literal["fact", "preference", "procedure", "project_note", "persona", "pinned"]
 MemoryStatus = Literal["active", "candidate", "quarantined", "tombstoned"]
+
+
+def _nonblank(value: str) -> str:
+    if not value.strip() or value != value.strip():
+        raise ValueError("value must be nonblank without surrounding whitespace")
+    return value
+
+
+type NonBlankString = Annotated[StrictStr, AfterValidator(_nonblank)]
+type ULID = Annotated[StrictStr, AfterValidator(normalize_ulid)]
 
 
 class ContractModel(BaseModel):
@@ -90,6 +112,37 @@ class CommitResponse(ContractModel):
 
 class FeedbackResponse(ContractModel):
     ok: Literal[True]
+
+
+class InjectionEventAnnotationInput(ContractRequest):
+    """One guarded A-053 verification-only classification request."""
+
+    target_event_uid: ULID
+    expected_principal_id: StrictStr
+    expected_machine_id: StrictStr
+    reason: NonBlankString
+    annotator_principal_id: NonBlankString
+    annotator_machine_id: NonBlankString
+    annotator_origin_agent: NonBlankString
+
+
+class InjectionEventAnnotationsRequest(ContractRequest):
+    """One nonempty atomic batch with unique target event identities."""
+
+    annotations: list[InjectionEventAnnotationInput] = Field(min_length=1, max_length=100)
+
+    @model_validator(mode="after")
+    def require_unique_targets(self) -> InjectionEventAnnotationsRequest:
+        targets = [annotation.target_event_uid for annotation in self.annotations]
+        if len(set(targets)) != len(targets):
+            raise ValueError("annotations must have unique target_event_uid values")
+        return self
+
+
+class InjectionEventAnnotationsResponse(ContractModel):
+    """Idempotent acceptance count, including identical replays."""
+
+    accepted: int = Field(strict=True, ge=1)
 
 
 class CreatedMemoryResponse(ContractModel):

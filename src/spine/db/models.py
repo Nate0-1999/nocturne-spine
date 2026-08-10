@@ -322,6 +322,57 @@ class InjectionEvent(Base):
     )
 
 
+class InjectionEventAnnotation(Base):
+    """One immutable verification-only classification over an injection event."""
+
+    __tablename__ = "injection_event_annotation"
+    __table_args__ = (
+        CheckConstraint(
+            "kind = 'verification_only'",
+            name="injection_event_annotation_kind_check",
+        ),
+        CheckConstraint(
+            "reason = btrim(reason) AND reason <> ''",
+            name="injection_event_annotation_reason_check",
+        ),
+        CheckConstraint(
+            "annotator_principal_id = btrim(annotator_principal_id) "
+            "AND annotator_principal_id <> ''",
+            name="injection_event_annotation_annotator_principal_check",
+        ),
+        CheckConstraint(
+            "annotator_machine_id = btrim(annotator_machine_id) AND annotator_machine_id <> ''",
+            name="injection_event_annotation_annotator_machine_check",
+        ),
+        CheckConstraint(
+            "annotator_origin_agent = btrim(annotator_origin_agent) "
+            "AND annotator_origin_agent <> ''",
+            name="injection_event_annotation_annotator_agent_check",
+        ),
+    )
+
+    target_event_uid: Mapped[str] = mapped_column(
+        Text,
+        ForeignKey(
+            "injection_event.event_uid",
+            name="injection_event_annotation_target_event_uid_fkey",
+        ),
+        primary_key=True,
+    )
+    kind: Mapped[str] = mapped_column(Text, nullable=False)
+    target_principal_id: Mapped[str] = mapped_column(Text, nullable=False)
+    target_machine_id: Mapped[str] = mapped_column(Text, nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    annotator_principal_id: Mapped[str] = mapped_column(Text, nullable=False)
+    annotator_machine_id: Mapped[str] = mapped_column(Text, nullable=False)
+    annotator_origin_agent: Mapped[str] = mapped_column(Text, nullable=False)
+    ts: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    )
+
+
 class SpendEvent(Base):
     """One append-only receipt line in ADR-024 normal form."""
 

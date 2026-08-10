@@ -1,5 +1,8 @@
 """Live-Postgres proofs for A-035 graph and scorer-console authority."""
 
+import asyncio
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
@@ -7,13 +10,67 @@ from uuid import UUID
 import pytest
 from conftest import basis_vector, vector_with_cosine
 from httpx import AsyncClient
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy import select, text
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from spine.db.models import InjectionEvent, LearnerRun, MemoryEdge, MemoryRevision, MemoryUnit
+from spine.db.models import (
+    InjectionEvent,
+    InjectionEventAnnotation,
+    LearnerRun,
+    MemoryEdge,
+    MemoryRevision,
+    MemoryUnit,
+)
 from spine.db.models import ScorerActivation as ScorerActivationRow
 from spine.db.models import ScorerConfig as ScorerConfigRow
-from spine.m2k.service import M2KService
+from spine.m2k.contracts import ScorerSimulationResponse, ScorerValues
+from spine.m2k.service import _CONTROL_ADVISORY_LOCK_KEY, M2KService
+
+
+@asynccontextmanager
+async def _held_control_lock(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> AsyncIterator[None]:
+    bind = session_factory.kw.get("bind")
+    assert isinstance(bind, AsyncEngine)
+    connection = await bind.connect()
+    try:
+        await connection.execute(
+            text("SELECT pg_advisory_lock(:key)"),
+            {"key": _CONTROL_ADVISORY_LOCK_KEY},
+        )
+        await connection.commit()
+        yield
+    finally:
+        if connection.in_transaction():
+            await connection.rollback()
+        released = await connection.scalar(
+            text("SELECT pg_advisory_unlock(:key)"),
+            {"key": _CONTROL_ADVISORY_LOCK_KEY},
+        )
+        await connection.commit()
+        await connection.close()
+        assert released is True
+
+
+async def _wait_for_control_lock_waiters(
+    session_factory: async_sessionmaker[AsyncSession],
+    expected: int,
+) -> None:
+    for _ in range(200):
+        async with session_factory() as session:
+            count = await session.scalar(
+                text(
+                    "SELECT count(*) FROM pg_locks "
+                    "WHERE locktype = 'advisory' AND classid = 0 "
+                    "AND objid = :key AND NOT granted"
+                ),
+                {"key": _CONTROL_ADVISORY_LOCK_KEY},
+            )
+        if count is not None and count >= expected:
+            return
+        await asyncio.sleep(0.01)
+    raise AssertionError(f"expected {expected} M2K control-lock waiters")
 
 
 async def _insert_graph_fixture(
@@ -182,10 +239,26 @@ async def test_memory_graph_uses_exact_encodings_and_current_membership(
 async def test_console_contributions_sum_exactly_and_control_inserts_a_version(
     memory_client: AsyncClient,
     memory_session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A-035/A-047 are defended by proving that contribution math, replay previews,
     content-addressed force, and the immutable activation journal share one authority.
     """
+    original_deep_receipt = M2KService._deep_receipt
+    observed_isolation: list[str] = []
+
+    async def observe_deep_receipt(
+        service: M2KService,
+        session: AsyncSession,
+        base: ScorerConfigRow,
+        values: ScorerValues,
+    ) -> ScorerSimulationResponse:
+        isolation = await session.scalar(text("SHOW transaction_isolation"))
+        assert isinstance(isolation, str)
+        observed_isolation.append(isolation)
+        return await original_deep_receipt(service, session, base, values)
+
+    monkeypatch.setattr(M2KService, "_deep_receipt", observe_deep_receipt)
     thread_id = UUID(int=9201)
     memory_id = UUID(int=9202)
     async with memory_session_factory() as session, session.begin():
@@ -268,11 +341,15 @@ async def test_console_contributions_sum_exactly_and_control_inserts_a_version(
         "/v1/scorer-configs",
         json={**request, "simulation_digest": "0" * 64},
     )
-    created = await memory_client.post("/v1/scorer-configs", json=request)
-    replay = await memory_client.post("/v1/scorer-configs", json=request)
-
     assert stale.status_code == 409
     assert stale.json()["detail"] == "M2K operation refused: simulation_stale."
+    observed_isolation.clear()
+    created = await memory_client.post("/v1/scorer-configs", json=request)
+    assert observed_isolation == ["repeatable read"]
+    observed_isolation.clear()
+    replay = await memory_client.post("/v1/scorer-configs", json=request)
+
+    assert observed_isolation == []
     assert created.status_code == 200
     assert replay.status_code == 200
     assert created.json()["version"] == f"m2k-{event_uid}"
@@ -303,6 +380,86 @@ async def test_console_contributions_sum_exactly_and_control_inserts_a_version(
     assert [item["kind"] for item in refreshed.json()["learning"]["annotations"]] == [
         "force_values"
     ]
+
+
+@pytest.mark.asyncio
+async def test_competing_force_values_take_a_fresh_snapshot_after_the_control_lock(
+    memory_client: AsyncClient,
+    memory_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """A-047/A-053 serialize FORCE before its repeatable-read evidence snapshot."""
+
+    console = await memory_client.post(
+        "/v1/scorer-console/query",
+        json={"principal_id": "owner", "thread_id": None, "as_of": "now"},
+    )
+    assert console.status_code == 200
+    values = console.json()["configurations"][0]["values"]
+    values["tau"] = 0.6
+    simulation = await memory_client.post(
+        "/v1/scorer-simulations",
+        json={
+            "principal_id": "owner",
+            "injection_id": None,
+            "base_version": "v0",
+            "values": values,
+            "slice_parameter_id": "scorer.top_k",
+        },
+    )
+    assert simulation.status_code == 200
+    base_request = {
+        "base_version": "v0",
+        "values": values,
+        "simulation_digest": simulation.json()["simulation_digest"],
+        "force": True,
+        "actor_class": "human",
+        "machine_id": "studio",
+    }
+    async with _held_control_lock(memory_session_factory):
+        requests = [
+            asyncio.create_task(
+                memory_client.post(
+                    "/v1/scorer-configs",
+                    json={
+                        **base_request,
+                        "event_uid": f"01KZ4R1000000000000000001{index}",
+                    },
+                )
+            )
+            for index in range(2)
+        ]
+        await _wait_for_control_lock_waiters(memory_session_factory, 2)
+
+    responses = await asyncio.gather(*requests)
+
+    assert sorted(response.status_code for response in responses) == [200, 409]
+    stale = next(response for response in responses if response.status_code == 409)
+    created = next(response for response in responses if response.status_code == 200)
+    assert stale.json()["detail"] == "M2K operation refused: stale_base."
+    async with memory_session_factory() as session:
+        configs = (
+            (await session.execute(select(ScorerConfigRow).where(ScorerConfigRow.version != "v0")))
+            .scalars()
+            .all()
+        )
+        activations = (await session.execute(select(ScorerActivationRow))).scalars().all()
+        active = (
+            (await session.execute(select(ScorerConfigRow).where(ScorerConfigRow.active.is_(True))))
+            .scalars()
+            .one()
+        )
+        control_locks = await session.scalar(
+            text(
+                "SELECT count(*) FROM pg_locks "
+                "WHERE locktype = 'advisory' AND classid = 0 "
+                "AND objid = :key AND granted"
+            ),
+            {"key": _CONTROL_ADVISORY_LOCK_KEY},
+        )
+    assert [row.version for row in configs] == [created.json()["version"]]
+    assert [row.version for row in activations] == [created.json()["version"]]
+    assert active.version == created.json()["version"]
+    assert control_locks == 0
 
 
 @pytest.mark.asyncio
@@ -477,6 +634,257 @@ async def test_console_learning_view_is_one_exact_server_authored_scoreboard(
             "version": "v0",
             "result": "not_better",
         }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_f033_production_legacy_aliases_render_the_honest_owner_scoreboard(
+    memory_client: AsyncClient,
+    memory_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """A-053/F033 replay the exact legacy aliases that corrected 87 exclusions to 90."""
+
+    started = datetime(2026, 8, 10, 16, tzinfo=UTC)
+    identities = (
+        (
+            "01KY2JE3JKY1MXYCKVZ93KY399",
+            "d1-4f6500c7-336f-4ce4-871b-9f31ef770f9f",
+            "d1-relay",
+            "kept",
+        ),
+        (
+            "01KY54AX6YSYMXA4X7V1KZHH2A",
+            "local",
+            "local-machine",
+            "removed:not_relevant",
+        ),
+        (
+            "01KZD7697HE5ST1HMT7AGWRZK3",
+            "nocturne-deploy-verify-ea5a431ef134474881a7f046bb52982e",
+            "nocturne-deploy",
+            "kept",
+        ),
+        (
+            "01KZP578SD8RKF110T2FHV79NW",
+            "nocturne-deploy-verify-5a9c7bada69b4629917630fcde814a55",
+            "nocturne-deploy",
+            "kept",
+        ),
+    )
+    prior_hygiene_rows = [
+        InjectionEvent(
+            event_uid=f"01KZ6H{index:020d}",
+            injection_id=UUID(int=9600 + index),
+            thread_id=UUID(int=10600 + index),
+            agent_id="general",
+            machine_id="m2xs-sop-verification",
+            principal_id="m2xs-sop-verification",
+            project_key=None,
+            agent_kind="general",
+            prompt_text="Prior production verification hygiene",
+            scorer_version="v0",
+            memory_id=UUID(int=11600 + index),
+            memory_kind="fact",
+            features={
+                "sem": 1.0,
+                "kw": 1.0,
+                "time": 0.0,
+                "proj": 0.0,
+                "freq": 0.0,
+                "hist": 0.0,
+                "_memory": {
+                    "label": f"Prior verification {index}",
+                    "body": f"Prior verification body {index}",
+                },
+            },
+            score=0.58,
+            rank=1,
+            shown_as="injected",
+            actor_class="human",
+            outcome="kept",
+            ts=started - timedelta(days=1) + timedelta(minutes=index),
+        )
+        for index in range(1, 88)
+    ]
+    rows: list[InjectionEvent] = []
+    for index, (event_uid, principal_id, machine_id, outcome) in enumerate(identities, start=1):
+        rows.append(
+            InjectionEvent(
+                event_uid=event_uid,
+                injection_id=UUID(int=9700 + index),
+                thread_id=UUID(int=9800 + index),
+                agent_id="general",
+                machine_id=machine_id,
+                principal_id=principal_id,
+                project_key=None,
+                agent_kind="general",
+                prompt_text="F033 production correlation",
+                scorer_version="v0",
+                memory_id=UUID(int=9900 + index),
+                memory_kind="fact",
+                features={
+                    "sem": 1.0,
+                    "kw": 1.0,
+                    "time": 0.0,
+                    "proj": 0.0,
+                    "freq": 0.0,
+                    "hist": 0.0,
+                    "_memory": {"label": f"F033 {index}", "body": f"Body {index}"},
+                },
+                score=0.58,
+                rank=1,
+                shown_as="injected",
+                actor_class="human",
+                outcome=outcome,
+                ts=started + timedelta(minutes=index),
+            )
+        )
+    owner_row = rows[1]
+    verification_rows = [rows[index] for index in (0, 2, 3)]
+    async with memory_session_factory() as session, session.begin():
+        session.add_all([*prior_hygiene_rows, owner_row])
+
+    before = await memory_client.post(
+        "/v1/scorer-console/query",
+        json={"principal_id": "local", "thread_id": None, "as_of": "now"},
+    )
+    assert before.status_code == 200
+    assert before.json()["learning"]["eligible_dispositions"] == 1
+    assert before.json()["learning"]["hygiene_excluded_dispositions"] == 87
+
+    async with memory_session_factory() as session, session.begin():
+        session.add_all(verification_rows)
+
+    response = await memory_client.post(
+        "/v1/scorer-console/query",
+        json={"principal_id": "local", "thread_id": None, "as_of": "now"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    learning = payload["learning"]
+    assert learning["minimum_dispositions"] == 25
+    assert learning["eligible_dispositions"] == 1
+    assert learning["hygiene_excluded_dispositions"] == 90
+    assert learning["remaining_to_floor"] == 24
+    assert learning["floor_met"] is False
+    assert learning["right"] == 0
+    assert learning["wrong"] == 1
+    assert learning["weighted_right"] == "0"
+    assert learning["weighted_wrong"] == "1"
+    assert learning["weighted_agreement_percent"] == "0"
+    assert [point["event_uid"] for point in learning["live_agreement"]] == [
+        "01KY54AX6YSYMXA4X7V1KZHH2A"
+    ]
+    assert payload["active_version"] == "v0"
+    assert payload["proposed_versions"] == []
+
+
+@pytest.mark.asyncio
+async def test_console_and_deep_simulation_use_the_annotation_aware_evidence_projection(
+    memory_client: AsyncClient,
+    memory_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """A-053/F033 give Console and deep receipts one annotated whole-gate projection."""
+
+    started = datetime(2026, 8, 10, 18, tzinfo=UTC)
+
+    def event(seed: int, *, gate: int, outcome: str, shown_as: str) -> InjectionEvent:
+        return InjectionEvent(
+            event_uid=f"01KZ5R{seed:020d}",
+            injection_id=UUID(int=gate),
+            thread_id=UUID(int=10000 + gate),
+            agent_id="general",
+            machine_id="studio-mac",
+            principal_id="owner",
+            project_key=None,
+            agent_kind="general",
+            prompt_text="deep annotation fixture",
+            scorer_version="v0",
+            memory_id=UUID(int=10100 + seed),
+            memory_kind="fact",
+            features={
+                "sem": float(seed % 2),
+                "kw": 0.0,
+                "time": 0.0,
+                "proj": 0.0,
+                "freq": 0.0,
+                "hist": 0.0,
+                "_memory": {"label": f"Deep {seed}", "body": f"Deep body {seed}"},
+            },
+            score=0.42 if seed % 2 else 0.0,
+            rank=1,
+            shown_as=shown_as,
+            actor_class="human",
+            outcome=outcome,
+            ts=started + timedelta(hours=gate),
+        )
+
+    rows = [
+        event(1, gate=10201, outcome="added_back", shown_as="near_miss"),
+        event(2, gate=10201, outcome="removed:not_relevant", shown_as="injected"),
+        event(3, gate=10202, outcome="added_back", shown_as="near_miss"),
+        event(4, gate=10202, outcome="removed:not_relevant", shown_as="injected"),
+    ]
+    async with memory_session_factory() as session, session.begin():
+        session.add_all(rows)
+    console = await memory_client.post(
+        "/v1/scorer-console/query",
+        json={"principal_id": "owner", "thread_id": None, "as_of": "now"},
+    )
+    assert console.status_code == 200
+    before_learning = console.json()["learning"]
+    assert before_learning["eligible_dispositions"] == 4
+    assert before_learning["hygiene_excluded_dispositions"] == 0
+    assert [point["event_uid"] for point in before_learning["live_agreement"]] == [
+        "01KZ5R00000000000000000001",
+        "01KZ5R00000000000000000002",
+        "01KZ5R00000000000000000003",
+        "01KZ5R00000000000000000004",
+    ]
+    values = console.json()["configurations"][0]["values"]
+    request = {
+        "principal_id": "owner",
+        "injection_id": None,
+        "base_version": "v0",
+        "values": values,
+        "slice_parameter_id": "scorer.top_k",
+    }
+    before = await memory_client.post("/v1/scorer-simulations", json=request)
+    assert before.status_code == 200
+    assert before.json()["source_boundary"] == "01KZ5R00000000000000000004"
+    assert before.json()["holdout_dispositions"] == 2
+
+    async with memory_session_factory() as session, session.begin():
+        session.add(
+            InjectionEventAnnotation(
+                target_event_uid="01KZ5R00000000000000000003",
+                kind="verification_only",
+                target_principal_id="owner",
+                target_machine_id="studio-mac",
+                reason="F033 deep projection",
+                annotator_principal_id="m2za-sop-verification",
+                annotator_machine_id="m2za-sop-verification",
+                annotator_origin_agent="verification:m2za",
+            )
+        )
+    after = await memory_client.post("/v1/scorer-simulations", json=request)
+    console_after = await memory_client.post(
+        "/v1/scorer-console/query",
+        json={"principal_id": "owner", "thread_id": None, "as_of": "now"},
+    )
+
+    assert after.status_code == 200
+    assert after.json()["source_boundary"] == "01KZ5R00000000000000000002"
+    assert after.json()["holdout_dispositions"] == 0
+    assert after.json()["simulation_digest"] != before.json()["simulation_digest"]
+    assert console_after.status_code == 200
+    after_learning = console_after.json()["learning"]
+    assert after_learning["eligible_dispositions"] == 2
+    assert after_learning["hygiene_excluded_dispositions"] == 2
+    assert [point["event_uid"] for point in after_learning["live_agreement"]] == [
+        "01KZ5R00000000000000000001",
+        "01KZ5R00000000000000000002",
     ]
 
 

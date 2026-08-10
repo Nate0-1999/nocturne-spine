@@ -85,7 +85,14 @@ def disposition(
 def identity_is_excluded(*, principal_id: str, machine_id: str) -> bool:
     """Recognize the enacted fixture/test/verification identity classes."""
 
-    return _identity_value_is_excluded(principal_id) or _identity_value_is_excluded(machine_id)
+    literal_principal = principal_id.strip().lower()
+    literal_machine = machine_id.strip().lower()
+    return (
+        _identity_value_is_excluded(principal_id)
+        or _identity_value_is_excluded(machine_id)
+        or literal_machine == "d1-relay"
+        or literal_principal.startswith("nocturne-deploy-verify-")
+    )
 
 
 def split_gates(
@@ -359,11 +366,15 @@ def _replay_score(
 
 
 def _identity_value_is_excluded(value: str) -> bool:
-    normalized = value.strip().lower().replace("_", "-")
+    normalized = _normalize_identity(value)
     if normalized in {"test", "fixture", "verification"}:
         return True
     tokens = tuple(part for part in normalized.replace(":", "-").split("-") if part)
     return any(token in {"test", "fixture", "verification"} for token in tokens)
+
+
+def _normalize_identity(value: str) -> str:
+    return value.strip().lower().replace("_", "-")
 
 
 def _canonical_example(example: LearningExample) -> dict[str, object]:

@@ -78,7 +78,27 @@ def test_disposition_and_hygiene_are_actor_classed_without_self_training() -> No
     assert disposition("removed:wrong", "human", passive_discount=discount) is None
     assert identity_is_excluded(principal_id="owner", machine_id="m2g-sop-verification")
     assert identity_is_excluded(principal_id="fixture:gate", machine_id="owner-mac")
+    assert identity_is_excluded(principal_id="owner", machine_id="d1-relay")
+    assert identity_is_excluded(
+        principal_id="nocturne-deploy-verify-ea5a431ef134474881a7f046bb52982e",
+        machine_id="nocturne-deploy",
+    )
+    assert identity_is_excluded(
+        principal_id="owner",
+        machine_id="nocturne-deploy-verification",
+    )
     assert not identity_is_excluded(principal_id="owner", machine_id="studio-mac")
+    assert not identity_is_excluded(principal_id="owner", machine_id="d1_relay")
+    assert not identity_is_excluded(
+        principal_id="nocturne_deploy_verify-run",
+        machine_id="nocturne-deploy",
+    )
+    assert not identity_is_excluded(principal_id="owner-verify-tool", machine_id="studio-mac")
+    assert not identity_is_excluded(principal_id="d1-relay", machine_id="studio-mac")
+    assert not identity_is_excluded(
+        principal_id="owner",
+        machine_id="nocturne-deploy-verify-run",
+    )
 
 
 def test_time_split_keeps_whole_gates_and_uses_newest_for_holdout() -> None:

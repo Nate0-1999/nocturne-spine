@@ -13,10 +13,11 @@ from sqlalchemy import delete, select, text, update
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from spine.db.models import InjectionEvent, LearnerRun
+from spine.db.models import InjectionEvent, InjectionEventAnnotation, LearnerRun
 from spine.db.models import ScorerConfig as ScorerConfigRow
 from spine.learner.contracts import RetrainResponse
-from spine.learner.service import _ADVISORY_LOCK_KEY, LearnerService, LearnerSettings
+from spine.learner.locking import LEARNER_ADVISORY_LOCK_KEY
+from spine.learner.service import LearnerService, LearnerSettings
 from spine.learner.worker import LearnerWorker
 
 
@@ -61,7 +62,7 @@ async def _held_learner_lock(
     try:
         await connection.execute(
             text("SELECT pg_advisory_lock(:key)"),
-            {"key": _ADVISORY_LOCK_KEY},
+            {"key": LEARNER_ADVISORY_LOCK_KEY},
         )
         await connection.commit()
         yield
@@ -70,7 +71,7 @@ async def _held_learner_lock(
             await connection.rollback()
         released = await connection.scalar(
             text("SELECT pg_advisory_unlock(:key)"),
-            {"key": _ADVISORY_LOCK_KEY},
+            {"key": LEARNER_ADVISORY_LOCK_KEY},
         )
         await connection.commit()
         await connection.close()
@@ -89,7 +90,7 @@ async def _wait_for_learner_waiters(
                     "WHERE locktype = 'advisory' AND classid = 0 "
                     "AND objid = :key AND NOT granted"
                 ),
-                {"key": _ADVISORY_LOCK_KEY},
+                {"key": LEARNER_ADVISORY_LOCK_KEY},
             )
         if count is not None and count >= expected:
             return
@@ -106,7 +107,7 @@ async def _learner_lock_count(
                 "SELECT count(*) FROM pg_locks "
                 "WHERE locktype = 'advisory' AND classid = 0 AND objid = :key AND granted"
             ),
-            {"key": _ADVISORY_LOCK_KEY},
+            {"key": LEARNER_ADVISORY_LOCK_KEY},
         )
     assert isinstance(count, int)
     return count
@@ -283,6 +284,48 @@ async def test_retrain_hygiene_excludes_whole_verification_gate(
     await _reset_proposals(memory_session_factory)
     memory_app.state.learner_service = _service(memory_session_factory, min_dispositions=1)
     await _insert_gate(memory_session_factory, gate=3, machine_id="m2f-sop-verification")
+
+    response = await memory_client.post("/retrain")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "insufficient_data",
+        "incumbent_version": "v0",
+        "proposal_version": None,
+        "eligible_dispositions": 0,
+        "training_dispositions": 0,
+        "holdout_dispositions": 0,
+        "training_pairs": 0,
+        "incumbent": None,
+        "challenger": None,
+        "reason": "minimum disposition floor not reached: 0/1",
+    }
+
+
+@pytest.mark.asyncio
+async def test_retrain_hygiene_excludes_whole_annotated_gate(
+    memory_app,
+    memory_client: AsyncClient,
+    memory_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """A-053/F033 make one verification-only annotation exclude its whole evidence gate."""
+
+    await _reset_proposals(memory_session_factory)
+    memory_app.state.learner_service = _service(memory_session_factory, min_dispositions=1)
+    await _insert_gate(memory_session_factory, gate=4)
+    async with memory_session_factory() as session, session.begin():
+        session.add(
+            InjectionEventAnnotation(
+                target_event_uid="gate-4-positive",
+                kind="verification_only",
+                target_principal_id="owner",
+                target_machine_id="studio-mac",
+                reason="F033 production-shaped overlay",
+                annotator_principal_id="m2za-sop-verification",
+                annotator_machine_id="m2za-sop-verification",
+                annotator_origin_agent="verification:m2za",
+            )
+        )
 
     response = await memory_client.post("/retrain")
 

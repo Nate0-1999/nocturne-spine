@@ -21,6 +21,7 @@ from spine.db.engine import make_engine
 from spine.db.migrate import packaged_head
 from spine.db.session import make_session_factory
 from spine.embeddings import EmbeddingProvider, OpenAIEmbeddingProvider
+from spine.inject.annotations import InjectionEventAnnotationService
 from spine.inject.decisions import DecisionService
 from spine.inject.router import router as inject_router
 from spine.inject.service import PrepareService
@@ -100,6 +101,7 @@ def create_app(
     queue_service = QueueService(session_factory, memory_service)
     prepare_service = PrepareService(session_factory, embedding_provider)
     decision_service = DecisionService(session_factory)
+    injection_event_annotation_service = InjectionEventAnnotationService(session_factory)
     spend_view_refresher = SpendViewRefresher(
         session_factory,
         interval_seconds=resolved.spend_view_refresh_seconds,
@@ -182,6 +184,7 @@ def create_app(
     app.state.queue_service = queue_service
     app.state.prepare_service = prepare_service
     app.state.decision_service = decision_service
+    app.state.injection_event_annotation_service = injection_event_annotation_service
     app.state.spend_service = spend_service
     app.state.spend_view_refresher = spend_view_refresher
     app.state.reconciliation_service = reconciliation_service

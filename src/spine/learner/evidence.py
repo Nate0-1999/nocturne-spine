@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from uuid import UUID
 
-from spine.db.models import InjectionEvent
+from spine.db.models import InjectionEvent, InjectionEventAnnotation
 from spine.inject.scorer import ScorerConfig as RuntimeScorerConfig
 from spine.learner.model import (
     FEATURE_NAMES,
@@ -32,6 +32,7 @@ class LearningEvidence:
 
 def project_learning_evidence(
     rows: list[InjectionEvent],
+    annotations: list[InjectionEventAnnotation],
     configs: Mapping[str, RuntimeScorerConfig],
     *,
     passive_discount: Decimal,
@@ -41,14 +42,17 @@ def project_learning_evidence(
     grouped: dict[UUID, list[InjectionEvent]] = defaultdict(list)
     for row in rows:
         grouped[row.injection_id].append(row)
+    verification_only = {
+        annotation.target_event_uid
+        for annotation in annotations
+        if annotation.kind == "verification_only"
+    }
     excluded = {
         injection_id
         for injection_id, members in grouped.items()
         if any(
-            identity_is_excluded(
-                principal_id=member.principal_id,
-                machine_id=member.machine_id,
-            )
+            member.event_uid in verification_only
+            or identity_is_excluded(principal_id=member.principal_id, machine_id=member.machine_id)
             for member in members
         )
     }

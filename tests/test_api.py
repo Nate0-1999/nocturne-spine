@@ -18,6 +18,7 @@ SPINE_ROUTES = {
     ("POST", "/v1/inject/prepare"),
     ("POST", "/v1/inject/commit"),
     ("POST", "/v1/feedback"),
+    ("POST", "/v1/injection-event-annotations"),
     ("POST", "/v1/memories"),
     ("POST", "/v1/memory-splits"),
     ("PATCH", "/v1/memories/{id}"),
@@ -71,7 +72,7 @@ async def test_health_endpoints_and_auth_are_live(app: FastAPI) -> None:
     assert healthy_healthz.json() == {
         "ok": True,
         "version": __version__,
-        "schema_version": "0011",
+        "schema_version": "0012",
     }
     assert healthy_health.json() == healthy_healthz.json()
     assert "/health" not in app.openapi()["paths"]
@@ -269,6 +270,12 @@ def test_committed_openapi_is_current(app: FastAPI) -> None:
     feedback_response = committed["paths"]["/v1/feedback"]["post"]
     assert "501" not in feedback_response["responses"]
     assert {"200", "404", "409", "422"} <= set(feedback_response["responses"])
+    annotation_operation = committed["paths"]["/v1/injection-event-annotations"]["post"]
+    assert {"200", "401", "404", "409", "422", "500"} <= set(annotation_operation["responses"])
+    annotation_request = committed["components"]["schemas"]["InjectionEventAnnotationsRequest"]
+    assert annotation_request["additionalProperties"] is False
+    assert annotation_request["properties"]["annotations"]["minItems"] == 1
+    assert annotation_request["properties"]["annotations"]["maxItems"] == 100
     search_operation = committed["paths"]["/v1/search"]["post"]
     assert "501" not in search_operation["responses"]
     assert {"200", "401", "422", "500", "503"} <= set(search_operation["responses"])

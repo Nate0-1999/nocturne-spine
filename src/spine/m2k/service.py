@@ -18,7 +18,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import aliased
 
 from spine.contracts import MemoryFeatures, MemoryUnit
-from spine.db.models import InjectionEvent, LearnerRun
+from spine.db.locking import session_advisory_lock
+from spine.db.models import InjectionEvent, InjectionEventAnnotation, LearnerRun
 from spine.db.models import MemoryEdge as MemoryEdgeRow
 from spine.db.models import MemoryRevision as MemoryRevisionRow
 from spine.db.models import MemoryUnit as MemoryUnitRow
@@ -30,8 +31,6 @@ from spine.learner.model import (
     FEATURE_NAMES,
     LearningExample,
     challenger_score,
-    disposition,
-    identity_is_excluded,
     split_gates,
 )
 from spine.m2k.contracts import (
@@ -68,7 +67,7 @@ from spine.m2k.contracts import (
 )
 from spine.tokens import cl100k_token_count
 
-_CONTROL_LOCK_KEY = 0x4D324B
+_CONTROL_ADVISORY_LOCK_KEY = 0x4D324B
 _CONTROLLED_PARAM_KEYS = (
     "tau",
     "top_k",
@@ -326,6 +325,9 @@ class M2KService:
                     .scalars()
                     .all()
                 )
+                learning_annotations = (
+                    (await session.execute(select(InjectionEventAnnotation))).scalars().all()
+                )
                 event_statement = select(InjectionEvent).where(
                     InjectionEvent.principal_id == query.principal_id
                 )
@@ -350,6 +352,7 @@ class M2KService:
         try:
             evidence = project_learning_evidence(
                 learning_events,
+                learning_annotations,
                 {version: _runtime(row) for version, row in config_by_version.items()},
                 passive_discount=Decimal(str(self._passive_discount)),
             )
@@ -382,74 +385,89 @@ class M2KService:
         self, body: CreateScorerConfigRequest
     ) -> ScorerConfigurationView:
         target_version = f"m2k-{body.event_uid}"
-        async with self._session_factory() as session:
-            async with session.begin():
-                await session.execute(
-                    text("SELECT pg_advisory_xact_lock(:key)"), {"key": _CONTROL_LOCK_KEY}
-                )
-                replay = await session.get(ScorerActivationRow, body.event_uid)
-                if replay is not None:
-                    return await _validate_control_replay(session, replay, target_version, body)
-                active = await _active_config(session)
-                if active.version != body.base_version:
-                    raise M2KStateError("stale_base")
-                receipt = await self._deep_receipt(session, active, body.values)
-                if receipt.simulation_digest != body.simulation_digest:
-                    raise M2KStateError("simulation_stale")
-                if await session.get(ScorerConfigRow, target_version) is not None:
-                    raise M2KStateError("version_collision")
-                params = deepcopy(active.params)
-                params.update(
-                    {
-                        "tau": body.values.tau,
-                        "top_k": body.values.top_k,
-                        "budget_tokens": body.values.budget_tokens,
-                        "half_life_time_days": body.values.half_life_time_days,
-                        "half_life_hist_days": body.values.half_life_hist_days,
-                    }
-                )
-                changes = _changes(_values(active), body.values)
-                changed_parameter_ids = sorted(changes)
-                changes["_force"] = {
-                    "simulation_digest": receipt.simulation_digest,
-                    "source_boundary": receipt.source_boundary,
-                    "holdout_dispositions": receipt.holdout_dispositions,
-                    "incumbent_accuracy_percent": receipt.incumbent_accuracy_percent,
-                    "accuracy_percent": receipt.accuracy_percent,
-                    "delta_percent": receipt.delta_percent,
-                }
-                params["_control"] = {
-                    "event_uid": body.event_uid,
-                    "parent_version": active.version,
-                    "actor_class": body.actor_class,
-                    "machine_id": body.machine_id,
-                    "changed_parameter_ids": changed_parameter_ids,
-                }
-                _validate_runtime_config(target_version, body.values.weights, params)
-                active.active = False
-                await session.flush()
-                target = ScorerConfigRow(
-                    version=target_version,
-                    weights=dict(body.values.weights),
-                    params=params,
-                    active=True,
-                )
-                session.add(target)
-                await session.flush()
-                session.add(
-                    ScorerActivationRow(
-                        event_uid=body.event_uid,
-                        version=target_version,
-                        previous_version=active.version,
-                        actor_class=body.actor_class,
-                        machine_id=body.machine_id,
-                        reason="human_control",
-                        changes=changes,
+        async with session_advisory_lock(
+            self._session_factory,
+            key=_CONTROL_ADVISORY_LOCK_KEY,
+            name="m2k-control",
+        ) as connection:
+            async with self._session_factory(bind=connection) as session:
+                async with session.begin():
+                    await session.execute(text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ"))
+                    return await self._create_scorer_config_in_snapshot(
+                        session,
+                        body,
+                        target_version,
                     )
-                )
-                await session.flush()
-                await session.refresh(target)
-                return _config_view(target)
+
+    async def _create_scorer_config_in_snapshot(
+        self,
+        session: AsyncSession,
+        body: CreateScorerConfigRequest,
+        target_version: str,
+    ) -> ScorerConfigurationView:
+        replay = await session.get(ScorerActivationRow, body.event_uid)
+        if replay is not None:
+            return await _validate_control_replay(session, replay, target_version, body)
+        active = await _active_config(session)
+        if active.version != body.base_version:
+            raise M2KStateError("stale_base")
+        receipt = await self._deep_receipt(session, active, body.values)
+        if receipt.simulation_digest != body.simulation_digest:
+            raise M2KStateError("simulation_stale")
+        if await session.get(ScorerConfigRow, target_version) is not None:
+            raise M2KStateError("version_collision")
+        params = deepcopy(active.params)
+        params.update(
+            {
+                "tau": body.values.tau,
+                "top_k": body.values.top_k,
+                "budget_tokens": body.values.budget_tokens,
+                "half_life_time_days": body.values.half_life_time_days,
+                "half_life_hist_days": body.values.half_life_hist_days,
+            }
+        )
+        changes = _changes(_values(active), body.values)
+        changed_parameter_ids = sorted(changes)
+        changes["_force"] = {
+            "simulation_digest": receipt.simulation_digest,
+            "source_boundary": receipt.source_boundary,
+            "holdout_dispositions": receipt.holdout_dispositions,
+            "incumbent_accuracy_percent": receipt.incumbent_accuracy_percent,
+            "accuracy_percent": receipt.accuracy_percent,
+            "delta_percent": receipt.delta_percent,
+        }
+        params["_control"] = {
+            "event_uid": body.event_uid,
+            "parent_version": active.version,
+            "actor_class": body.actor_class,
+            "machine_id": body.machine_id,
+            "changed_parameter_ids": changed_parameter_ids,
+        }
+        _validate_runtime_config(target_version, body.values.weights, params)
+        active.active = False
+        await session.flush()
+        target = ScorerConfigRow(
+            version=target_version,
+            weights=dict(body.values.weights),
+            params=params,
+            active=True,
+        )
+        session.add(target)
+        await session.flush()
+        session.add(
+            ScorerActivationRow(
+                event_uid=body.event_uid,
+                version=target_version,
+                previous_version=active.version,
+                actor_class=body.actor_class,
+                machine_id=body.machine_id,
+                reason="human_control",
+                changes=changes,
+            )
+        )
+        await session.flush()
+        await session.refresh(target)
+        return _config_view(target)
 
     async def simulate(self, body: ScorerSimulationRequest) -> ScorerSimulationResponse:
         async with self._session_factory() as session:
@@ -526,12 +544,17 @@ class M2KService:
             .scalars()
             .all()
         )
-        examples = _examples(
-            rows,
-            config_map,
-            passive_discount=Decimal(str(self._passive_discount)),
-            values=values,
-        )
+        annotations = (await session.execute(select(InjectionEventAnnotation))).scalars().all()
+        try:
+            evidence = project_learning_evidence(
+                rows,
+                annotations,
+                config_map,
+                passive_discount=Decimal(str(self._passive_discount)),
+            )
+        except LearnerDataError as error:
+            raise M2KStateError(f"invalid_learning_evidence:{error}") from error
+        examples = _rescale_examples(evidence.examples, rows, config_map, values)
         source_boundary = max((item.event_uid for item in examples), default=None)
         holdout: tuple[LearningExample, ...] = ()
         if examples:
@@ -620,7 +643,8 @@ class M2KService:
         async with self._session_factory() as session:
             async with session.begin():
                 await session.execute(
-                    text("SELECT pg_advisory_xact_lock(:key)"), {"key": _CONTROL_LOCK_KEY}
+                    text("SELECT pg_advisory_xact_lock(:key)"),
+                    {"key": _CONTROL_ADVISORY_LOCK_KEY},
                 )
                 replay = await session.get(ScorerActivationRow, body.event_uid)
                 if replay is not None:
@@ -1075,41 +1099,6 @@ def _runtime(row: ScorerConfigRow) -> RuntimeScorerConfig:
 
 def _weight_tuple(values: ScorerValues) -> tuple[float, float, float, float, float, float]:
     return tuple(values.weights[name] for name in FEATURE_NAMES)  # type: ignore[return-value]
-
-
-def _examples(
-    rows: list[InjectionEvent],
-    configs: Mapping[str, RuntimeScorerConfig],
-    *,
-    passive_discount: Decimal,
-    values: ScorerValues,
-) -> tuple[LearningExample, ...]:
-    grouped: dict[UUID, list[InjectionEvent]] = defaultdict(list)
-    for row in rows:
-        grouped[row.injection_id].append(row)
-    excluded = {
-        injection_id
-        for injection_id, members in grouped.items()
-        if any(
-            identity_is_excluded(
-                principal_id=member.principal_id,
-                machine_id=member.machine_id,
-            )
-            for member in members
-        )
-    }
-    examples: list[LearningExample] = []
-    for row in rows:
-        if row.injection_id in excluded:
-            continue
-        labeled = disposition(row.outcome, row.actor_class, passive_discount=passive_discount)
-        if labeled is None:
-            continue
-        source = configs.get(row.scorer_version)
-        if source is None:
-            raise M2KStateError(f"missing_event_scorer:{row.scorer_version}")
-        examples.append(_example(row, source, values, labeled))
-    return tuple(examples)
 
 
 def _example(

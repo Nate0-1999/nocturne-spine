@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from datetime import datetime
 from decimal import Decimal
 from typing import Annotated, Any, Literal
@@ -19,13 +18,7 @@ from pydantic import (
     model_validator,
 )
 
-_ULID_PATTERN = re.compile(r"^[0-7][0-9A-HJKMNP-TV-Z]{25}$", re.IGNORECASE)
-
-
-def _ulid(value: str) -> str:
-    if not _ULID_PATTERN.fullmatch(value):
-        raise ValueError("value must be a ULID")
-    return value.upper()
+from spine.ids import normalize_ulid
 
 
 def _nonblank(value: str) -> str:
@@ -36,7 +29,7 @@ def _nonblank(value: str) -> str:
     return value
 
 
-type ULID = Annotated[StrictStr, AfterValidator(_ulid)]
+type ULID = Annotated[StrictStr, AfterValidator(normalize_ulid)]
 type NonBlankString = Annotated[StrictStr, AfterValidator(_nonblank)]
 type SpendProductType = Literal["llm.request", "llm.embedding"]
 type SpendBasis = Literal["measured", "allocated", "estimated"]

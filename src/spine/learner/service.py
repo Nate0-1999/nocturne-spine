@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from collections.abc import Mapping
 from copy import deepcopy
 from dataclasses import asdict, dataclass
@@ -10,15 +9,17 @@ from decimal import Decimal
 from typing import Any, Literal
 
 from sqlalchemy import select, text
-from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from spine.db.models import InjectionEvent, LearnerRun
+from spine.db.locking import session_advisory_lock
+from spine.db.models import InjectionEvent, InjectionEventAnnotation, LearnerRun
 from spine.db.models import ScorerConfig as ScorerConfigRow
 from spine.ids import mint_ulid
 from spine.inject.scorer import ScorerConfig as RuntimeScorerConfig
 from spine.inject.scorer import ScorerWeights
 from spine.learner.contracts import ReplayScoreView, RetrainResponse
 from spine.learner.evidence import LearnerDataError, project_learning_evidence
+from spine.learner.locking import LEARNER_ADVISORY_LOCK_KEY
 from spine.learner.model import (
     FEATURE_NAMES,
     FitSettings,
@@ -32,7 +33,6 @@ from spine.learner.model import (
     split_gates,
 )
 
-_ADVISORY_LOCK_KEY = 0x4D3246
 _ALGORITHM_ID = "m2f-pairwise-squared-hinge-v1"
 
 
@@ -84,27 +84,19 @@ class LearnerService:
         trigger: Literal["manual", "background"],
         due_only: bool,
     ) -> RetrainResponse | None:
-        engine = _session_engine(self._session_factory)
-        async with engine.connect() as connection:
-            acquired = False
-            try:
-                await connection.execute(
-                    text("SELECT pg_advisory_lock(:key)"), {"key": _ADVISORY_LOCK_KEY}
-                )
-                acquired = True
-                await connection.commit()
-                async with self._session_factory(bind=connection) as session:
-                    async with session.begin():
-                        await session.execute(
-                            text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
-                        )
-                        return await self._retrain_in_snapshot(
-                            session,
-                            trigger=trigger,
-                            due_only=due_only,
-                        )
-            finally:
-                await _release_session_lock(connection, acquired=acquired)
+        async with session_advisory_lock(
+            self._session_factory,
+            key=LEARNER_ADVISORY_LOCK_KEY,
+            name="chrysopoeia",
+        ) as connection:
+            async with self._session_factory(bind=connection) as session:
+                async with session.begin():
+                    await session.execute(text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ"))
+                    return await self._retrain_in_snapshot(
+                        session,
+                        trigger=trigger,
+                        due_only=due_only,
+                    )
 
     async def _retrain_in_snapshot(
         self,
@@ -135,7 +127,8 @@ class LearnerService:
             .scalars()
             .all()
         )
-        examples = self._examples(event_rows, runtime_configs)
+        annotation_rows = (await session.execute(select(InjectionEventAnnotation))).scalars().all()
+        examples = self._examples(event_rows, annotation_rows, runtime_configs)
         if due_only and not await self._background_due(session, len(examples)):
             return None
         response = await self._fit(
@@ -357,10 +350,12 @@ class LearnerService:
     def _examples(
         self,
         rows: list[InjectionEvent],
+        annotations: list[InjectionEventAnnotation],
         configs: Mapping[str, RuntimeScorerConfig],
     ) -> tuple[LearningExample, ...]:
         return project_learning_evidence(
             rows,
+            annotations,
             configs,
             passive_discount=Decimal(str(self._settings.passive_discount)),
         ).examples
@@ -413,46 +408,6 @@ def _insufficient(
         challenger=None,
         reason=reason,
     )
-
-
-def _session_engine(
-    session_factory: async_sessionmaker[AsyncSession],
-) -> AsyncEngine:
-    bind = session_factory.kw.get("bind")
-    if not isinstance(bind, AsyncEngine):
-        raise LearnerDataError("learner session factory must be bound to an async engine")
-    return bind
-
-
-async def _release_session_lock(
-    connection: AsyncConnection,
-    *,
-    acquired: bool,
-) -> None:
-    async def cleanup() -> None:
-        try:
-            if connection.invalidated or connection.closed:
-                return
-            if connection.in_transaction():
-                await connection.rollback()
-            released = await connection.scalar(
-                text("SELECT pg_advisory_unlock(:key)"),
-                {"key": _ADVISORY_LOCK_KEY},
-            )
-            await connection.commit()
-            if acquired and released is not True:
-                raise LearnerDataError("learner advisory lock was not held during cleanup")
-        except BaseException as error:
-            if not connection.closed:
-                await connection.invalidate(error)
-            raise
-
-    cleanup_task = asyncio.create_task(cleanup(), name="chrysopoeia-unlock")
-    try:
-        await asyncio.shield(cleanup_task)
-    except asyncio.CancelledError:
-        await cleanup_task
-        raise
 
 
 __all__ = ["LearnerDataError", "LearnerService", "LearnerSettings"]

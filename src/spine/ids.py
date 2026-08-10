@@ -2,10 +2,20 @@
 
 from __future__ import annotations
 
+import re
 import secrets
 import time
 
 _ULID_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+_ULID_PATTERN = re.compile(r"^[0-7][0-9A-HJKMNP-TV-Z]{25}$", re.IGNORECASE)
+
+
+def normalize_ulid(value: str) -> str:
+    """Validate and uppercase one canonical 26-character ULID."""
+
+    if not _ULID_PATTERN.fullmatch(value):
+        raise ValueError("value must be a ULID")
+    return value.upper()
 
 
 def mint_ulid() -> str:
@@ -20,4 +30,4 @@ def mint_ulid() -> str:
     return "".join(encoded)
 
 
-__all__ = ["mint_ulid"]
+__all__ = ["mint_ulid", "normalize_ulid"]

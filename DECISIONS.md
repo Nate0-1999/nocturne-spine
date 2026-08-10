@@ -957,3 +957,34 @@ redundant with the immutable receipt count and creates a second authority.
 Taking a transaction advisory lock as the first repeatable-read statement is
 also rejected: a waiting transaction would retain a snapshot from before the
 preceding receipt and could repeat the same due boundary.
+
+## 036 — Correct evidence with an append-only verification overlay [P1.2.2, P1.2.3]
+
+**Decision.** Adopt Garden A-053. Preserve every original injection event and
+record an append-only `verification_only` annotation against its exact event UID
+and observed principal/machine fingerprint. Bearer authorization gates the
+route. The server fixes the kind and timestamp and copies the stored target
+fingerprint from the event; reason, annotator principal, machine, and
+origin-agent remain caller-declared audit fields rather than authenticated
+identities. Annotation batches are fingerprint-guarded, idempotent, atomic, and
+serialized with the learner advisory lock. Learner retraining,
+scorer-console/Vitals learning data, and deep scorer simulation all consume one
+annotation-aware whole-gate evidence projection from the same repeatable-read
+snapshot. FORCE revalidation takes its session control lock before opening that
+snapshot so a waiter observes the preceding control commit.
+
+Legacy production verification identities remain exact compatibility aliases:
+machine `d1-relay` and principal prefix `nocturne-deploy-verify-`. They do not
+widen the generic delimited verification-class rule.
+
+**Motivation.** F033 exposed authentic verification journeys that looked like
+owner feedback because their old identities predated the canonical verification
+class. Correcting the learning read model must retain the source history, record
+which exact rows were reclassified and the caller-declared annotation
+provenance, and prevent a concurrent fit from observing half of a batch.
+
+**Rejected alternatives.** Updating original injection events would destroy
+the audit trail. Emitting compensating feedback would invent owner judgment.
+Cloning fabricated injection events would corrupt cadence and denominators.
+Keeping separate hygiene implementations for fitting, Console, and simulation
+would let the same evidence count differently across owner surfaces.

@@ -154,6 +154,7 @@ async def test_models_match_authoritative_c2_schema(
         "approval_decision",
         "thread",
         "injection_event",
+        "injection_event_annotation",
         "spend_event",
         "spend_reconciliation",
         "scorer_config",
@@ -257,6 +258,17 @@ async def test_models_match_authoritative_c2_schema(
             "outcome",
             "ts",
         ),
+        "injection_event_annotation": (
+            "target_event_uid",
+            "kind",
+            "target_principal_id",
+            "target_machine_id",
+            "reason",
+            "annotator_principal_id",
+            "annotator_machine_id",
+            "annotator_origin_agent",
+            "ts",
+        ),
         "spend_event": (
             "event_uid",
             "ts",
@@ -345,6 +357,7 @@ async def test_models_match_authoritative_c2_schema(
         "approval_decision": set(),
         "thread": {"project_key", "snapshot_ts"},
         "injection_event": {"project_key", "outcome"},
+        "injection_event_annotation": set(),
         "spend_event": {
             "cost_usd",
             "principal_id",
@@ -383,6 +396,7 @@ async def test_models_match_authoritative_c2_schema(
         "approval_decision": ("decision_uid",),
         "thread": ("id",),
         "injection_event": ("id",),
+        "injection_event_annotation": ("target_event_uid",),
         "spend_event": ("event_uid",),
         "spend_reconciliation": ("event_uid",),
         "scorer_config": ("version",),
@@ -478,6 +492,15 @@ async def test_models_match_authoritative_c2_schema(
         "injection_event.actor_class": "TEXT",
         "injection_event.outcome": "TEXT",
         "injection_event.ts": "TIMESTAMP WITH TIME ZONE",
+        "injection_event_annotation.target_event_uid": "TEXT",
+        "injection_event_annotation.kind": "TEXT",
+        "injection_event_annotation.target_principal_id": "TEXT",
+        "injection_event_annotation.target_machine_id": "TEXT",
+        "injection_event_annotation.reason": "TEXT",
+        "injection_event_annotation.annotator_principal_id": "TEXT",
+        "injection_event_annotation.annotator_machine_id": "TEXT",
+        "injection_event_annotation.annotator_origin_agent": "TEXT",
+        "injection_event_annotation.ts": "TIMESTAMP WITH TIME ZONE",
         "spend_event.event_uid": "TEXT",
         "spend_event.ts": "TIMESTAMP WITH TIME ZONE",
         "spend_event.product_type": "TEXT",
@@ -571,6 +594,7 @@ async def test_models_match_authoritative_c2_schema(
         "injection_event.agent_kind": "'general'",
         "injection_event.actor_class": "'human'",
         "injection_event.ts": "now()",
+        "injection_event_annotation.ts": "now()",
         "spend_event.meta": "'{}'::jsonb",
         "spend_reconciliation.ts": "now()",
         "scorer_config.created_at": "now()",
@@ -633,6 +657,21 @@ async def test_models_match_authoritative_c2_schema(
             "injection_event_shown_as_check": (
                 "shown_as IN ('injected','near_miss','pinned','budget_cut')"
             ),
+        },
+        "injection_event_annotation": {
+            "injection_event_annotation_annotator_agent_check": (
+                "annotator_origin_agent = btrim(annotator_origin_agent) "
+                "AND annotator_origin_agent <> ''"
+            ),
+            "injection_event_annotation_annotator_machine_check": (
+                "annotator_machine_id = btrim(annotator_machine_id) AND annotator_machine_id <> ''"
+            ),
+            "injection_event_annotation_annotator_principal_check": (
+                "annotator_principal_id = btrim(annotator_principal_id) "
+                "AND annotator_principal_id <> ''"
+            ),
+            "injection_event_annotation_kind_check": "kind = 'verification_only'",
+            "injection_event_annotation_reason_check": ("reason = btrim(reason) AND reason <> ''"),
         },
         "spend_event": {
             "spend_event_product_type_check": (
@@ -740,6 +779,10 @@ async def test_models_match_authoritative_c2_schema(
     assert {foreign_key.target_fullname for foreign_key in decision.c.item_uid.foreign_keys} == {
         "approval_queue_item.item_uid"
     }
+    annotation = Base.metadata.tables["injection_event_annotation"]
+    assert {
+        foreign_key.target_fullname for foreign_key in annotation.c.target_event_uid.foreign_keys
+    } == {"injection_event.event_uid"}
     learner_run = Base.metadata.tables["learner_run"]
     assert {
         foreign_key.target_fullname for foreign_key in learner_run.c.incumbent_version.foreign_keys

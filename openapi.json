@@ -802,6 +802,82 @@
         "title": "HealthResponse",
         "type": "object"
       },
+      "InjectionEventAnnotationInput": {
+        "additionalProperties": false,
+        "description": "One guarded A-053 verification-only classification request.",
+        "properties": {
+          "annotator_machine_id": {
+            "$ref": "#/components/schemas/NonBlankString"
+          },
+          "annotator_origin_agent": {
+            "$ref": "#/components/schemas/NonBlankString"
+          },
+          "annotator_principal_id": {
+            "$ref": "#/components/schemas/NonBlankString"
+          },
+          "expected_machine_id": {
+            "title": "Expected Machine Id",
+            "type": "string"
+          },
+          "expected_principal_id": {
+            "title": "Expected Principal Id",
+            "type": "string"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/NonBlankString"
+          },
+          "target_event_uid": {
+            "$ref": "#/components/schemas/ULID"
+          }
+        },
+        "required": [
+          "target_event_uid",
+          "expected_principal_id",
+          "expected_machine_id",
+          "reason",
+          "annotator_principal_id",
+          "annotator_machine_id",
+          "annotator_origin_agent"
+        ],
+        "title": "InjectionEventAnnotationInput",
+        "type": "object"
+      },
+      "InjectionEventAnnotationsRequest": {
+        "additionalProperties": false,
+        "description": "One nonempty atomic batch with unique target event identities.",
+        "properties": {
+          "annotations": {
+            "items": {
+              "$ref": "#/components/schemas/InjectionEventAnnotationInput"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Annotations",
+            "type": "array"
+          }
+        },
+        "required": [
+          "annotations"
+        ],
+        "title": "InjectionEventAnnotationsRequest",
+        "type": "object"
+      },
+      "InjectionEventAnnotationsResponse": {
+        "additionalProperties": false,
+        "description": "Idempotent acceptance count, including identical replays.",
+        "properties": {
+          "accepted": {
+            "minimum": 1.0,
+            "title": "Accepted",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "accepted"
+        ],
+        "title": "InjectionEventAnnotationsResponse",
+        "type": "object"
+      },
       "InstantSimulation": {
         "additionalProperties": false,
         "properties": {
@@ -6009,6 +6085,307 @@
           }
         ],
         "summary": "Prepare",
+        "tags": [
+          "injection"
+        ]
+      }
+    },
+    "/v1/injection-event-annotations": {
+      "post": {
+        "operationId": "annotate_injection_events_v1_injection_event_annotations_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InjectionEventAnnotationsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InjectionEventAnnotationsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "description": "RFC 7807 problem details with an optional endpoint extension.",
+                  "properties": {
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    },
+                    "endpoint": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Endpoint"
+                    },
+                    "instance": {
+                      "title": "Instance",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "title": "ProblemDetail",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bearer token missing or invalid"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "description": "RFC 7807 problem details with an optional endpoint extension.",
+                  "properties": {
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    },
+                    "endpoint": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Endpoint"
+                    },
+                    "instance": {
+                      "title": "Instance",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "title": "ProblemDetail",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Injection event does not exist"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "description": "RFC 7807 problem details with an optional endpoint extension.",
+                  "properties": {
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    },
+                    "endpoint": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Endpoint"
+                    },
+                    "instance": {
+                      "title": "Instance",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "title": "ProblemDetail",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Target fingerprint or immutable annotation conflicts"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "description": "RFC 7807 problem details with an optional endpoint extension.",
+                  "properties": {
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    },
+                    "endpoint": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Endpoint"
+                    },
+                    "instance": {
+                      "title": "Instance",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "title": "ProblemDetail",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Request does not match the endpoint contract"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "description": "RFC 7807 problem details with an optional endpoint extension.",
+                  "properties": {
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    },
+                    "endpoint": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Endpoint"
+                    },
+                    "instance": {
+                      "title": "Instance",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "title": "ProblemDetail",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Unexpected service failure"
+          }
+        },
+        "security": [
+          {
+            "StaticBearer": []
+          }
+        ],
+        "summary": "Annotate Injection Events",
         "tags": [
           "injection"
         ]
