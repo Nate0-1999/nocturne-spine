@@ -43,7 +43,7 @@ def test_migration_lock_releases_after_success_and_failure() -> None:
         ]
 
 
-@pytest.mark.parametrize("revision", [f"{number:04d}" for number in range(1, 11)])
+@pytest.mark.parametrize("revision", [f"{number:04d}" for number in range(1, 12)])
 def test_every_supported_revision_upgrades_to_head(
     migrated_database_url: str,
     revision: str,
@@ -53,7 +53,7 @@ def test_every_supported_revision_upgrades_to_head(
     try:
         command.downgrade(config, revision)
         command.upgrade(config, "head")
-        assert asyncio.run(_database_revision(migrated_database_url)) == "0010"
+        assert asyncio.run(_database_revision(migrated_database_url)) == "0011"
     finally:
         command.upgrade(config, "head")
 

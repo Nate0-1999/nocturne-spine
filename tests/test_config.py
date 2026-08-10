@@ -36,7 +36,7 @@ def test_c5_dedup_and_embedding_defaults_are_exact() -> None:
     assert settings.learner_pair_margin == 0.05
     assert settings.learner_bias_l2 == 1.0
     assert settings.learner_win_margin == 1.0
-    assert settings.learner_schedule_hours is None
+    assert settings.retrain_signal_stride == 25
     assert settings.reconciliation_hours == 24
     assert settings.reconciliation_tolerance_usd == Decimal("0.000001")
 
@@ -67,7 +67,7 @@ def test_config_rejects_overlapping_bands_and_wrong_storage_dimension() -> None:
     with pytest.raises(ValidationError):
         _settings(learner_passive_discount=0.0)
     with pytest.raises(ValidationError):
-        _settings(learner_schedule_hours=0.0)
+        _settings(retrain_signal_stride=0)
 
 
 @pytest.mark.parametrize(

@@ -28,6 +28,14 @@ DEFAULT_STATS = {
 ULID_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 
 
+class _RecordingLearnerWorker:
+    def __init__(self) -> None:
+        self.notifications = 0
+
+    def notify(self) -> None:
+        self.notifications += 1
+
+
 def _ulid(seed: int) -> str:
     """Encode a small deterministic integer as a canonical ULID."""
 
@@ -143,13 +151,14 @@ async def _insert_memory(
 
 
 async def test_prepare_commit_replays_gate_and_prepare_updates_only_injected(
+    memory_app,
     memory_client: AsyncClient,
     embedding_provider: ScriptedEmbeddingProvider,
     memory_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    """A-030 is defended by verifying that prepare commit replays gate and prepare updates only
-    injected; this prevents drift in the per-message injection transaction contract.
-    """
+    """A-030/A-051 defend replay plus success-only prepare/commit learner wakes."""
+    learner_worker = _RecordingLearnerWorker()
+    memory_app.state.learner_worker = learner_worker
     now = datetime.now(UTC)
     injected_id = UUID(int=101)
     near_id = UUID(int=102)
@@ -210,6 +219,7 @@ async def test_prepare_commit_replays_gate_and_prepare_updates_only_injected(
     request = _prepare_body(prompt=prompt)
 
     payload = _assert_json(await memory_client.post("/v1/inject/prepare", json=request), 200)
+    assert learner_worker.notifications == 1
 
     assert set(payload) == {
         "injection_id",
@@ -367,6 +377,18 @@ async def test_prepare_commit_replays_gate_and_prepare_updates_only_injected(
     )
     assert near["body"] in commit["final_block"]
     assert injected["body"] not in commit["final_block"]
+    assert learner_worker.notifications == 2
+
+    missing = await memory_client.post(
+        "/v1/inject/commit",
+        json={
+            "injection_id": payload["injection_id"],
+            "removed": [{"memory_id": str(uuid4()), "reason": "wrong"}],
+            "added_back": [],
+        },
+    )
+    assert missing.status_code == 422
+    assert learner_worker.notifications == 2
 
     async with memory_session_factory() as session:
         replayed = (
@@ -715,13 +737,14 @@ async def test_concurrent_prepare_is_one_shot_per_thread(
 
 
 async def test_autonomous_prepare_preserves_locks_and_logs_entry_keep_exit(
+    memory_app,
     memory_client: AsyncClient,
     embedding_provider: ScriptedEmbeddingProvider,
     memory_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    """A-030 is defended by verifying that autonomous prepare preserves locks and logs entry
-    keep exit; this prevents drift in the per-message injection transaction contract.
-    """
+    """A-030/A-051 defend autonomous evidence and success-only prepare/feedback wakes."""
+    learner_worker = _RecordingLearnerWorker()
+    memory_app.state.learner_worker = learner_worker
     confirmed_id = UUID(int=310)
     autonomous_id = UUID(int=311)
     entered_id = UUID(int=312)
@@ -752,6 +775,7 @@ async def test_autonomous_prepare_preserves_locks_and_logs_entry_keep_exit(
     )
     first_ids = [UUID(card["memory_id"]) for card in first["injected"]]
     assert first_ids == [confirmed_id, autonomous_id]
+    assert learner_worker.notifications == 1
 
     second = _assert_json(
         await memory_client.post(
@@ -795,6 +819,7 @@ async def test_autonomous_prepare_preserves_locks_and_logs_entry_keep_exit(
         entered_id: "auto_entered",
     }
     assert {row.actor_class for row in rows} == {"passive"}
+    assert learner_worker.notifications == 2
 
     assert _assert_json(
         await memory_client.post(
@@ -807,6 +832,18 @@ async def test_autonomous_prepare_preserves_locks_and_logs_entry_keep_exit(
         ),
         200,
     ) == {"ok": True}
+    assert learner_worker.notifications == 3
+
+    missing = await memory_client.post(
+        "/v1/feedback",
+        json={
+            "injection_id": str(uuid4()),
+            "memory_id": str(uuid4()),
+            "signal": "cited",
+        },
+    )
+    assert missing.status_code == 404
+    assert learner_worker.notifications == 3
     async with memory_session_factory() as session:
         entered_event = (
             await session.scalars(
@@ -1011,14 +1048,16 @@ async def test_prepare_reads_one_frozen_database_snapshot(
 
 
 async def test_prepare_provider_failure_and_request_validation_are_write_free(
+    memory_app,
     memory_client: AsyncClient,
     embedding_provider: ScriptedEmbeddingProvider,
     memory_session_factory: async_sessionmaker[AsyncSession],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A-030 is defended by verifying that prepare provider failure and request validation are
-    write free; this prevents drift in the per-message injection transaction contract.
-    """
+    """A-030/A-051 keep failed prepares write-free and learner-wake-free."""
+
+    learner_worker = _RecordingLearnerWorker()
+    memory_app.state.learner_worker = learner_worker
 
     async def unavailable(_: object) -> list[list[float]]:
         raise EmbeddingTransportError("offline")
@@ -1040,6 +1079,7 @@ async def test_prepare_provider_failure_and_request_validation_are_write_free(
         "extra_forbidden",
         "missing",
     }
+    assert learner_worker.notifications == 0
 
     async with memory_session_factory() as session:
         assert await session.get(Thread, failed_thread_id) is None

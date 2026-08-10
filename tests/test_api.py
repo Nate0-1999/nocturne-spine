@@ -71,7 +71,7 @@ async def test_health_endpoints_and_auth_are_live(app: FastAPI) -> None:
     assert healthy_healthz.json() == {
         "ok": True,
         "version": __version__,
-        "schema_version": "0010",
+        "schema_version": "0011",
     }
     assert healthy_health.json() == healthy_healthz.json()
     assert "/health" not in app.openapi()["paths"]

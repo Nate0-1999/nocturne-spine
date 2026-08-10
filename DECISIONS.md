@@ -921,3 +921,39 @@ prose while missing contracts written without modal words. Calling the result
 clause coverage would manufacture precision the current citation grammar does
 not contain. Treating all accepted `D.2` history as one covered law would hide
 the exact-row ambiguity rather than resolve it.
+
+## 035 — Derive work cadence from immutable learner receipts [P1.2.3]
+
+**Decision.** Adopt Garden A-051 with one process-local event worker and an
+append-only `learner_run` journal. The worker wakes at startup and after a
+successful prepare, commit, or feedback operation, then calls the existing
+advisory-locked learner due check without joining the request path. An actual
+manual or background fit persists its result, evidence counts, boundary, and
+exact replay scores in the same transaction as any inactive proposal.
+
+Serialization acquires a session advisory lock on one pinned connection before
+opening the repeatable-read fit transaction. A waiter therefore takes its
+whole-log snapshot only after the preceding receipt is committed. The lock is
+released in shielded cleanup after commit or rollback; an unusable connection
+is invalidated so PostgreSQL releases its session lock.
+
+The durable cursor is the eligible-disposition count on the newest receipt at
+or above the configured floor. It is not separately mutated: each due check
+re-derives the current count through A-031 whole-gate hygiene and subtracts that
+receipt count. Thus a `not_better` fit advances cadence, a below-floor manual fit
+does not delay the floor, and restart needs no reconstructed in-memory state.
+
+**Motivation.** D.2 100 needs retraining to follow authentic owner work rather
+than elapsed time. One durable receipt makes crash catch-up, manual force, and
+no-win fits the same observable act, while one canonical evidence projection
+keeps the worker, Console, and Vitals from disagreeing about the floor or
+weighted agreement.
+
+**Rejected alternatives.** An in-memory cursor forgets evaluated work on
+restart. A proposal-version cursor forgets completed `not_better` fits and can
+hot-loop. A periodic scheduler violates the work cadence. Per-request tasks
+multiply workers and blur request latency. Persisting another mutable cursor is
+redundant with the immutable receipt count and creates a second authority.
+Taking a transaction advisory lock as the first repeatable-read statement is
+also rejected: a waiting transaction would retain a snapshot from before the
+preceding receipt and could repeat the same due boundary.

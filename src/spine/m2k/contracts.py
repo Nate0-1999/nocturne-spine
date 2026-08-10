@@ -18,6 +18,7 @@ from pydantic import (
 )
 
 from spine.contracts import MemoryFeatures, MemoryUnit
+from spine.learner.contracts import ReplayScoreView
 
 
 def _nonblank(value: str) -> str:
@@ -30,6 +31,10 @@ type NonBlankString = Annotated[StrictStr, AfterValidator(_nonblank)]
 type SignedDecimalString = Annotated[
     StrictStr,
     Field(pattern=r"^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$"),
+]
+type NonNegativeDecimalString = Annotated[
+    StrictStr,
+    Field(pattern=r"^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$"),
 ]
 type NonNegativeInt = Annotated[StrictInt, Field(ge=0)]
 type PositiveInt = Annotated[StrictInt, Field(gt=0)]
@@ -178,6 +183,65 @@ class AccuracyPoint(M2KContract):
     accuracy_percent: SignedDecimalString | None
     holdout_dispositions: NonNegativeInt | None
     disagreements: NonNegativeInt | None
+    weighted_dispositions: NonNegativeDecimalString | None
+    weighted_wrong: NonNegativeDecimalString | None
+
+
+class LearnerRunView(M2KContract):
+    run_uid: NonBlankString
+    trigger: Literal["manual", "background"]
+    result: Literal["insufficient_data", "not_better", "proposed"]
+    incumbent_version: NonBlankString
+    proposal_version: NonBlankString | None
+    eligible_dispositions: NonNegativeInt
+    training_dispositions: NonNegativeInt
+    holdout_dispositions: NonNegativeInt
+    training_pairs: NonNegativeInt
+    source_boundary: NonBlankString | None
+    incumbent: ReplayScoreView | None
+    challenger: ReplayScoreView | None
+    reason: str
+    ts: AwareDatetime
+
+
+class LiveAgreementPoint(M2KContract):
+    event_uid: NonBlankString
+    ts: AwareDatetime
+    scorer_version: NonBlankString
+    right: NonNegativeInt
+    wrong: NonNegativeInt
+    weighted_right: NonNegativeDecimalString
+    weighted_wrong: NonNegativeDecimalString
+    weighted_agreement_percent: NonNegativeDecimalString
+
+
+class LearningAnnotation(M2KContract):
+    kind: Literal["activation", "force_values", "retrain"]
+    event_uid: NonBlankString
+    ts: AwareDatetime
+    version: NonBlankString
+    result: Literal["insufficient_data", "not_better", "proposed"] | None
+
+
+class LearningView(M2KContract):
+    eligible_dispositions: NonNegativeInt
+    hygiene_excluded_dispositions: NonNegativeInt
+    minimum_dispositions: PositiveInt
+    remaining_to_floor: NonNegativeInt
+    floor_met: bool
+    retrain_signal_stride: PositiveInt
+    evaluated_through: NonNegativeInt | None
+    signals_since_last_run: NonNegativeInt
+    signals_until_next_run: NonNegativeInt
+    active_scorer_version: NonBlankString
+    right: NonNegativeInt
+    wrong: NonNegativeInt
+    weighted_right: NonNegativeDecimalString
+    weighted_wrong: NonNegativeDecimalString
+    weighted_agreement_percent: NonNegativeDecimalString | None
+    live_agreement: list[LiveAgreementPoint]
+    retrain_runs: list[LearnerRunView]
+    annotations: list[LearningAnnotation]
 
 
 class ContributionBreakdown(M2KContract):
@@ -220,6 +284,7 @@ class ScorerConsoleSnapshot(M2KContract):
     activations: list[ScorerActivationView]
     proposed_versions: list[ScorerConfigurationView]
     accuracy: list[AccuracyPoint]
+    learning: LearningView
     candidates: list[CandidateScoreHistory]
 
 
@@ -307,6 +372,9 @@ __all__ = [
     "CandidateScorePoint",
     "ContributionBreakdown",
     "CreateScorerConfigRequest",
+    "LearnerRunView",
+    "LearningView",
+    "LiveAgreementPoint",
     "MemoryGraphQuery",
     "MemoryGraphSnapshot",
     "ScorerConfigurationView",

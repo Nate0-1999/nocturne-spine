@@ -30,6 +30,7 @@ from spine.inject.service import (
     ThreadAlreadyPreparedError,
     ThreadIdentityConflictError,
 )
+from spine.learner.worker import LearnerWorker
 from spine.problems import (
     ProblemJSONResponse,
     problem_openapi,
@@ -97,7 +98,7 @@ async def prepare(
     request: Request,
 ) -> PrepareResponse | ProblemJSONResponse:
     try:
-        return await _prepare_service(request).prepare(
+        result = await _prepare_service(request).prepare(
             PrepareCommand(
                 thread_id=body.thread_id,
                 agent_id=body.agent_id,
@@ -113,6 +114,8 @@ async def prepare(
                 excluded_memory_ids=tuple(body.excluded_memory_ids),
             )
         )
+        _learner_worker(request).notify()
+        return result
     except ThreadAlreadyPreparedError:
         return _conflict(
             request,
@@ -150,7 +153,7 @@ async def commit(
     request: Request,
 ) -> CommitResponse | ProblemJSONResponse:
     try:
-        return await _decision_service(request).commit(
+        result = await _decision_service(request).commit(
             CommitCommand(
                 injection_id=body.injection_id,
                 removed=tuple(
@@ -160,6 +163,8 @@ async def commit(
                 added_back=tuple(body.added_back),
             )
         )
+        _learner_worker(request).notify()
+        return result
     except InjectionNotFoundError as error:
         return _decision_problem(request, 404, "Not Found", str(error))
     except InvalidCommitChoicesError as error:
@@ -178,13 +183,15 @@ async def feedback(
     request: Request,
 ) -> FeedbackResponse | ProblemJSONResponse:
     try:
-        return await _decision_service(request).feedback(
+        result = await _decision_service(request).feedback(
             FeedbackCommand(
                 injection_id=body.injection_id,
                 memory_id=body.memory_id,
                 signal=body.signal,
             )
         )
+        _learner_worker(request).notify()
+        return result
     except InjectionNotFoundError as error:
         return _decision_problem(request, 404, "Not Found", str(error))
     except OutcomeConflictError as error:
@@ -197,6 +204,10 @@ def _prepare_service(request: Request) -> PrepareService:
 
 def _decision_service(request: Request) -> DecisionService:
     return request.app.state.decision_service
+
+
+def _learner_worker(request: Request) -> LearnerWorker:
+    return request.app.state.learner_worker
 
 
 def _conflict(request: Request, detail: str) -> ProblemJSONResponse:

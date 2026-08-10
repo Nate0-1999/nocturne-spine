@@ -18,13 +18,14 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import aliased
 
 from spine.contracts import MemoryFeatures, MemoryUnit
-from spine.db.models import InjectionEvent
+from spine.db.models import InjectionEvent, LearnerRun
 from spine.db.models import MemoryEdge as MemoryEdgeRow
 from spine.db.models import MemoryRevision as MemoryRevisionRow
 from spine.db.models import MemoryUnit as MemoryUnitRow
 from spine.db.models import ScorerActivation as ScorerActivationRow
 from spine.db.models import ScorerConfig as ScorerConfigRow
 from spine.inject.scorer import ScorerConfig as RuntimeScorerConfig
+from spine.learner.evidence import LearnerDataError, project_learning_evidence
 from spine.learner.model import (
     FEATURE_NAMES,
     LearningExample,
@@ -43,6 +44,10 @@ from spine.m2k.contracts import (
     ContributionBreakdown,
     CreateScorerConfigRequest,
     InstantSimulation,
+    LearnerRunView,
+    LearningAnnotation,
+    LearningView,
+    LiveAgreementPoint,
     MemoryGraphEdge,
     MemoryGraphNode,
     MemoryGraphQuery,
@@ -139,11 +144,17 @@ class M2KService:
         graph_edge_sim: float,
         holdout_fraction: float = 0.20,
         passive_discount: float = 0.25,
+        learner_min_dispositions: int = 25,
+        retrain_signal_stride: int = 25,
     ) -> None:
+        if learner_min_dispositions <= 0 or retrain_signal_stride <= 0:
+            raise ValueError("learner floor and retrain stride must be positive")
         self._session_factory = session_factory
         self._graph_edge_sim = graph_edge_sim
         self._holdout_fraction = holdout_fraction
         self._passive_discount = passive_discount
+        self._learner_min_dispositions = learner_min_dispositions
+        self._retrain_signal_stride = retrain_signal_stride
 
     async def memory_graph(self, query: MemoryGraphQuery) -> MemoryGraphSnapshot:
         async with self._session_factory() as session:
@@ -293,6 +304,28 @@ class M2KService:
                     .scalars()
                     .all()
                 )
+                retrain_runs = (
+                    (
+                        await session.execute(
+                            select(LearnerRun).order_by(LearnerRun.ts, LearnerRun.run_uid)
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
+                learning_events = (
+                    (
+                        await session.execute(
+                            select(InjectionEvent).order_by(
+                                InjectionEvent.ts,
+                                InjectionEvent.injection_id,
+                                InjectionEvent.event_uid,
+                            )
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
                 event_statement = select(InjectionEvent).where(
                     InjectionEvent.principal_id == query.principal_id
                 )
@@ -314,6 +347,14 @@ class M2KService:
         config_by_version = {row.version: row for row in configs}
         candidates = _candidate_histories(events, config_by_version)
         proposals = [view for view in config_views if view.status == "proposed"]
+        try:
+            evidence = project_learning_evidence(
+                learning_events,
+                {version: _runtime(row) for version, row in config_by_version.items()},
+                passive_discount=Decimal(str(self._passive_discount)),
+            )
+        except LearnerDataError as error:
+            raise M2KStateError(f"invalid_learning_evidence:{error}") from error
         return ScorerConsoleSnapshot(
             as_of=as_of,
             scope="CURRENT" if query.thread_id is not None else "GLOBAL",
@@ -324,6 +365,16 @@ class M2KService:
             activations=[_activation_view(row) for row in activations],
             proposed_versions=proposals,
             accuracy=[_accuracy_point(row) for row in configs],
+            learning=_learning_view(
+                evidence_examples=evidence.examples,
+                hygiene_excluded=evidence.hygiene_excluded_dispositions,
+                events=learning_events,
+                active_version=active[0].version,
+                runs=retrain_runs,
+                activations=activations,
+                minimum_dispositions=self._learner_min_dispositions,
+                retrain_signal_stride=self._retrain_signal_stride,
+            ),
             candidates=candidates,
         )
 
@@ -727,7 +778,21 @@ def _accuracy_point(row: ScorerConfigRow) -> AccuracyPoint:
     replay = learner.get("replay") if isinstance(learner, Mapping) else None
     challenger = replay.get("challenger") if isinstance(replay, Mapping) else None
     holdout = learner.get("holdout_dispositions") if isinstance(learner, Mapping) else None
+    holdout_weight_raw = learner.get("holdout_weight") if isinstance(learner, Mapping) else None
     disagreements = challenger.get("disagreements") if isinstance(challenger, Mapping) else None
+    weighted_wrong_raw = (
+        challenger.get("weighted_disagreements") if isinstance(challenger, Mapping) else None
+    )
+    try:
+        holdout_weight = (
+            Decimal(holdout_weight_raw) if isinstance(holdout_weight_raw, str) else None
+        )
+        weighted_wrong = (
+            Decimal(weighted_wrong_raw) if isinstance(weighted_wrong_raw, str) else None
+        )
+    except Exception:
+        holdout_weight = None
+        weighted_wrong = None
     if (
         isinstance(holdout, int)
         and not isinstance(holdout, bool)
@@ -735,9 +800,15 @@ def _accuracy_point(row: ScorerConfigRow) -> AccuracyPoint:
         and isinstance(disagreements, int)
         and not isinstance(disagreements, bool)
         and 0 <= disagreements <= holdout
+        and holdout_weight is not None
+        and holdout_weight.is_finite()
+        and holdout_weight > 0
+        and weighted_wrong is not None
+        and weighted_wrong.is_finite()
+        and 0 <= weighted_wrong <= holdout_weight
         and "_control" not in row.params
     ):
-        accuracy = Decimal(100) * Decimal(holdout - disagreements) / Decimal(holdout)
+        accuracy = Decimal(100) * (holdout_weight - weighted_wrong) / holdout_weight
         return AccuracyPoint(
             version=row.version,
             created_at=row.created_at,
@@ -745,6 +816,8 @@ def _accuracy_point(row: ScorerConfigRow) -> AccuracyPoint:
             accuracy_percent=_decimal_string(accuracy),
             holdout_dispositions=holdout,
             disagreements=disagreements,
+            weighted_dispositions=_decimal_string(holdout_weight),
+            weighted_wrong=_decimal_string(weighted_wrong),
         )
     return AccuracyPoint(
         version=row.version,
@@ -753,6 +826,153 @@ def _accuracy_point(row: ScorerConfigRow) -> AccuracyPoint:
         accuracy_percent=None,
         holdout_dispositions=None,
         disagreements=None,
+        weighted_dispositions=None,
+        weighted_wrong=None,
+    )
+
+
+def _learning_view(
+    *,
+    evidence_examples: tuple[LearningExample, ...],
+    hygiene_excluded: int,
+    events: list[InjectionEvent],
+    active_version: str,
+    runs: list[LearnerRun],
+    activations: list[ScorerActivationRow],
+    minimum_dispositions: int,
+    retrain_signal_stride: int,
+) -> LearningView:
+    eligible = len(evidence_examples)
+    qualifying_runs = [run for run in runs if run.eligible_dispositions >= minimum_dispositions]
+    cursor = (
+        max(
+            qualifying_runs,
+            key=lambda row: (row.eligible_dispositions, row.ts, row.run_uid),
+        ).eligible_dispositions
+        if qualifying_runs
+        else None
+    )
+    signals_since = max(0, eligible - (cursor or 0))
+    remaining_to_floor = max(0, minimum_dispositions - eligible)
+    floor_met = eligible >= minimum_dispositions
+    signals_until_next = (
+        remaining_to_floor
+        if not floor_met
+        else 0
+        if cursor is None
+        else max(0, retrain_signal_stride - signals_since)
+    )
+    by_event_uid = {row.event_uid: row for row in events}
+    active_examples = [
+        (example, by_event_uid[example.event_uid])
+        for example in evidence_examples
+        if by_event_uid[example.event_uid].scorer_version == active_version
+    ]
+    right, wrong, weighted_right, weighted_wrong = _agreement_totals(active_examples)
+    weighted_total = weighted_right + weighted_wrong
+    agreement_percent = (
+        None
+        if weighted_total == 0
+        else _decimal_string(Decimal(100) * weighted_right / weighted_total)
+    )
+    live_points: list[LiveAgreementPoint] = []
+    for index, (_, row) in enumerate(active_examples):
+        window = active_examples[max(0, index + 1 - retrain_signal_stride) : index + 1]
+        point_right, point_wrong, point_weighted_right, point_weighted_wrong = _agreement_totals(
+            window
+        )
+        point_total = point_weighted_right + point_weighted_wrong
+        live_points.append(
+            LiveAgreementPoint(
+                event_uid=row.event_uid,
+                ts=row.ts,
+                scorer_version=row.scorer_version,
+                right=point_right,
+                wrong=point_wrong,
+                weighted_right=_decimal_string(point_weighted_right),
+                weighted_wrong=_decimal_string(point_weighted_wrong),
+                weighted_agreement_percent=_decimal_string(
+                    Decimal(100) * point_weighted_right / point_total
+                ),
+            )
+        )
+    run_views = [_learner_run_view(row) for row in runs]
+    annotations = [
+        LearningAnnotation(
+            kind="force_values" if "_force" in row.changes else "activation",
+            event_uid=row.event_uid,
+            ts=row.ts,
+            version=row.version,
+            result=None,
+        )
+        for row in activations
+    ]
+    annotations.extend(
+        LearningAnnotation(
+            kind="retrain",
+            event_uid=row.run_uid,
+            ts=row.ts,
+            version=row.proposal_version or row.incumbent_version,
+            result=row.result,  # type: ignore[arg-type]
+        )
+        for row in runs
+    )
+    annotations.sort(key=lambda item: (item.ts, item.event_uid))
+    return LearningView(
+        eligible_dispositions=eligible,
+        hygiene_excluded_dispositions=hygiene_excluded,
+        minimum_dispositions=minimum_dispositions,
+        remaining_to_floor=remaining_to_floor,
+        floor_met=floor_met,
+        retrain_signal_stride=retrain_signal_stride,
+        evaluated_through=cursor,
+        signals_since_last_run=signals_since,
+        signals_until_next_run=signals_until_next,
+        active_scorer_version=active_version,
+        right=right,
+        wrong=wrong,
+        weighted_right=_decimal_string(weighted_right),
+        weighted_wrong=_decimal_string(weighted_wrong),
+        weighted_agreement_percent=agreement_percent,
+        live_agreement=live_points,
+        retrain_runs=run_views,
+        annotations=annotations,
+    )
+
+
+def _agreement_totals(
+    examples: list[tuple[LearningExample, InjectionEvent]],
+) -> tuple[int, int, Decimal, Decimal]:
+    right = 0
+    wrong = 0
+    weighted_right = Decimal(0)
+    weighted_wrong = Decimal(0)
+    for example, _ in examples:
+        if example.recorded_injected == example.target_injected:
+            right += 1
+            weighted_right += example.actor_weight
+        else:
+            wrong += 1
+            weighted_wrong += example.actor_weight
+    return right, wrong, weighted_right, weighted_wrong
+
+
+def _learner_run_view(row: LearnerRun) -> LearnerRunView:
+    return LearnerRunView(
+        run_uid=row.run_uid,
+        trigger=row.trigger,  # type: ignore[arg-type]
+        result=row.result,  # type: ignore[arg-type]
+        incumbent_version=row.incumbent_version,
+        proposal_version=row.proposal_version,
+        eligible_dispositions=row.eligible_dispositions,
+        training_dispositions=row.training_dispositions,
+        holdout_dispositions=row.holdout_dispositions,
+        training_pairs=row.training_pairs,
+        source_boundary=row.source_boundary,
+        incumbent=row.incumbent,  # type: ignore[arg-type]
+        challenger=row.challenger,  # type: ignore[arg-type]
+        reason=row.reason,
+        ts=row.ts,
     )
 
 

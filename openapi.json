@@ -49,6 +49,26 @@
           },
           "version": {
             "$ref": "#/components/schemas/NonBlankString"
+          },
+          "weighted_dispositions": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NonNegativeDecimalString"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "weighted_wrong": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NonNegativeDecimalString"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -57,7 +77,9 @@
           "status",
           "accuracy_percent",
           "holdout_dispositions",
-          "disagreements"
+          "disagreements",
+          "weighted_dispositions",
+          "weighted_wrong"
         ],
         "title": "AccuracyPoint",
         "type": "object"
@@ -854,6 +876,271 @@
         "title": "LabelConflictResponse",
         "type": "object"
       },
+      "LearnerRunView": {
+        "additionalProperties": false,
+        "properties": {
+          "challenger": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReplayScoreView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "eligible_dispositions": {
+            "$ref": "#/components/schemas/NonNegativeInt"
+          },
+          "holdout_dispositions": {
+            "$ref": "#/components/schemas/NonNegativeInt"
+          },
+          "incumbent": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReplayScoreView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "incumbent_version": {
+            "$ref": "#/components/schemas/NonBlankString"
+          },
+          "proposal_version": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NonBlankString"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "result": {
+            "enum": [
+              "insufficient_data",
+              "not_better",
+              "proposed"
+            ],
+            "title": "Result",
+            "type": "string"
+          },
+          "run_uid": {
+            "$ref": "#/components/schemas/NonBlankString"
+          },
+          "source_boundary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NonBlankString"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "training_dispositions": {
+            "$ref": "#/components/schemas/NonNegativeInt"
+          },
+          "training_pairs": {
+            "$ref": "#/components/schemas/NonNegativeInt"
+          },
+          "trigger": {
+            "enum": [
+              "manual",
+              "background"
+            ],
+            "title": "Trigger",
+            "type": "string"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_uid",
+          "trigger",
+          "result",
+          "incumbent_version",
+          "proposal_version",
+          "eligible_dispositions",
+          "training_dispositions",
+          "holdout_dispositions",
+          "training_pairs",
+          "source_boundary",
+          "incumbent",
+          "challenger",
+          "reason",
+          "ts"
+        ],
+        "title": "LearnerRunView",
+        "type": "object"
+      },
+      "LearningAnnotation": {
+        "additionalProperties": false,
+        "properties": {
+          "event_uid": {
+            "$ref": "#/components/schemas/NonBlankString"
+          },
+          "kind": {
+            "enum": [
+              "activation",
+              "force_values",
+              "retrain"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "enum": [
+                  "insufficient_data",
+                  "not_better",
+                  "proposed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "version": {
+            "$ref": "#/components/schemas/NonBlankString"
+          }
+        },
+        "required": [
+          "kind",
+          "event_uid",
+          "ts",
+          "version",
+          "result"
+        ],
+        "title": "LearningAnnotation",
+        "type": "object"
+      },
+      "LearningView": {
+        "additionalProperties": false,
+        "properties": {
+          "active_scorer_version": {
+            "$ref": "#/components/schemas/NonBlankString"
+          },
+          "annotations": {
+            "items": {
+              "$ref": "#/components/schemas/LearningAnnotation"
+            },
+            "title": "Annotations",
+            "type": "array"
+          },
+          "eligible_dispositions": {
+            "$ref": "#/components/schemas/NonNegativeInt"
+          },
+          "evaluated_through": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NonNegativeInt"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "floor_met": {
+            "title": "Floor Met",
+            "type": "boolean"
+          },
+          "hygiene_excluded_dispositions": {
+            "$ref": "#/components/schemas/NonNegativeInt"
+          },
+          "live_agreement": {
+            "items": {
+              "$ref": "#/components/schemas/LiveAgreementPoint"
+            },
+            "title": "Live Agreement",
+            "type": "array"
+          },
+          "minimum_dispositions": {
+            "$ref": "#/components/schemas/PositiveInt"
+          },
+          "remaining_to_floor": {
+            "$ref": "#/components/schemas/NonNegativeInt"
+          },
+          "retrain_runs": {
+            "items": {
+              "$ref": "#/components/schemas/LearnerRunView"
+            },
+            "title": "Retrain Runs",
+            "type": "array"
+          },
+          "retrain_signal_stride": {
+            "$ref": "#/components/schemas/PositiveInt"
+          },
+          "right": {
+            "$ref": "#/components/schemas/NonNegativeInt"
+          },
+          "signals_since_last_run": {
+            "$ref": "#/components/schemas/NonNegativeInt"
+          },
+          "signals_until_next_run": {
+            "$ref": "#/components/schemas/NonNegativeInt"
+          },
+          "weighted_agreement_percent": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NonNegativeDecimalString"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "weighted_right": {
+            "$ref": "#/components/schemas/NonNegativeDecimalString"
+          },
+          "weighted_wrong": {
+            "$ref": "#/components/schemas/NonNegativeDecimalString"
+          },
+          "wrong": {
+            "$ref": "#/components/schemas/NonNegativeInt"
+          }
+        },
+        "required": [
+          "eligible_dispositions",
+          "hygiene_excluded_dispositions",
+          "minimum_dispositions",
+          "remaining_to_floor",
+          "floor_met",
+          "retrain_signal_stride",
+          "evaluated_through",
+          "signals_since_last_run",
+          "signals_until_next_run",
+          "active_scorer_version",
+          "right",
+          "wrong",
+          "weighted_right",
+          "weighted_wrong",
+          "weighted_agreement_percent",
+          "live_agreement",
+          "retrain_runs",
+          "annotations"
+        ],
+        "title": "LearningView",
+        "type": "object"
+      },
       "LifecycleMetric": {
         "enum": [
           "created",
@@ -903,6 +1190,49 @@
           "source"
         ],
         "title": "LifecycleRate",
+        "type": "object"
+      },
+      "LiveAgreementPoint": {
+        "additionalProperties": false,
+        "properties": {
+          "event_uid": {
+            "$ref": "#/components/schemas/NonBlankString"
+          },
+          "right": {
+            "$ref": "#/components/schemas/NonNegativeInt"
+          },
+          "scorer_version": {
+            "$ref": "#/components/schemas/NonBlankString"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "weighted_agreement_percent": {
+            "$ref": "#/components/schemas/NonNegativeDecimalString"
+          },
+          "weighted_right": {
+            "$ref": "#/components/schemas/NonNegativeDecimalString"
+          },
+          "weighted_wrong": {
+            "$ref": "#/components/schemas/NonNegativeDecimalString"
+          },
+          "wrong": {
+            "$ref": "#/components/schemas/NonNegativeInt"
+          }
+        },
+        "required": [
+          "event_uid",
+          "ts",
+          "scorer_version",
+          "right",
+          "wrong",
+          "weighted_right",
+          "weighted_wrong",
+          "weighted_agreement_percent"
+        ],
+        "title": "LiveAgreementPoint",
         "type": "object"
       },
       "MemoryFeatures": {
@@ -1302,6 +1632,10 @@
         "type": "object"
       },
       "NonBlankString": {
+        "type": "string"
+      },
+      "NonNegativeDecimalString": {
+        "pattern": "^(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$",
         "type": "string"
       },
       "NonNegativeInt": {
@@ -2681,6 +3015,9 @@
             "title": "Descriptors",
             "type": "array"
           },
+          "learning": {
+            "$ref": "#/components/schemas/LearningView"
+          },
           "proposed_versions": {
             "items": {
               "$ref": "#/components/schemas/ScorerConfigurationView"
@@ -2719,6 +3056,7 @@
           "activations",
           "proposed_versions",
           "accuracy",
+          "learning",
           "candidates"
         ],
         "title": "ScorerConsoleSnapshot",

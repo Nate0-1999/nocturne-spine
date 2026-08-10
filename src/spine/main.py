@@ -25,8 +25,8 @@ from spine.inject.decisions import DecisionService
 from spine.inject.router import router as inject_router
 from spine.inject.service import PrepareService
 from spine.learner.router import router as learner_router
-from spine.learner.scheduler import LearnerScheduler
 from spine.learner.service import LearnerService, LearnerSettings
+from spine.learner.worker import LearnerWorker
 from spine.m2k.router import router as m2k_router
 from spine.m2k.service import M2KService
 from spine.memory.router import router as memory_router
@@ -136,38 +136,32 @@ def create_app(
             bias_l2=resolved.learner_bias_l2,
             win_margin=resolved.learner_win_margin,
         ),
+        retrain_signal_stride=resolved.retrain_signal_stride,
     )
     m2k_service = M2KService(
         session_factory,
         graph_edge_sim=resolved.graph_edge_sim,
         holdout_fraction=resolved.learner_holdout_fraction,
         passive_discount=resolved.learner_passive_discount,
+        learner_min_dispositions=resolved.learner_min_dispositions,
+        retrain_signal_stride=resolved.retrain_signal_stride,
     )
-    learner_scheduler = (
-        None
-        if resolved.learner_schedule_hours is None
-        else LearnerScheduler(
-            learner_service,
-            interval_seconds=resolved.learner_schedule_hours * 3600,
-        )
-    )
+    learner_worker = LearnerWorker(learner_service)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        learner_worker.start()
         if owned_engine is not None:
             spend_view_refresher.start()
             if reconciliation_scheduler is not None:
                 reconciliation_scheduler.start()
-            if learner_scheduler is not None:
-                learner_scheduler.start()
         try:
             yield
         finally:
+            await learner_worker.stop()
             if owned_engine is not None:
                 if reconciliation_scheduler is not None:
                     await reconciliation_scheduler.stop()
-                if learner_scheduler is not None:
-                    await learner_scheduler.stop()
                 await spend_view_refresher.stop()
             if owned_provider is not None:
                 await owned_provider.aclose()
@@ -195,7 +189,7 @@ def create_app(
     app.state.vitals_service = vitals_service
     app.state.learner_service = learner_service
     app.state.m2k_service = m2k_service
-    app.state.learner_scheduler = learner_scheduler
+    app.state.learner_worker = learner_worker
     app.add_middleware(
         StaticBearerAuthMiddleware,
         token=resolved.token.get_secret_value(),

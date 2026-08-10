@@ -10,9 +10,10 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from spine.db.models import InjectionEvent, MemoryEdge, MemoryRevision, MemoryUnit
+from spine.db.models import InjectionEvent, LearnerRun, MemoryEdge, MemoryRevision, MemoryUnit
 from spine.db.models import ScorerActivation as ScorerActivationRow
 from spine.db.models import ScorerConfig as ScorerConfigRow
+from spine.m2k.service import M2KService
 
 
 async def _insert_graph_fixture(
@@ -294,6 +295,189 @@ async def test_console_contributions_sum_exactly_and_control_inserts_a_version(
         "accuracy_percent": None,
         "delta_percent": None,
     }
+    refreshed = await memory_client.post(
+        "/v1/scorer-console/query",
+        json={"principal_id": "owner", "thread_id": str(thread_id), "as_of": "now"},
+    )
+    assert refreshed.status_code == 200
+    assert [item["kind"] for item in refreshed.json()["learning"]["annotations"]] == [
+        "force_values"
+    ]
+
+
+@pytest.mark.asyncio
+async def test_console_learning_view_is_one_exact_server_authored_scoreboard(
+    memory_app,
+    memory_client: AsyncClient,
+    memory_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """A-031/A-051 keep cadence, hygiene, weighted agreement, and receipts in one read model."""
+
+    memory_app.state.m2k_service = M2KService(
+        memory_session_factory,
+        graph_edge_sim=0.75,
+        passive_discount=0.25,
+        learner_min_dispositions=3,
+        retrain_signal_stride=2,
+    )
+    started = datetime(2026, 8, 3, 16, tzinfo=UTC)
+
+    def event(
+        *,
+        seed: int,
+        actor_class: str,
+        outcome: str,
+        shown_as: str,
+        machine_id: str = "studio",
+    ) -> InjectionEvent:
+        return InjectionEvent(
+            event_uid=f"01KZ4R3{seed:019d}",
+            injection_id=UUID(int=9400 + seed),
+            thread_id=UUID(int=9500 + seed),
+            agent_id="general",
+            machine_id=machine_id,
+            principal_id="owner",
+            project_key=None,
+            agent_kind="general",
+            prompt_text="learning read model fixture",
+            scorer_version="v0",
+            memory_id=UUID(int=9600 + seed),
+            memory_kind="fact",
+            features={
+                "sem": 1.0,
+                "kw": 1.0,
+                "time": 0.0,
+                "proj": 0.0,
+                "freq": 0.0,
+                "hist": 0.0,
+                "_memory": {"label": f"Evidence {seed}", "body": f"Body {seed}"},
+            },
+            score=0.58,
+            rank=1,
+            shown_as=shown_as,
+            actor_class=actor_class,
+            outcome=outcome,
+            ts=started + timedelta(minutes=seed),
+        )
+
+    async with memory_session_factory() as session, session.begin():
+        session.add_all(
+            [
+                event(seed=1, actor_class="human", outcome="kept", shown_as="injected"),
+                event(
+                    seed=2,
+                    actor_class="human",
+                    outcome="removed:not_relevant",
+                    shown_as="injected",
+                ),
+                event(
+                    seed=3,
+                    actor_class="passive",
+                    outcome="auto_entered",
+                    shown_as="injected",
+                ),
+                event(
+                    seed=4,
+                    actor_class="human",
+                    outcome="kept",
+                    shown_as="injected",
+                    machine_id="m2z4-verification",
+                ),
+                LearnerRun(
+                    run_uid="01KZ4R30000000000000000009",
+                    trigger="background",
+                    result="not_better",
+                    incumbent_version="v0",
+                    proposal_version=None,
+                    eligible_dispositions=3,
+                    training_dispositions=2,
+                    holdout_dispositions=1,
+                    training_pairs=1,
+                    source_boundary="01KZ4R3000000000000000003",
+                    incumbent={
+                        "disagreements": 1,
+                        "weighted_disagreements": "1",
+                        "injected_tokens": 2,
+                    },
+                    challenger={
+                        "disagreements": 1,
+                        "weighted_disagreements": "1",
+                        "injected_tokens": 2,
+                    },
+                    reason="challenger did not clear the replay win rule",
+                    ts=started + timedelta(minutes=5),
+                ),
+            ]
+        )
+
+    response = await memory_client.post(
+        "/v1/scorer-console/query",
+        json={"principal_id": "owner", "thread_id": None, "as_of": "now"},
+    )
+
+    assert response.status_code == 200
+    learning = response.json()["learning"]
+    assert {
+        key: learning[key]
+        for key in (
+            "eligible_dispositions",
+            "hygiene_excluded_dispositions",
+            "minimum_dispositions",
+            "remaining_to_floor",
+            "floor_met",
+            "retrain_signal_stride",
+            "evaluated_through",
+            "signals_since_last_run",
+            "signals_until_next_run",
+            "active_scorer_version",
+            "right",
+            "wrong",
+            "weighted_right",
+            "weighted_wrong",
+            "weighted_agreement_percent",
+        )
+    } == {
+        "eligible_dispositions": 3,
+        "hygiene_excluded_dispositions": 1,
+        "minimum_dispositions": 3,
+        "remaining_to_floor": 0,
+        "floor_met": True,
+        "retrain_signal_stride": 2,
+        "evaluated_through": 3,
+        "signals_since_last_run": 0,
+        "signals_until_next_run": 2,
+        "active_scorer_version": "v0",
+        "right": 2,
+        "wrong": 1,
+        "weighted_right": "1.25",
+        "weighted_wrong": "1",
+        "weighted_agreement_percent": "55.55555555555555555555555556",
+    }
+    assert [
+        (
+            point["right"],
+            point["wrong"],
+            point["weighted_right"],
+            point["weighted_wrong"],
+            point["weighted_agreement_percent"],
+        )
+        for point in learning["live_agreement"]
+    ] == [
+        (1, 0, "1", "0", "100"),
+        (1, 1, "1", "1", "50"),
+        (1, 1, "0.25", "1", "20"),
+    ]
+    assert learning["retrain_runs"][0]["result"] == "not_better"
+    assert learning["retrain_runs"][0]["incumbent"]["weighted_disagreements"] == "1"
+    assert learning["annotations"] == [
+        {
+            "kind": "retrain",
+            "event_uid": "01KZ4R30000000000000000009",
+            "ts": (started + timedelta(minutes=5)).isoformat().replace("+00:00", "Z"),
+            "version": "v0",
+            "result": "not_better",
+        }
+    ]
 
 
 @pytest.mark.asyncio
@@ -313,9 +497,18 @@ async def test_only_learner_proposals_can_be_activated_and_accuracy_is_measured(
         params["_learner"] = {
             "status": "proposed",
             "holdout_dispositions": 10,
+            "holdout_weight": "5.5",
             "replay": {
-                "incumbent": {"disagreements": 3},
-                "challenger": {"disagreements": 1},
+                "incumbent": {
+                    "disagreements": 3,
+                    "weighted_disagreements": "2",
+                    "injected_tokens": 100,
+                },
+                "challenger": {
+                    "disagreements": 1,
+                    "weighted_disagreements": "0.5",
+                    "injected_tokens": 100,
+                },
             },
         }
         session.add(
@@ -323,6 +516,25 @@ async def test_only_learner_proposals_can_be_activated_and_accuracy_is_measured(
                 version="learner-proposal",
                 weights=dict(base.weights),
                 params=params,
+                active=False,
+            )
+        )
+        legacy_params = dict(base.params)
+        legacy_params["_learner"] = {
+            "status": "proposed",
+            "holdout_dispositions": 10,
+            "replay": {
+                "challenger": {
+                    "disagreements": 1,
+                    "weighted_disagreements": "0.5",
+                }
+            },
+        }
+        session.add(
+            ScorerConfigRow(
+                version="legacy-proposal",
+                weights=dict(base.weights),
+                params=legacy_params,
                 active=False,
             )
         )
@@ -365,7 +577,18 @@ async def test_only_learner_proposals_can_be_activated_and_accuracy_is_measured(
     )
     assert before.status_code == 200
     accuracy = {item["version"]: item for item in before.json()["accuracy"]}
-    assert accuracy["learner-proposal"]["accuracy_percent"] == "90"
+    assert accuracy["learner-proposal"] | {"created_at": None} == {
+        "version": "learner-proposal",
+        "created_at": None,
+        "status": "measured",
+        "accuracy_percent": "90.90909090909090909090909091",
+        "holdout_dispositions": 10,
+        "disagreements": 1,
+        "weighted_dispositions": "5.5",
+        "weighted_wrong": "0.5",
+    }
+    assert accuracy["legacy-proposal"]["status"] == "not_recorded"
+    assert accuracy["legacy-proposal"]["accuracy_percent"] is None
 
     audition = await memory_client.post(
         "/v1/scorer-auditions",

@@ -2,23 +2,23 @@
 
 from __future__ import annotations
 
-import math
-from collections import defaultdict
+import asyncio
 from collections.abc import Mapping
 from copy import deepcopy
 from dataclasses import asdict, dataclass
 from decimal import Decimal
-from typing import Any
-from uuid import UUID
+from typing import Any, Literal
 
 from sqlalchemy import select, text
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, AsyncSession, async_sessionmaker
 
-from spine.db.models import InjectionEvent
+from spine.db.models import InjectionEvent, LearnerRun
 from spine.db.models import ScorerConfig as ScorerConfigRow
+from spine.ids import mint_ulid
 from spine.inject.scorer import ScorerConfig as RuntimeScorerConfig
 from spine.inject.scorer import ScorerWeights
 from spine.learner.contracts import ReplayScoreView, RetrainResponse
+from spine.learner.evidence import LearnerDataError, project_learning_evidence
 from spine.learner.model import (
     FEATURE_NAMES,
     FitSettings,
@@ -27,20 +27,13 @@ from spine.learner.model import (
     canonical_digest,
     challenger_score,
     challenger_wins,
-    disposition,
     fit_pairwise,
-    identity_is_excluded,
     recorded_score,
     split_gates,
 )
-from spine.tokens import cl100k_token_count
 
 _ADVISORY_LOCK_KEY = 0x4D3246
 _ALGORITHM_ID = "m2f-pairwise-squared-hinge-v1"
-
-
-class LearnerDataError(RuntimeError):
-    """The append-only evidence cannot be replayed without guessing."""
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -64,237 +57,313 @@ class LearnerService:
         session_factory: async_sessionmaker[AsyncSession],
         *,
         settings: LearnerSettings,
+        retrain_signal_stride: int = 25,
     ) -> None:
+        if retrain_signal_stride <= 0:
+            raise ValueError("retrain signal stride must be positive")
         self._session_factory = session_factory
         self._settings = settings
+        self._retrain_signal_stride = retrain_signal_stride
 
     async def retrain(self) -> RetrainResponse:
-        async with self._session_factory() as session:
-            async with session.begin():
-                await session.execute(text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ"))
-                await session.execute(
-                    text("SELECT pg_advisory_xact_lock(:key)"), {"key": _ADVISORY_LOCK_KEY}
+        """Force the same fit used by background cadence and append its receipt."""
+
+        response = await self._retrain(trigger="manual", due_only=False)
+        if response is None:  # pragma: no cover - manual is never a due check
+            raise RuntimeError("manual retrain unexpectedly returned no result")
+        return response
+
+    async def retrain_if_due(self) -> RetrainResponse | None:
+        """Run one background fit only when the durable A-051 cadence is due."""
+
+        return await self._retrain(trigger="background", due_only=True)
+
+    async def _retrain(
+        self,
+        *,
+        trigger: Literal["manual", "background"],
+        due_only: bool,
+    ) -> RetrainResponse | None:
+        engine = _session_engine(self._session_factory)
+        async with engine.connect() as connection:
+            acquired = False
+            try:
+                await connection.execute(
+                    text("SELECT pg_advisory_lock(:key)"), {"key": _ADVISORY_LOCK_KEY}
                 )
-                configs = (await session.execute(select(ScorerConfigRow))).scalars().all()
-                active_rows = [row for row in configs if row.active]
-                if len(active_rows) != 1:
-                    raise LearnerDataError(
-                        f"expected exactly one active scorer_config row; found {len(active_rows)}"
-                    )
-                active_row = active_rows[0]
-                runtime_configs = {row.version: _runtime_config(row) for row in configs}
-                incumbent = runtime_configs[active_row.version]
-                event_rows = (
-                    (
+                acquired = True
+                await connection.commit()
+                async with self._session_factory(bind=connection) as session:
+                    async with session.begin():
                         await session.execute(
-                            select(InjectionEvent).order_by(
-                                InjectionEvent.ts,
-                                InjectionEvent.injection_id,
-                                InjectionEvent.event_uid,
-                            )
+                            text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
                         )
-                    )
-                    .scalars()
-                    .all()
-                )
-                examples = self._examples(event_rows, runtime_configs)
-                prior_challenger_exists = any(
-                    isinstance(row.params.get("_learner"), Mapping) for row in configs
-                )
-                if not prior_challenger_exists and len(examples) < self._settings.min_dispositions:
-                    return _insufficient(
-                        incumbent.version,
-                        eligible=len(examples),
-                        reason=(
-                            "minimum disposition floor not reached: "
-                            f"{len(examples)}/{self._settings.min_dispositions}"
-                        ),
-                    )
-                try:
-                    training, holdout, cutoff = split_gates(
-                        examples,
-                        holdout_fraction=self._settings.holdout_fraction,
-                    )
-                except ValueError as error:
-                    return _insufficient(
-                        incumbent.version,
-                        eligible=len(examples),
-                        reason=str(error),
-                    )
-                try:
-                    fit = fit_pairwise(
-                        training,
-                        incumbent_weights=_weight_tuple(incumbent.weights),
-                        settings=FitSettings(
-                            pair_margin=self._settings.pair_margin,
-                            bias_l2=self._settings.bias_l2,
-                        ),
-                    )
-                except ValueError as error:
-                    return _insufficient(
-                        incumbent.version,
-                        eligible=len(examples),
-                        training=len(training),
-                        holdout=len(holdout),
-                        reason=str(error),
-                    )
-                incumbent_score = recorded_score(holdout)
-                fitted_score = challenger_score(
-                    holdout,
-                    weights=fit.weights,
-                    bias_offsets=fit.bias_offsets,
-                    tau=incumbent.params.tau,
-                )
-                wins = challenger_wins(
-                    incumbent_score,
-                    fitted_score,
-                    margin=Decimal(str(self._settings.win_margin)),
-                )
-                if not wins:
-                    return RetrainResponse(
-                        status="not_better",
-                        incumbent_version=incumbent.version,
-                        proposal_version=None,
-                        eligible_dispositions=len(examples),
-                        training_dispositions=len(training),
-                        holdout_dispositions=len(holdout),
-                        training_pairs=fit.pair_count,
-                        incumbent=_score_view(incumbent_score),
-                        challenger=_score_view(fitted_score),
-                        reason="challenger did not clear the replay win rule",
-                    )
-                settings_manifest = self._settings.manifest()
-                digest_manifest = {
-                    "algorithm": _ALGORITHM_ID,
-                    "learner": settings_manifest,
-                    "incumbent_weights": active_row.weights,
-                    "incumbent_params": active_row.params,
-                }
-                digest = canonical_digest(
-                    incumbent_version=incumbent.version,
-                    training=training,
-                    holdout=holdout,
-                    settings=digest_manifest,
-                )
-                version = f"m2f-{digest[:16]}"
-                proposal_params = deepcopy(active_row.params)
-                proposal_params["_learner"] = {
-                    "status": "proposed",
-                    "algorithm": _ALGORITHM_ID,
-                    "source_digest": digest,
-                    "source_boundary": max(example.event_uid for example in examples),
-                    "training_cutoff": cutoff.isoformat(),
-                    "holdout_dispositions": len(holdout),
-                    "settings": settings_manifest,
-                    "fit": {
-                        "iterations": fit.iterations,
-                        "objective": fit.objective,
-                        "training_pairs": fit.pair_count,
-                    },
-                    "replay": {
-                        "incumbent": _score_manifest(incumbent_score),
-                        "challenger": _score_manifest(fitted_score),
-                    },
-                    "bias_offsets": {
-                        str(memory_id): value
-                        for memory_id, value in sorted(
-                            fit.bias_offsets.items(), key=lambda item: item[0].int
+                        return await self._retrain_in_snapshot(
+                            session,
+                            trigger=trigger,
+                            due_only=due_only,
                         )
-                    },
-                }
-                proposal_weights = dict(zip(FEATURE_NAMES, fit.weights, strict=True))
-                existing = await session.get(ScorerConfigRow, version)
-                if existing is None:
-                    session.add(
-                        ScorerConfigRow(
-                            version=version,
-                            weights=proposal_weights,
-                            params=proposal_params,
-                            active=False,
-                        )
+            finally:
+                await _release_session_lock(connection, acquired=acquired)
+
+    async def _retrain_in_snapshot(
+        self,
+        session: AsyncSession,
+        *,
+        trigger: Literal["manual", "background"],
+        due_only: bool,
+    ) -> RetrainResponse | None:
+        configs = (await session.execute(select(ScorerConfigRow))).scalars().all()
+        active_rows = [row for row in configs if row.active]
+        if len(active_rows) != 1:
+            raise LearnerDataError(
+                f"expected exactly one active scorer_config row; found {len(active_rows)}"
+            )
+        active_row = active_rows[0]
+        runtime_configs = {row.version: _runtime_config(row) for row in configs}
+        incumbent = runtime_configs[active_row.version]
+        event_rows = (
+            (
+                await session.execute(
+                    select(InjectionEvent).order_by(
+                        InjectionEvent.ts,
+                        InjectionEvent.injection_id,
+                        InjectionEvent.event_uid,
                     )
-                elif existing.weights != proposal_weights or existing.params != proposal_params:
-                    legacy_params = deepcopy(proposal_params)
-                    legacy_learner = legacy_params.get("_learner")
-                    if isinstance(legacy_learner, dict):
-                        legacy_learner.pop("holdout_dispositions", None)
-                    if existing.weights != proposal_weights or existing.params != legacy_params:
-                        raise LearnerDataError(
-                            "content-addressed scorer proposal "
-                            f"{version} does not match stored content"
-                        )
-                return RetrainResponse(
-                    status="proposed",
-                    incumbent_version=incumbent.version,
-                    proposal_version=version,
-                    eligible_dispositions=len(examples),
-                    training_dispositions=len(training),
-                    holdout_dispositions=len(holdout),
-                    training_pairs=fit.pair_count,
-                    incumbent=_score_view(incumbent_score),
-                    challenger=_score_view(fitted_score),
-                    reason="challenger won replay and remains inactive pending owner activation",
                 )
+            )
+            .scalars()
+            .all()
+        )
+        examples = self._examples(event_rows, runtime_configs)
+        if due_only and not await self._background_due(session, len(examples)):
+            return None
+        response = await self._fit(
+            session,
+            configs=configs,
+            active_row=active_row,
+            incumbent=incumbent,
+            examples=examples,
+        )
+        # The mappings intentionally expose no ORM relationship. Persist a
+        # winning proposal before its same-transaction receipt satisfies the FK.
+        await session.flush()
+        source_boundary = max(
+            (example.event_uid for example in examples),
+            default=None,
+        )
+        session.add(
+            LearnerRun(
+                run_uid=mint_ulid(),
+                trigger=trigger,
+                result=response.status,
+                incumbent_version=response.incumbent_version,
+                proposal_version=response.proposal_version,
+                eligible_dispositions=response.eligible_dispositions,
+                training_dispositions=response.training_dispositions,
+                holdout_dispositions=response.holdout_dispositions,
+                training_pairs=response.training_pairs,
+                source_boundary=source_boundary,
+                incumbent=(
+                    response.incumbent.model_dump() if response.incumbent is not None else None
+                ),
+                challenger=(
+                    response.challenger.model_dump() if response.challenger is not None else None
+                ),
+                reason=response.reason,
+            )
+        )
+        return response
+
+    async def _background_due(self, session: AsyncSession, eligible: int) -> bool:
+        if eligible < self._settings.min_dispositions:
+            return False
+        cursor = await session.scalar(
+            select(LearnerRun)
+            .where(LearnerRun.eligible_dispositions >= self._settings.min_dispositions)
+            .order_by(
+                LearnerRun.eligible_dispositions.desc(),
+                LearnerRun.ts.desc(),
+                LearnerRun.run_uid.desc(),
+            )
+            .limit(1)
+        )
+        if cursor is None:
+            return True
+        return eligible - cursor.eligible_dispositions >= self._retrain_signal_stride
+
+    async def _fit(
+        self,
+        session: AsyncSession,
+        *,
+        configs: list[ScorerConfigRow],
+        active_row: ScorerConfigRow,
+        incumbent: RuntimeScorerConfig,
+        examples: tuple[LearningExample, ...],
+    ) -> RetrainResponse:
+        prior_challenger_exists = any(
+            isinstance(row.params.get("_learner"), Mapping) for row in configs
+        )
+        if not prior_challenger_exists and len(examples) < self._settings.min_dispositions:
+            return _insufficient(
+                incumbent.version,
+                eligible=len(examples),
+                reason=(
+                    "minimum disposition floor not reached: "
+                    f"{len(examples)}/{self._settings.min_dispositions}"
+                ),
+            )
+        try:
+            training, holdout, cutoff = split_gates(
+                examples,
+                holdout_fraction=self._settings.holdout_fraction,
+            )
+        except ValueError as error:
+            return _insufficient(
+                incumbent.version,
+                eligible=len(examples),
+                reason=str(error),
+            )
+        try:
+            fit = fit_pairwise(
+                training,
+                incumbent_weights=_weight_tuple(incumbent.weights),
+                settings=FitSettings(
+                    pair_margin=self._settings.pair_margin,
+                    bias_l2=self._settings.bias_l2,
+                ),
+            )
+        except ValueError as error:
+            return _insufficient(
+                incumbent.version,
+                eligible=len(examples),
+                training=len(training),
+                holdout=len(holdout),
+                reason=str(error),
+            )
+        incumbent_score = recorded_score(holdout)
+        fitted_score = challenger_score(
+            holdout,
+            weights=fit.weights,
+            bias_offsets=fit.bias_offsets,
+            tau=incumbent.params.tau,
+        )
+        wins = challenger_wins(
+            incumbent_score,
+            fitted_score,
+            margin=Decimal(str(self._settings.win_margin)),
+        )
+        if not wins:
+            return RetrainResponse(
+                status="not_better",
+                incumbent_version=incumbent.version,
+                proposal_version=None,
+                eligible_dispositions=len(examples),
+                training_dispositions=len(training),
+                holdout_dispositions=len(holdout),
+                training_pairs=fit.pair_count,
+                incumbent=_score_view(incumbent_score),
+                challenger=_score_view(fitted_score),
+                reason="challenger did not clear the replay win rule",
+            )
+        settings_manifest = self._settings.manifest()
+        proposal_params = deepcopy(active_row.params)
+        inherited_control = "_control" in proposal_params
+        proposal_params.pop("_control", None)
+        digest_manifest = {
+            "algorithm": _ALGORITHM_ID,
+            "learner": settings_manifest,
+            "incumbent_weights": active_row.weights,
+            "incumbent_params": active_row.params,
+        }
+        if inherited_control:
+            # Pre-fix control-basin proposals inherited _control at the same digest.
+            # Version the corrected encoding without erasing incumbent provenance.
+            digest_manifest["proposal_encoding"] = "learner_without_control_v1"
+        digest = canonical_digest(
+            incumbent_version=incumbent.version,
+            training=training,
+            holdout=holdout,
+            settings=digest_manifest,
+        )
+        version = f"m2f-{digest[:16]}"
+        holdout_weight = sum(
+            (example.actor_weight for example in holdout),
+            start=Decimal(0),
+        )
+        proposal_params["_learner"] = {
+            "status": "proposed",
+            "algorithm": _ALGORITHM_ID,
+            "source_digest": digest,
+            "source_boundary": max(example.event_uid for example in examples),
+            "training_cutoff": cutoff.isoformat(),
+            "holdout_dispositions": len(holdout),
+            "holdout_weight": str(holdout_weight),
+            "settings": settings_manifest,
+            "fit": {
+                "iterations": fit.iterations,
+                "objective": fit.objective,
+                "training_pairs": fit.pair_count,
+            },
+            "replay": {
+                "incumbent": _score_manifest(incumbent_score),
+                "challenger": _score_manifest(fitted_score),
+            },
+            "bias_offsets": {
+                str(memory_id): value
+                for memory_id, value in sorted(
+                    fit.bias_offsets.items(), key=lambda item: item[0].int
+                )
+            },
+        }
+        proposal_weights = dict(zip(FEATURE_NAMES, fit.weights, strict=True))
+        existing = await session.get(ScorerConfigRow, version)
+        if existing is None:
+            session.add(
+                ScorerConfigRow(
+                    version=version,
+                    weights=proposal_weights,
+                    params=proposal_params,
+                    active=False,
+                )
+            )
+        elif existing.weights != proposal_weights or existing.params != proposal_params:
+            legacy_with_count = deepcopy(proposal_params)
+            legacy_learner = legacy_with_count.get("_learner")
+            if isinstance(legacy_learner, dict):
+                legacy_learner.pop("holdout_weight", None)
+            legacy_without_count = deepcopy(legacy_with_count)
+            legacy_learner = legacy_without_count.get("_learner")
+            if isinstance(legacy_learner, dict):
+                legacy_learner.pop("holdout_dispositions", None)
+            accepted_params = (legacy_with_count, legacy_without_count)
+            if existing.weights != proposal_weights or existing.params not in accepted_params:
+                raise LearnerDataError(
+                    f"content-addressed scorer proposal {version} does not match stored content"
+                )
+        return RetrainResponse(
+            status="proposed",
+            incumbent_version=incumbent.version,
+            proposal_version=version,
+            eligible_dispositions=len(examples),
+            training_dispositions=len(training),
+            holdout_dispositions=len(holdout),
+            training_pairs=fit.pair_count,
+            incumbent=_score_view(incumbent_score),
+            challenger=_score_view(fitted_score),
+            reason="challenger won replay and remains inactive pending owner activation",
+        )
 
     def _examples(
         self,
         rows: list[InjectionEvent],
         configs: Mapping[str, RuntimeScorerConfig],
     ) -> tuple[LearningExample, ...]:
-        grouped: dict[UUID, list[InjectionEvent]] = defaultdict(list)
-        for row in rows:
-            grouped[row.injection_id].append(row)
-        excluded = {
-            injection_id
-            for injection_id, members in grouped.items()
-            if any(
-                identity_is_excluded(
-                    principal_id=member.principal_id,
-                    machine_id=member.machine_id,
-                )
-                for member in members
-            )
-        }
-        passive_discount = Decimal(str(self._settings.passive_discount))
-        examples: list[LearningExample] = []
-        for row in rows:
-            if row.injection_id in excluded:
-                continue
-            labeled = disposition(
-                row.outcome,
-                row.actor_class,
-                passive_discount=passive_discount,
-            )
-            if labeled is None:
-                continue
-            source = configs.get(row.scorer_version)
-            if source is None:
-                raise LearnerDataError(
-                    f"event {row.event_uid} references missing scorer {row.scorer_version!r}"
-                )
-            features = _features(row)
-            baseline_bias = float(row.score) - math.fsum(
-                weight * feature
-                for weight, feature in zip(_weight_tuple(source.weights), features, strict=True)
-            )
-            baseline_bias -= source.bias_offset(row.memory_id)
-            body = _frozen_body(row)
-            target_injected, actor_weight = labeled
-            examples.append(
-                LearningExample(
-                    event_uid=row.event_uid,
-                    injection_id=row.injection_id,
-                    memory_id=row.memory_id,
-                    ts=row.ts,
-                    features=features,
-                    baseline_bias=baseline_bias,
-                    target_injected=target_injected,
-                    actor_weight=actor_weight,
-                    shown_as=row.shown_as,  # type: ignore[arg-type]
-                    body_tokens=cl100k_token_count(body),
-                )
-            )
-        return tuple(examples)
+        return project_learning_evidence(
+            rows,
+            configs,
+            passive_discount=Decimal(str(self._settings.passive_discount)),
+        ).examples
 
 
 def _runtime_config(row: ScorerConfigRow) -> RuntimeScorerConfig:
@@ -306,27 +375,6 @@ def _runtime_config(row: ScorerConfigRow) -> RuntimeScorerConfig:
         )
     except (KeyError, TypeError, ValueError) as error:
         raise LearnerDataError(f"scorer_config {row.version!r} is invalid") from error
-
-
-def _features(row: InjectionEvent) -> tuple[float, float, float, float, float, float]:
-    values: list[float] = []
-    for name in FEATURE_NAMES:
-        value = row.features.get(name)
-        if isinstance(value, bool) or not isinstance(value, (int, float)):
-            raise LearnerDataError(f"event {row.event_uid} feature {name} is not numeric")
-        normalized = float(value)
-        if not math.isfinite(normalized) or not 0.0 <= normalized <= 1.0:
-            raise LearnerDataError(f"event {row.event_uid} feature {name} is outside [0,1]")
-        values.append(normalized)
-    return tuple(values)  # type: ignore[return-value]
-
-
-def _frozen_body(row: InjectionEvent) -> str:
-    memory = row.features.get("_memory")
-    body = memory.get("body") if isinstance(memory, Mapping) else None
-    if not isinstance(body, str):
-        raise LearnerDataError(f"event {row.event_uid} has no frozen memory body")
-    return body
 
 
 def _weight_tuple(weights: ScorerWeights) -> tuple[float, float, float, float, float, float]:
@@ -365,6 +413,46 @@ def _insufficient(
         challenger=None,
         reason=reason,
     )
+
+
+def _session_engine(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> AsyncEngine:
+    bind = session_factory.kw.get("bind")
+    if not isinstance(bind, AsyncEngine):
+        raise LearnerDataError("learner session factory must be bound to an async engine")
+    return bind
+
+
+async def _release_session_lock(
+    connection: AsyncConnection,
+    *,
+    acquired: bool,
+) -> None:
+    async def cleanup() -> None:
+        try:
+            if connection.invalidated or connection.closed:
+                return
+            if connection.in_transaction():
+                await connection.rollback()
+            released = await connection.scalar(
+                text("SELECT pg_advisory_unlock(:key)"),
+                {"key": _ADVISORY_LOCK_KEY},
+            )
+            await connection.commit()
+            if acquired and released is not True:
+                raise LearnerDataError("learner advisory lock was not held during cleanup")
+        except BaseException as error:
+            if not connection.closed:
+                await connection.invalidate(error)
+            raise
+
+    cleanup_task = asyncio.create_task(cleanup(), name="chrysopoeia-unlock")
+    try:
+        await asyncio.shield(cleanup_task)
+    except asyncio.CancelledError:
+        await cleanup_task
+        raise
 
 
 __all__ = ["LearnerDataError", "LearnerService", "LearnerSettings"]

@@ -157,6 +157,7 @@ async def test_models_match_authoritative_c2_schema(
         "spend_event",
         "spend_reconciliation",
         "scorer_config",
+        "learner_run",
         "scorer_activation",
     )
 
@@ -295,6 +296,22 @@ async def test_models_match_authoritative_c2_schema(
             "error_code",
         ),
         "scorer_config": ("version", "weights", "params", "created_at", "active"),
+        "learner_run": (
+            "run_uid",
+            "trigger",
+            "result",
+            "incumbent_version",
+            "proposal_version",
+            "eligible_dispositions",
+            "training_dispositions",
+            "holdout_dispositions",
+            "training_pairs",
+            "source_boundary",
+            "incumbent",
+            "challenger",
+            "reason",
+            "ts",
+        ),
         "scorer_activation": (
             "event_uid",
             "version",
@@ -350,6 +367,7 @@ async def test_models_match_authoritative_c2_schema(
             "error_code",
         },
         "scorer_config": set(),
+        "learner_run": {"proposal_version", "source_boundary", "incumbent", "challenger"},
         "scorer_activation": set(),
     }
 
@@ -368,6 +386,7 @@ async def test_models_match_authoritative_c2_schema(
         "spend_event": ("event_uid",),
         "spend_reconciliation": ("event_uid",),
         "scorer_config": ("version",),
+        "learner_run": ("run_uid",),
         "scorer_activation": ("event_uid",),
     }
 
@@ -498,6 +517,20 @@ async def test_models_match_authoritative_c2_schema(
         "scorer_config.params": "JSONB",
         "scorer_config.created_at": "TIMESTAMP WITH TIME ZONE",
         "scorer_config.active": "BOOLEAN",
+        "learner_run.run_uid": "TEXT",
+        "learner_run.trigger": "TEXT",
+        "learner_run.result": "TEXT",
+        "learner_run.incumbent_version": "TEXT",
+        "learner_run.proposal_version": "TEXT",
+        "learner_run.eligible_dispositions": "BIGINT",
+        "learner_run.training_dispositions": "BIGINT",
+        "learner_run.holdout_dispositions": "BIGINT",
+        "learner_run.training_pairs": "BIGINT",
+        "learner_run.source_boundary": "TEXT",
+        "learner_run.incumbent": "JSONB",
+        "learner_run.challenger": "JSONB",
+        "learner_run.reason": "TEXT",
+        "learner_run.ts": "TIMESTAMP WITH TIME ZONE",
         "scorer_activation.event_uid": "TEXT",
         "scorer_activation.version": "TEXT",
         "scorer_activation.previous_version": "TEXT",
@@ -542,6 +575,7 @@ async def test_models_match_authoritative_c2_schema(
         "spend_reconciliation.ts": "now()",
         "scorer_config.created_at": "now()",
         "scorer_config.active": "false",
+        "learner_run.ts": "now()",
         "scorer_activation.ts": "now()",
     }
     memory_unit_ddl = str(CreateTable(Base.metadata.tables["memory_unit"]).compile(dialect=dialect))
@@ -650,6 +684,14 @@ async def test_models_match_authoritative_c2_schema(
             ),
         },
         "scorer_config": {},
+        "learner_run": {
+            "learner_run_trigger_check": "trigger IN ('manual','background')",
+            "learner_run_result_check": ("result IN ('insufficient_data','not_better','proposed')"),
+            "learner_run_eligible_dispositions_check": "eligible_dispositions >= 0",
+            "learner_run_training_dispositions_check": "training_dispositions >= 0",
+            "learner_run_holdout_dispositions_check": "holdout_dispositions >= 0",
+            "learner_run_training_pairs_check": "training_pairs >= 0",
+        },
         "scorer_activation": {
             "scorer_activation_actor_class_check": ("actor_class IN ('human','passive')"),
             "scorer_activation_reason_check": ("reason IN ('human_control','learner_proposal')"),
@@ -698,6 +740,15 @@ async def test_models_match_authoritative_c2_schema(
     assert {foreign_key.target_fullname for foreign_key in decision.c.item_uid.foreign_keys} == {
         "approval_queue_item.item_uid"
     }
+    learner_run = Base.metadata.tables["learner_run"]
+    assert {
+        foreign_key.target_fullname for foreign_key in learner_run.c.incumbent_version.foreign_keys
+    } == {"scorer_config.version"}
+    assert {
+        foreign_key.target_fullname for foreign_key in learner_run.c.proposal_version.foreign_keys
+    } == {"scorer_config.version"}
+    learner_indexes = {index.name: index for index in learner_run.indexes}
+    assert set(learner_indexes) == {"learner_run_ts_idx"}
 
 
 async def test_search_tsv_trigger_tracks_sources_and_overwrites_tampering(

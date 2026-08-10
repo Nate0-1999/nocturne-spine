@@ -115,7 +115,7 @@ async def memory_session_factory(
     engine = create_async_engine(migrated_database_url)
     session_factory = make_session_factory(engine)
     truncate = text(
-        "TRUNCATE scorer_activation, approval_decision, approval_queue_item, "
+        "TRUNCATE learner_run, scorer_activation, approval_decision, approval_queue_item, "
         "memory_edge, spend_reconciliation, spend_event, "
         "injection_event, thread, memory_revision, memory_unit "
         "RESTART IDENTITY CASCADE"

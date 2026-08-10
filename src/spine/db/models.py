@@ -555,6 +555,60 @@ class ScorerConfig(Base):
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
 
 
+class LearnerRun(Base):
+    """One immutable receipt for an actual manual or background retrain."""
+
+    __tablename__ = "learner_run"
+    __table_args__ = (
+        CheckConstraint(
+            "trigger IN ('manual','background')",
+            name="learner_run_trigger_check",
+        ),
+        CheckConstraint(
+            "result IN ('insufficient_data','not_better','proposed')",
+            name="learner_run_result_check",
+        ),
+        CheckConstraint(
+            "eligible_dispositions >= 0",
+            name="learner_run_eligible_dispositions_check",
+        ),
+        CheckConstraint(
+            "training_dispositions >= 0",
+            name="learner_run_training_dispositions_check",
+        ),
+        CheckConstraint(
+            "holdout_dispositions >= 0",
+            name="learner_run_holdout_dispositions_check",
+        ),
+        CheckConstraint("training_pairs >= 0", name="learner_run_training_pairs_check"),
+        Index("learner_run_ts_idx", "ts", "run_uid"),
+    )
+
+    run_uid: Mapped[str] = mapped_column(Text, primary_key=True)
+    trigger: Mapped[str] = mapped_column(Text, nullable=False)
+    result: Mapped[str] = mapped_column(Text, nullable=False)
+    incumbent_version: Mapped[str] = mapped_column(
+        Text,
+        ForeignKey("scorer_config.version"),
+        nullable=False,
+    )
+    proposal_version: Mapped[str | None] = mapped_column(
+        Text,
+        ForeignKey("scorer_config.version"),
+    )
+    eligible_dispositions: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    training_dispositions: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    holdout_dispositions: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    training_pairs: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    source_boundary: Mapped[str | None] = mapped_column(Text)
+    incumbent: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    challenger: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    ts: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
 class ScorerActivation(Base):
     """Append-only authority log for active scorer version changes."""
 

@@ -2,8 +2,8 @@
 
 Generated deterministically by `scripts/check_test_motivations.py`.
 
-- Tests discovered: 164
-- Motivated tests: 164
+- Tests discovered: 176
+- Motivated tests: 176
 - Grandfathered baseline debt: 0
 - Stale baseline entries: 0
 - Catalog headings: 53
@@ -11,7 +11,7 @@ Generated deterministically by `scripts/check_test_motivations.py`.
 - Normative-bearing headings: 40
 - Normative-bearing heading coverage: 7 / 40
 - Zero-defender normative-bearing headings: 33
-- Unique test-to-statute mention links: 176
+- Unique test-to-statute mention links: 196
 
 Coverage is heading-level only; this report does not claim clause coverage.
 
@@ -393,6 +393,8 @@ Coverage is heading-level only; this report does not claim clause coverage.
 
 ### A-031
 
+- `tests/test_learner_api.py::test_real_worker_startup_and_work_wake_persists_background_inactive_winner`
+- `tests/test_learner_api.py::test_retrain_accepts_both_pre_a051_proposal_manifest_variants`
 - `tests/test_learner_api.py::test_retrain_hygiene_excludes_whole_verification_gate`
 - `tests/test_learner_api.py::test_retrain_proposes_inactive_content_addressed_winner_idempotently`
 - `tests/test_learner_model.py::test_binary_replay_counts_each_override_and_applies_passive_discount`
@@ -400,7 +402,7 @@ Coverage is heading-level only; this report does not claim clause coverage.
 - `tests/test_learner_model.py::test_replay_winner_requires_margin_except_for_exact_cheaper_tie`
 - `tests/test_learner_model.py::test_time_split_keeps_whole_gates_and_uses_newest_for_holdout`
 - `tests/test_learner_model.py::test_whole_log_fit_is_deterministic_simplex_constrained_and_shrunk`
-- `tests/test_learner_scheduler.py::test_opt_in_scheduler_runs_after_interval_and_stops`
+- `tests/test_m2k_api.py::test_console_learning_view_is_one_exact_server_authored_scoreboard`
 
 ### A-032
 
@@ -411,6 +413,7 @@ Coverage is heading-level only; this report does not claim clause coverage.
 
 ### A-035
 
+- `tests/test_learner_api.py::test_force_values_basin_yields_visible_measured_inactive_learner_proposal`
 - `tests/test_m2k_api.py::test_console_contributions_sum_exactly_and_control_inserts_a_version`
 - `tests/test_m2k_api.py::test_memory_graph_uses_exact_encodings_and_current_membership`
 - `tests/test_m2k_api.py::test_only_learner_proposals_can_be_activated_and_accuracy_is_measured`
@@ -452,8 +455,28 @@ Coverage is heading-level only; this report does not claim clause coverage.
 ### A-047
 
 - `tests/test_api.py::test_exactly_the_lawful_spine_routes_are_registered`
+- `tests/test_learner_api.py::test_force_values_basin_yields_visible_measured_inactive_learner_proposal`
 - `tests/test_m2k_api.py::test_console_contributions_sum_exactly_and_control_inserts_a_version`
 - `tests/test_m2k_api.py::test_only_learner_proposals_can_be_activated_and_accuracy_is_measured`
+
+### A-051
+
+- `tests/test_inject_api.py::test_autonomous_prepare_preserves_locks_and_logs_entry_keep_exit`
+- `tests/test_inject_api.py::test_prepare_commit_replays_gate_and_prepare_updates_only_injected`
+- `tests/test_inject_api.py::test_prepare_provider_failure_and_request_validation_are_write_free`
+- `tests/test_learner_api.py::test_background_cursor_uses_monotonic_evidence_not_transaction_timestamp`
+- `tests/test_learner_api.py::test_background_retrain_crosses_authentic_floor_and_never_activates`
+- `tests/test_learner_api.py::test_competing_backgrounds_at_one_boundary_fit_once`
+- `tests/test_learner_api.py::test_force_values_basin_yields_visible_measured_inactive_learner_proposal`
+- `tests/test_learner_api.py::test_learner_lock_is_released_after_snapshot_failure`
+- `tests/test_learner_api.py::test_learner_run_receipts_are_database_enforced_append_only`
+- `tests/test_learner_api.py::test_manual_receipt_makes_waiting_background_fresh_noop`
+- `tests/test_learner_api.py::test_manual_retrain_below_floor_does_not_delay_floor_and_above_floor_resets_stride`
+- `tests/test_learner_api.py::test_not_better_receipt_advances_background_cursor_by_stride`
+- `tests/test_learner_api.py::test_real_worker_startup_and_work_wake_persists_background_inactive_winner`
+- `tests/test_learner_api.py::test_retrain_accepts_both_pre_a051_proposal_manifest_variants`
+- `tests/test_learner_worker.py::test_worker_checks_startup_work_and_subsequent_wakes_then_stops`
+- `tests/test_m2k_api.py::test_console_learning_view_is_one_exact_server_authored_scoreboard`
 
 ### F027
 
