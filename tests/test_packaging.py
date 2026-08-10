@@ -47,7 +47,7 @@ def test_distribution_metadata_uses_the_package_version() -> None:
     """P4 is defended by verifying that distribution metadata uses the package version; this
     prevents drift in the reproducible and least-surprise packaging boundary.
     """
-    assert version("nocturne-spine") == __version__ == "0.1.0"
+    assert version("nocturne-spine") == __version__ == "0.1.1"
 
 
 def test_container_base_is_an_exact_multiarch_python_release() -> None:
