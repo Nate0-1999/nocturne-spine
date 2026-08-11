@@ -774,6 +774,10 @@
       },
       "HealthResponse": {
         "properties": {
+          "api_contract_version": {
+            "title": "Api Contract Version",
+            "type": "string"
+          },
           "ok": {
             "title": "Ok",
             "type": "boolean"
@@ -797,6 +801,7 @@
         "required": [
           "ok",
           "version",
+          "api_contract_version",
           "schema_version"
         ],
         "title": "HealthResponse",

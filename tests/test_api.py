@@ -1,14 +1,22 @@
 """Health, auth, validation, and committed API contract tests."""
 
 import json
+import re
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
+import pytest
 from conftest import TOKEN
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
 from spine import __version__
+from spine.api_contract import (
+    API_CONTRACT_VERSION,
+    ApiContractDriftError,
+    require_known_contract_fingerprint,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 MEMORY_ID = "00000000-0000-0000-0000-000000000001"
@@ -54,8 +62,8 @@ def _assert_problem(response: Any, *, status: int, endpoint: str) -> None:
 
 
 async def test_health_endpoints_and_auth_are_live(app: FastAPI) -> None:
-    """SPEC C.4 is defended by verifying that health endpoints and auth are live; this prevents
-    drift in the public API and error contract.
+    """A-056 and SPEC B.6 rule 12 keep authenticated product, API-contract, and storage-schema
+    versions separate so clients never infer compatibility from internals.
     """
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         unauthorized_healthz = await client.get("/healthz")
@@ -72,10 +80,50 @@ async def test_health_endpoints_and_auth_are_live(app: FastAPI) -> None:
     assert healthy_healthz.json() == {
         "ok": True,
         "version": __version__,
+        "api_contract_version": "0.1.0",
         "schema_version": "0012",
     }
+    assert healthy_healthz.json()["api_contract_version"] == API_CONTRACT_VERSION
+    assert re.fullmatch(r"(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)", API_CONTRACT_VERSION)
     assert healthy_health.json() == healthy_healthz.json()
     assert "/health" not in app.openapi()["paths"]
+
+
+async def test_schema_head_changes_do_not_change_the_api_contract_version(
+    app: FastAPI, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A-056 and SPEC B.6 rule 12 prevent a schema-only Spine change from demanding client
+    action when its endpoints, payloads, and semantics are unchanged.
+    """
+    monkeypatch.setattr("spine.main.packaged_head", lambda: "9999")
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get("/healthz", headers={"Authorization": f"Bearer {TOKEN}"})
+
+    assert response.status_code == 200
+    assert response.json()["schema_version"] == "9999"
+    assert response.json()["api_contract_version"] == API_CONTRACT_VERSION
+
+
+def test_contract_fingerprint_rejects_unversioned_openapi_drift(app: FastAPI) -> None:
+    """A-056 and SPEC B.6 rule 12 make silent client-contract drift fail mechanically while
+    ordinary product-release metadata remains independently versioned.
+    """
+    fingerprints = json.loads((ROOT / "api_contract_fingerprints.json").read_text(encoding="utf-8"))
+    openapi = app.openapi()
+    require_known_contract_fingerprint(openapi, fingerprints)
+
+    release_only = deepcopy(openapi)
+    release_only["info"]["version"] = "999.999.999"
+    require_known_contract_fingerprint(release_only, fingerprints)
+
+    contract_drift = deepcopy(openapi)
+    contract_drift["paths"]["/v1/unversioned-contract-drift"] = {}
+    with pytest.raises(ApiContractDriftError, match="bump API_CONTRACT_VERSION"):
+        require_known_contract_fingerprint(contract_drift, fingerprints)
+
+    with pytest.raises(ApiContractDriftError, match="has no recorded OpenAPI fingerprint"):
+        require_known_contract_fingerprint(openapi, fingerprints, version="0.1.1")
 
 
 async def test_retrain_is_bearer_protected_before_any_training_work(app: FastAPI) -> None:

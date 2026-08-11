@@ -40,6 +40,7 @@ packages = ["src/spine"]
 include = [
   "/Dockerfile",
   "/README.md",
+  "/api_contract_fingerprints.json",
   "/pyproject.toml",
   "/src/spine",
   "/infra/billing-breaker/README.md",

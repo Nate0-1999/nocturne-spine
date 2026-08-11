@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from spine import __version__
+from spine.api_contract import API_CONTRACT_VERSION
 from spine.auth import StaticBearerAuthMiddleware
 from spine.config import Settings
 from spine.db.engine import make_engine
@@ -52,6 +53,7 @@ logger = logging.getLogger(__name__)
 class HealthResponse(BaseModel):
     ok: bool
     version: str
+    api_contract_version: str
     schema_version: str | None
 
 
@@ -254,7 +256,12 @@ def create_app(
         responses={401: problem_openapi("Bearer token missing or invalid")},
     )
     async def healthz() -> HealthResponse:
-        return HealthResponse(ok=True, version=__version__, schema_version=packaged_head())
+        return HealthResponse(
+            ok=True,
+            version=__version__,
+            api_contract_version=API_CONTRACT_VERSION,
+            schema_version=packaged_head(),
+        )
 
     app.include_router(inject_router)
     app.include_router(learner_router)

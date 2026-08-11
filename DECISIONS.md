@@ -988,3 +988,26 @@ the audit trail. Emitting compensating feedback would invent owner judgment.
 Cloning fabricated injection events would corrupt cadence and denominators.
 Keeping separate hygiene implementations for fitting, Console, and simulation
 would let the same evidence count differently across owner surfaces.
+
+## 037 — Version the client contract with canonical OpenAPI history [A-056, P4]
+
+**Decision.** For M2Z9, canonicalize the generated OpenAPI document as sorted,
+compact JSON, exclude only `info.version`, and record its SHA-256 in an
+append-only manifest keyed by `api_contract_version`. Ordinary generation fails
+on an unseen version; only the explicit `--record-api-contract` action may append
+a deliberately bumped version, and no path replaces a fingerprint already
+recorded for a version. The manifest travels in the source distribution; it is
+not a runtime dependency. This supersedes Decision 031 only as compatibility
+authority: the packaged schema head remains an authenticated diagnostic, while
+`api_contract_version` and its fingerprint are the client boundary.
+
+**Motivation.** P4 needs client compatibility to follow the public contract
+without restoring release lockstep. Excluding only `info.version` lets ordinary
+product releases move independently, while database/schema and other internal
+work never enters the OpenAPI fingerprint in the first place.
+
+**Rejected alternatives.** Product-version, Alembic-head, and source-tree hashes
+all false-positive on work that leaves clients unchanged. A second full OpenAPI
+golden duplicates the committed artifact. Behavioral semantics that cannot be
+expressed as OpenAPI remain defended by cited behavior tests and still require a
+deliberate contract-version bump; this fingerprint does not pretend otherwise.

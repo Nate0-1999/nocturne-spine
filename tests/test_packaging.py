@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import shutil
 import stat
+import tomllib
 from importlib.metadata import version
 from pathlib import Path
 
@@ -48,6 +49,17 @@ def test_distribution_metadata_uses_the_package_version() -> None:
     prevents drift in the reproducible and least-surprise packaging boundary.
     """
     assert version("nocturne-spine") == __version__ == "0.1.2"
+
+
+def test_source_distribution_carries_api_contract_fingerprint_history() -> None:
+    """A-056, P4, and SPEC B.6 rule 12 keep the contract fingerprint history intact across
+    source-distribution round trips.
+    """
+    configuration = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    included = configuration["tool"]["hatch"]["build"]["targets"]["sdist"]["include"]
+
+    assert "/api_contract_fingerprints.json" in included
+    assert (ROOT / "api_contract_fingerprints.json").is_file()
 
 
 def test_container_base_is_an_exact_multiarch_python_release() -> None:
