@@ -27,7 +27,7 @@ D2_FILES = {
 def main() -> None:
     """Prove metadata, migrations, and both packaged deployment contexts."""
 
-    assert version("nocturne-spine") == __version__ == "0.1.1"
+    assert version("nocturne-spine") == __version__ == "0.1.2"
 
     scripts = ScriptDirectory.from_config(
         make_alembic_config("postgresql+asyncpg://unused:unused@localhost/unused")
