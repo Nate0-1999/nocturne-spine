@@ -761,6 +761,88 @@ async def test_patch_cas_reembeds_and_returns_exact_stale_conflict(
     assert embedding_provider.calls == [("Before",), ("After",), ("Stale body",)]
 
 
+async def test_remember_reinforcement_atomically_records_stats_and_lineage(
+    memory_client: AsyncClient,
+    embedding_provider: ScriptedEmbeddingProvider,
+    memory_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """F038, ADR-021 v2.14, and B.6 r12 require every hard-duplicate
+    `/remember` to record its independent re-derivation in stats and CAS lineage.
+    """
+    body = "Use tabs for indentation."
+    embedding_provider.set(body, basis_vector(0))
+    original = _assert_json(
+        await memory_client.post(
+            "/v1/memories",
+            json=_create_body(label="Editor preference", body=body),
+        ),
+        201,
+    )["created"]
+    memory_id = original["memory_id"]
+
+    reinforced = _assert_json(
+        await memory_client.patch(
+            f"/v1/memories/{memory_id}",
+            json=_patch_body(1, body=body, reason="remember/reinforce"),
+        ),
+        200,
+    )
+
+    assert reinforced["body"] == body
+    assert reinforced["revision"] == 2
+    assert reinforced["stats"] == {**original["stats"], "reinforcements": 1}
+    async with memory_session_factory() as session:
+        revisions = (
+            await session.scalars(
+                select(MemoryRevision)
+                .where(MemoryRevision.memory_id == UUID(memory_id))
+                .order_by(MemoryRevision.revision)
+            )
+        ).all()
+    assert [revision.revision for revision in revisions] == [1, 2]
+    assert revisions[1].parent_uid == revisions[0].rev_uid
+    assert revisions[1].reason == "remember/reinforce"
+    assert embedding_provider.calls == [(body,), (body,)]
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"body": "A changed body."},
+        {"body": "Use tabs for indentation.", "pin": True},
+    ],
+    ids=["changed-body", "second-mutation"],
+)
+async def test_remember_reinforcement_rejects_non_reinforcement_mutations(
+    memory_client: AsyncClient,
+    embedding_provider: ScriptedEmbeddingProvider,
+    changes: dict[str, Any],
+) -> None:
+    """F038 and SPEC C.4 keep the reserved reinforcement reason from becoming a
+    back door for an edit or an unrelated multi-field mutation.
+    """
+    body = "Use tabs for indentation."
+    embedding_provider.set(body, basis_vector(0))
+    original = _assert_json(
+        await memory_client.post(
+            "/v1/memories",
+            json=_create_body(label="Editor preference", body=body),
+        ),
+        201,
+    )["created"]
+
+    problem = _assert_problem(
+        await memory_client.patch(
+            f"/v1/memories/{original['memory_id']}",
+            json=_patch_body(1, reason="remember/reinforce", **changes),
+        ),
+        422,
+        f"PATCH /v1/memories/{original['memory_id']}",
+    )
+    assert "unchanged current body" in problem["detail"]
+    assert embedding_provider.calls == [(body,)]
+
+
 async def test_origin_path_patch_is_cas_metadata_and_null_is_omitted(
     memory_client: AsyncClient,
     embedding_provider: ScriptedEmbeddingProvider,

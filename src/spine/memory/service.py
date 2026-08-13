@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any, Final, Literal
 from uuid import UUID
@@ -584,11 +585,42 @@ class MemoryService:
         # C.2 forbids hard deletion, so this preflight gives A-004's missing-ID
         # response precedence without weakening the later revision CAS.
         async with self._session_factory() as preflight_session:
-            principal_id = await preflight_session.scalar(
-                select(MemoryUnit.principal_id).where(MemoryUnit.id == command.memory_id)
+            current = (
+                (
+                    await preflight_session.execute(
+                        select(
+                            MemoryUnit.principal_id,
+                            MemoryUnit.body,
+                            MemoryUnit.stats,
+                        ).where(MemoryUnit.id == command.memory_id)
+                    )
+                )
+                .mappings()
+                .one_or_none()
             )
-        if principal_id is None:
+        if current is None:
             raise MemoryNotFoundError(command.memory_id)
+        principal_id = current["principal_id"]
+
+        is_reinforcement = command.reason == "remember/reinforce"
+        if is_reinforcement and (
+            not _provided(command.body)
+            or command.body != current["body"]
+            or any(
+                _provided(value)
+                for value in (
+                    command.label,
+                    command.keywords,
+                    command.kind,
+                    command.origin_path,
+                    command.pin,
+                    command.status,
+                )
+            )
+        ):
+            raise MemoryValidationError(
+                "remember/reinforce requires the unchanged current body and no other changes"
+            )
 
         if _provided(command.body):
             self._validate_body(command.body)
@@ -625,6 +657,17 @@ class MemoryService:
             change_values["pin"] = command.pin
         if _provided(command.status):
             change_values["status"] = command.status
+        if is_reinforcement:
+            stats = deepcopy(current["stats"])
+            reinforcement_count = stats.get("reinforcements", 0)
+            if (
+                isinstance(reinforcement_count, bool)
+                or not isinstance(reinforcement_count, int)
+                or reinforcement_count < 0
+            ):
+                raise RuntimeError("memory reinforcement count is invalid")
+            stats["reinforcements"] = reinforcement_count + 1
+            change_values["stats"] = stats
 
         async with self._session_factory() as session:
             async with session.begin():

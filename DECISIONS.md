@@ -1011,3 +1011,27 @@ all false-positive on work that leaves clients unchanged. A second full OpenAPI
 golden duplicates the committed artifact. Behavioral semantics that cannot be
 expressed as OpenAPI remain defended by cited behavior tests and still require a
 deliberate contract-version bump; this fingerprint does not pretend otherwise.
+
+## 038 — Reserve one CAS reason for owner reinforcement [P1.2, F038]
+
+**Decision.** The existing memory PATCH remains the sole update boundary for a
+hard-duplicate `/remember`. A request whose reason is exactly
+`remember/reinforce` must supply the unchanged current body and no other mutable
+field. The same CAS atomically increments `stats.reinforcements`, advances the
+revision, and appends lineage with that reason. It retains C.4's ordinary body
+validation and embedding behavior; stale revisions still conflict normally.
+
+**Motivation.** ADR-021 says a hard duplicate is an independent re-derivation,
+not a failed save, and v2.14 requires its stats signal in every mode. Harness
+already receives the duplicate target from the guarded create path. Reusing one
+strictly constrained CAS keeps the acknowledgement, stats, and audit lineage in
+one authoritative result. Because this changes PATCH semantics without changing
+its OpenAPI shape, `api_contract_version` advances from 0.1.0 to 0.1.1 under
+Decision 037; the recorded schema fingerprint remains identical.
+
+**Rejected alternatives.** Calling an unchanged generic PATCH without a stats
+bump would manufacture a revision while losing the reinforcement signal. A new
+endpoint duplicates CAS authority. Automatically coalescing every C.4 create
+conflict would erase the richer interactive edit choice, while allowing the
+reserved reason to carry changed content would turn reinforcement into an edit
+back door.

@@ -80,7 +80,7 @@ async def test_health_endpoints_and_auth_are_live(app: FastAPI) -> None:
     assert healthy_healthz.json() == {
         "ok": True,
         "version": __version__,
-        "api_contract_version": "0.1.0",
+        "api_contract_version": "0.1.1",
         "schema_version": "0012",
     }
     assert healthy_healthz.json()["api_contract_version"] == API_CONTRACT_VERSION
@@ -123,7 +123,7 @@ def test_contract_fingerprint_rejects_unversioned_openapi_drift(app: FastAPI) ->
         require_known_contract_fingerprint(contract_drift, fingerprints)
 
     with pytest.raises(ApiContractDriftError, match="has no recorded OpenAPI fingerprint"):
-        require_known_contract_fingerprint(openapi, fingerprints, version="0.1.1")
+        require_known_contract_fingerprint(openapi, fingerprints, version="0.1.2")
 
 
 async def test_retrain_is_bearer_protected_before_any_training_work(app: FastAPI) -> None:
