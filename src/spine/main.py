@@ -44,6 +44,8 @@ from spine.spend.reconciliation import (
 from spine.spend.router import router as spend_router
 from spine.spend.service import SpendService
 from spine.spend.views import SpendViewRefresher
+from spine.transcripts.router import router as transcripts_router
+from spine.transcripts.service import TranscriptService
 from spine.vitals.router import router as vitals_router
 from spine.vitals.service import VitalsService
 
@@ -151,6 +153,7 @@ def create_app(
         retrain_signal_stride=resolved.retrain_signal_stride,
     )
     learner_worker = LearnerWorker(learner_service)
+    transcript_service = TranscriptService(session_factory)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -195,6 +198,7 @@ def create_app(
     app.state.learner_service = learner_service
     app.state.m2k_service = m2k_service
     app.state.learner_worker = learner_worker
+    app.state.transcript_service = transcript_service
     app.add_middleware(
         StaticBearerAuthMiddleware,
         token=resolved.token.get_secret_value(),
@@ -269,5 +273,6 @@ def create_app(
     app.include_router(memory_router)
     app.include_router(queue_router)
     app.include_router(spend_router)
+    app.include_router(transcripts_router)
     app.include_router(vitals_router)
     return app

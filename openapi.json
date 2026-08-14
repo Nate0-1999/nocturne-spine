@@ -160,6 +160,29 @@
         "title": "ActivateScorerConfigRequest",
         "type": "object"
       },
+      "AppendTranscriptsRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "principal_id": {
+            "$ref": "#/components/schemas/NonBlankString"
+          },
+          "records": {
+            "items": {
+              "$ref": "#/components/schemas/TranscriptRecordInput"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Records",
+            "type": "array"
+          }
+        },
+        "required": [
+          "principal_id",
+          "records"
+        ],
+        "title": "AppendTranscriptsRequest",
+        "type": "object"
+      },
       "BatchDecisionResponse": {
         "additionalProperties": false,
         "properties": {
@@ -4077,6 +4100,151 @@
           "machine_id"
         ],
         "title": "SplitMemoryRequest",
+        "type": "object"
+      },
+      "TranscriptAppendResult": {
+        "additionalProperties": false,
+        "properties": {
+          "accepted": {
+            "title": "Accepted",
+            "type": "integer"
+          },
+          "replayed": {
+            "title": "Replayed",
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TranscriptStatus"
+          }
+        },
+        "required": [
+          "accepted",
+          "replayed",
+          "status"
+        ],
+        "title": "TranscriptAppendResult",
+        "type": "object"
+      },
+      "TranscriptList": {
+        "additionalProperties": false,
+        "properties": {
+          "principal_id": {
+            "$ref": "#/components/schemas/NonBlankString"
+          },
+          "records": {
+            "items": {
+              "$ref": "#/components/schemas/TranscriptRecordView"
+            },
+            "title": "Records",
+            "type": "array"
+          }
+        },
+        "required": [
+          "principal_id",
+          "records"
+        ],
+        "title": "TranscriptList",
+        "type": "object"
+      },
+      "TranscriptRecordInput": {
+        "additionalProperties": false,
+        "properties": {
+          "journal_line": {
+            "title": "Journal Line",
+            "type": "string"
+          },
+          "sequence": {
+            "$ref": "#/components/schemas/PositiveInt"
+          },
+          "sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Sha256",
+            "type": "string"
+          },
+          "thread_id": {
+            "format": "uuid",
+            "title": "Thread Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "thread_id",
+          "sequence",
+          "journal_line",
+          "sha256"
+        ],
+        "title": "TranscriptRecordInput",
+        "type": "object"
+      },
+      "TranscriptRecordView": {
+        "additionalProperties": false,
+        "properties": {
+          "journal_line": {
+            "title": "Journal Line",
+            "type": "string"
+          },
+          "received_at": {
+            "format": "date-time",
+            "title": "Received At",
+            "type": "string"
+          },
+          "sequence": {
+            "$ref": "#/components/schemas/PositiveInt"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "thread_id": {
+            "format": "uuid",
+            "title": "Thread Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "thread_id",
+          "sequence",
+          "journal_line",
+          "sha256",
+          "received_at"
+        ],
+        "title": "TranscriptRecordView",
+        "type": "object"
+      },
+      "TranscriptStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "latest_received_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Received At"
+          },
+          "principal_id": {
+            "$ref": "#/components/schemas/NonBlankString"
+          },
+          "record_count": {
+            "title": "Record Count",
+            "type": "integer"
+          },
+          "thread_count": {
+            "title": "Thread Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "principal_id",
+          "thread_count",
+          "record_count",
+          "latest_received_at"
+        ],
+        "title": "TranscriptStatus",
         "type": "object"
       },
       "ULID": {
@@ -9703,6 +9871,595 @@
         "summary": "Append Spend Events",
         "tags": [
           "spend"
+        ]
+      }
+    },
+    "/v1/transcripts": {
+      "get": {
+        "operationId": "list_transcripts_v1_transcripts_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "principal_id",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "pattern": "^\\S(?:.*\\S)?$",
+              "title": "Principal Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscriptList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "description": "RFC 7807 problem details with an optional endpoint extension.",
+                  "properties": {
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    },
+                    "endpoint": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Endpoint"
+                    },
+                    "instance": {
+                      "title": "Instance",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "title": "ProblemDetail",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bearer token missing or invalid"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "description": "RFC 7807 problem details with an optional endpoint extension.",
+                  "properties": {
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    },
+                    "endpoint": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Endpoint"
+                    },
+                    "instance": {
+                      "title": "Instance",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "title": "ProblemDetail",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Append disagrees with the immutable transcript prefix"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "description": "RFC 7807 problem details with an optional endpoint extension.",
+                  "properties": {
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    },
+                    "endpoint": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Endpoint"
+                    },
+                    "instance": {
+                      "title": "Instance",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "title": "ProblemDetail",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Request does not match the endpoint contract"
+          }
+        },
+        "security": [
+          {
+            "StaticBearer": []
+          }
+        ],
+        "summary": "List Transcripts",
+        "tags": [
+          "transcripts"
+        ]
+      },
+      "post": {
+        "operationId": "append_transcripts_v1_transcripts_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppendTranscriptsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscriptAppendResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "description": "RFC 7807 problem details with an optional endpoint extension.",
+                  "properties": {
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    },
+                    "endpoint": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Endpoint"
+                    },
+                    "instance": {
+                      "title": "Instance",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "title": "ProblemDetail",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bearer token missing or invalid"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "description": "RFC 7807 problem details with an optional endpoint extension.",
+                  "properties": {
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    },
+                    "endpoint": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Endpoint"
+                    },
+                    "instance": {
+                      "title": "Instance",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "title": "ProblemDetail",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Append disagrees with the immutable transcript prefix"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "description": "RFC 7807 problem details with an optional endpoint extension.",
+                  "properties": {
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    },
+                    "endpoint": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Endpoint"
+                    },
+                    "instance": {
+                      "title": "Instance",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "title": "ProblemDetail",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Request does not match the endpoint contract"
+          }
+        },
+        "security": [
+          {
+            "StaticBearer": []
+          }
+        ],
+        "summary": "Append Transcripts",
+        "tags": [
+          "transcripts"
+        ]
+      }
+    },
+    "/v1/transcripts/status": {
+      "get": {
+        "operationId": "transcript_status_v1_transcripts_status_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "principal_id",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "pattern": "^\\S(?:.*\\S)?$",
+              "title": "Principal Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscriptStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "description": "RFC 7807 problem details with an optional endpoint extension.",
+                  "properties": {
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    },
+                    "endpoint": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Endpoint"
+                    },
+                    "instance": {
+                      "title": "Instance",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "title": "ProblemDetail",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bearer token missing or invalid"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "description": "RFC 7807 problem details with an optional endpoint extension.",
+                  "properties": {
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    },
+                    "endpoint": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Endpoint"
+                    },
+                    "instance": {
+                      "title": "Instance",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "title": "ProblemDetail",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Append disagrees with the immutable transcript prefix"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "description": "RFC 7807 problem details with an optional endpoint extension.",
+                  "properties": {
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    },
+                    "endpoint": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Endpoint"
+                    },
+                    "instance": {
+                      "title": "Instance",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "title": "ProblemDetail",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Request does not match the endpoint contract"
+          }
+        },
+        "security": [
+          {
+            "StaticBearer": []
+          }
+        ],
+        "summary": "Transcript Status",
+        "tags": [
+          "transcripts"
         ]
       }
     },

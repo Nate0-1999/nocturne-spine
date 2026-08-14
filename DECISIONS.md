@@ -1035,3 +1035,25 @@ endpoint duplicates CAS authority. Automatically coalescing every C.4 create
 conflict would erase the richer interactive edit choice, while allowing the
 reserved reason to carry changed content would turn reinforcement into an edit
 back door.
+
+## 039 — The Palace stores one immutable projection of transcript lines [A-057, P4, M2RR]
+
+**Decision.** Store transcript backup as `transcript_record`, keyed by owner
+principal, thread UUID, and one-based physical line sequence. Preserve the exact
+UTF-8 journal line with its caller digest and server receive time. PostgreSQL
+rejects UPDATE and DELETE. One bearer-protected append validates digest, embedded
+thread identity, aware capture time, unique ordered keys, and contiguous
+per-thread sequence inside one transaction. Exact replay succeeds; changed
+replay or a gap conflicts atomically. List and status reads remain scoped by the
+existing principal value. These new routes advance the public API contract to
+0.1.2 and wait for the next authorized release.
+
+**Motivation.** Resurrection needs a cloud copy that can prove it is the same
+journal, not a lossy transcript-shaped export. Immutable bytes plus sequence
+make retry, restore, and divergence mechanically distinguishable.
+
+**Rejected alternatives.** Mutable transcript rows could silently rewrite
+history. Server-generated sequence makes retry races ambiguous. A JSONB rewrite
+would discard byte identity. Object storage adds an infrastructure lifecycle,
+while a second thread/catalog table creates state that can disagree with the
+journal it is meant to recover.

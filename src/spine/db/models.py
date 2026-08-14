@@ -688,3 +688,27 @@ class ScorerActivation(Base):
     ts: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )
+
+
+class TranscriptRecord(Base):
+    """One immutable, exact line from an owner's local conversation journal."""
+
+    __tablename__ = "transcript_record"
+    __table_args__ = (
+        CheckConstraint(
+            "principal_id = btrim(principal_id) AND principal_id <> ''",
+            name="transcript_record_principal_check",
+        ),
+        CheckConstraint("sequence > 0", name="transcript_record_sequence_check"),
+        CheckConstraint("sha256 ~ '^[0-9a-f]{64}$'", name="transcript_record_sha256_check"),
+        Index("transcript_record_received_at_idx", "principal_id", "received_at"),
+    )
+
+    principal_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    thread_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    sequence: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    journal_line: Mapped[str] = mapped_column(Text, nullable=False)
+    sha256: Mapped[str] = mapped_column(Text, nullable=False)
+    received_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )

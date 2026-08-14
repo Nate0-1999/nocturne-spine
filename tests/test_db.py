@@ -160,6 +160,7 @@ async def test_models_match_authoritative_c2_schema(
         "scorer_config",
         "learner_run",
         "scorer_activation",
+        "transcript_record",
     )
 
     expected_columns = {
@@ -334,6 +335,14 @@ async def test_models_match_authoritative_c2_schema(
             "changes",
             "ts",
         ),
+        "transcript_record": (
+            "principal_id",
+            "thread_id",
+            "sequence",
+            "journal_line",
+            "sha256",
+            "received_at",
+        ),
     }
     assert {
         name: tuple(table.c.keys()) for name, table in Base.metadata.tables.items()
@@ -382,6 +391,7 @@ async def test_models_match_authoritative_c2_schema(
         "scorer_config": set(),
         "learner_run": {"proposal_version", "source_boundary", "incumbent", "challenger"},
         "scorer_activation": set(),
+        "transcript_record": set(),
     }
 
     primary_keys = {
@@ -402,6 +412,7 @@ async def test_models_match_authoritative_c2_schema(
         "scorer_config": ("version",),
         "learner_run": ("run_uid",),
         "scorer_activation": ("event_uid",),
+        "transcript_record": ("principal_id", "thread_id", "sequence"),
     }
 
     dialect = postgresql.dialect()
@@ -562,6 +573,12 @@ async def test_models_match_authoritative_c2_schema(
         "scorer_activation.reason": "TEXT",
         "scorer_activation.changes": "JSONB",
         "scorer_activation.ts": "TIMESTAMP WITH TIME ZONE",
+        "transcript_record.principal_id": "TEXT",
+        "transcript_record.thread_id": "UUID",
+        "transcript_record.sequence": "BIGINT",
+        "transcript_record.journal_line": "TEXT",
+        "transcript_record.sha256": "TEXT",
+        "transcript_record.received_at": "TIMESTAMP WITH TIME ZONE",
     }
 
     defaults = {
@@ -601,6 +618,7 @@ async def test_models_match_authoritative_c2_schema(
         "scorer_config.active": "false",
         "learner_run.ts": "now()",
         "scorer_activation.ts": "now()",
+        "transcript_record.received_at": "now()",
     }
     memory_unit_ddl = str(CreateTable(Base.metadata.tables["memory_unit"]).compile(dialect=dialect))
     assert (
@@ -734,6 +752,13 @@ async def test_models_match_authoritative_c2_schema(
         "scorer_activation": {
             "scorer_activation_actor_class_check": ("actor_class IN ('human','passive')"),
             "scorer_activation_reason_check": ("reason IN ('human_control','learner_proposal')"),
+        },
+        "transcript_record": {
+            "transcript_record_principal_check": (
+                "principal_id = btrim(principal_id) AND principal_id <> ''"
+            ),
+            "transcript_record_sequence_check": "sequence > 0",
+            "transcript_record_sha256_check": "sha256 ~ '^[0-9a-f]{64}$'",
         },
     }
 

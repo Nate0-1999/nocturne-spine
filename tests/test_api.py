@@ -46,6 +46,9 @@ SPINE_ROUTES = {
     ("GET", "/v1/approval-queue"),
     ("POST", "/v1/approval-queue/{item_uid}/decisions"),
     ("POST", "/v1/approval-queue/batches/{batch_uid}/decisions"),
+    ("POST", "/v1/transcripts"),
+    ("GET", "/v1/transcripts"),
+    ("GET", "/v1/transcripts/status"),
 }
 
 
@@ -80,8 +83,8 @@ async def test_health_endpoints_and_auth_are_live(app: FastAPI) -> None:
     assert healthy_healthz.json() == {
         "ok": True,
         "version": __version__,
-        "api_contract_version": "0.1.1",
-        "schema_version": "0012",
+        "api_contract_version": "0.1.2",
+        "schema_version": "0013",
     }
     assert healthy_healthz.json()["api_contract_version"] == API_CONTRACT_VERSION
     assert re.fullmatch(r"(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)", API_CONTRACT_VERSION)
@@ -123,7 +126,7 @@ def test_contract_fingerprint_rejects_unversioned_openapi_drift(app: FastAPI) ->
         require_known_contract_fingerprint(contract_drift, fingerprints)
 
     with pytest.raises(ApiContractDriftError, match="has no recorded OpenAPI fingerprint"):
-        require_known_contract_fingerprint(openapi, fingerprints, version="0.1.2")
+        require_known_contract_fingerprint(openapi, fingerprints, version="0.1.3")
 
 
 async def test_retrain_is_bearer_protected_before_any_training_work(app: FastAPI) -> None:
