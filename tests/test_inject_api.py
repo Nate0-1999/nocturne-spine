@@ -511,7 +511,7 @@ async def test_r16_prepare_ranks_same_location_above_equal_two_hop_memory(
     embedding_provider: ScriptedEmbeddingProvider,
     memory_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    """R16 is live through C.4 and the migrated scorer, not only pure score math."""
+    """A-058 makes R16 live through C.4 and the migrated scorer, not only pure math."""
 
     same_id = UUID(int=1101)
     far_id = UUID(int=1102)

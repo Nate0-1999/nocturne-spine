@@ -404,7 +404,7 @@ def test_config_json_boundary_uses_only_the_scoring_fields() -> None:
 
 
 def test_r16_location_distance_and_null_renormalization_follow_the_feet() -> None:
-    """R16 activates same-directory affinity without penalizing missing location."""
+    """A-058 activates same-directory affinity without penalizing missing location."""
 
     candidate = _candidate(1, project_key="atlas", origin_path="src/feature")
     config = _config(location_weight=0.08, half_life_location_hops=2, tau=0.0)
