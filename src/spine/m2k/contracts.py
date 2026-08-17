@@ -171,7 +171,7 @@ class ScorerActivationView(M2KContract):
     previous_version: NonBlankString
     actor_class: Literal["human", "passive"]
     machine_id: NonBlankString
-    reason: Literal["human_control", "learner_proposal"]
+    reason: Literal["human_control", "learner_proposal", "contract_migration"]
     changes: dict[str, Any]
     ts: AwareDatetime
 
@@ -251,6 +251,7 @@ class ContributionBreakdown(M2KContract):
     proj: SignedDecimalString
     freq: SignedDecimalString
     hist: SignedDecimalString
+    loc: SignedDecimalString | None = None
     bias: SignedDecimalString
 
 

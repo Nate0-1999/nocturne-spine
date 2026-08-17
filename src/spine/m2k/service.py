@@ -1016,13 +1016,36 @@ def _candidate_histories(
             label if isinstance(label, str) else "",
             event.memory_kind,
         )
-        features = MemoryFeatures(**{name: float(event.features[name]) for name in FEATURE_NAMES})
+        raw_location = event.features.get("loc")
+        features = MemoryFeatures(
+            **{name: float(event.features[name]) for name in FEATURE_NAMES},
+            loc=(
+                float(raw_location)
+                if isinstance(raw_location, (int, float)) and not isinstance(raw_location, bool)
+                else None
+            ),
+        )
+        location_scale = (
+            1.0 - float(config.params.get("location_weight", 0.0))
+            if features.loc is not None
+            else 1.0
+        )
         contributions = {
-            name: Decimal(str(getattr(features, name))) * Decimal(str(config.weights[name]))
+            name: Decimal(str(getattr(features, name)))
+            * Decimal(str(config.weights[name]))
+            * Decimal(str(location_scale))
             for name in FEATURE_NAMES
         }
+        location_contribution = (
+            None
+            if features.loc is None
+            else Decimal(str(features.loc))
+            * Decimal(str(config.params.get("location_weight", 0.0)))
+        )
         stored_score = Decimal(str(event.score))
         bias = stored_score - sum(contributions.values(), start=Decimal(0))
+        if location_contribution is not None:
+            bias -= location_contribution
         grouped[event.memory_id].append(
             CandidateScorePoint(
                 event_uid=event.event_uid,
@@ -1037,6 +1060,11 @@ def _candidate_histories(
                 contributions=ContributionBreakdown(
                     **{
                         **{name: _decimal_string(value) for name, value in contributions.items()},
+                        "loc": (
+                            None
+                            if location_contribution is None
+                            else _decimal_string(location_contribution)
+                        ),
                         "bias": _decimal_string(bias),
                     }
                 ),
@@ -1115,6 +1143,11 @@ def _example(
     adjusted[5] = _rescale_decay(
         original[5], source.params.half_life_hist_days, values.half_life_hist_days
     )
+    raw_location = row.features.get("loc")
+    if isinstance(raw_location, (int, float)) and not isinstance(raw_location, bool):
+        scale = 1.0 - source.params.location_weight
+        original = tuple(value * scale for value in original)
+        adjusted = [value * scale for value in adjusted]
     baseline_bias = float(row.score) - math.fsum(
         weight * feature
         for weight, feature in zip(

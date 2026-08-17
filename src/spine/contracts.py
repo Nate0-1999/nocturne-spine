@@ -49,6 +49,7 @@ class MemoryFeatures(ContractModel):
     proj: float
     freq: float
     hist: float
+    loc: float | None = None
 
 
 class MemoryCard(ContractModel):

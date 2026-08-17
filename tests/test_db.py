@@ -751,7 +751,9 @@ async def test_models_match_authoritative_c2_schema(
         },
         "scorer_activation": {
             "scorer_activation_actor_class_check": ("actor_class IN ('human','passive')"),
-            "scorer_activation_reason_check": ("reason IN ('human_control','learner_proposal')"),
+            "scorer_activation_reason_check": (
+                "reason IN ('human_control','learner_proposal','contract_migration')"
+            ),
         },
         "transcript_record": {
             "transcript_record_principal_check": (

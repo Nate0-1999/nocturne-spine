@@ -59,6 +59,7 @@ class PrepareCommand:
     machine_id: str
     principal_id: str
     project_key: str | None
+    location_path: str | None = None
     agent_kind: str
     prompt: str
     model_context_tokens: int
@@ -192,6 +193,7 @@ class PrepareService:
                     query_embedding=query_embedding,
                     snapshot_ts=snapshot_ts,
                     thread_project_key=command.project_key,
+                    location_path=command.location_path,
                     pinned_candidates=pinned,
                     regular_candidates=regular,
                     locked_memory_ids=frozenset(command.confirmed_memory_ids),
@@ -481,6 +483,7 @@ def _candidate_from_row(
         keywords=tuple(row["keywords"]),
         embedding=tuple(float(value) for value in row["embedding"]),
         project_key=row["project_key"],
+        origin_path=row["origin_path"],
         pin=row["pin"],
         updated_at=row["updated_at"],
         last_human_edit_at=row["last_human_edit_at"],
@@ -621,6 +624,7 @@ def _event_values(
         "updated_at": candidate.updated_at.isoformat(),
     }
     features["_prepare"] = {"model_context_tokens": command.model_context_tokens}
+    features["_location"] = {"cwd": command.location_path}
     features["_retrieval"] = {"sources": list(candidate.pool_sources)}
     return {
         "event_uid": mint_ulid(),

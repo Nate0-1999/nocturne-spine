@@ -8,7 +8,7 @@ from decimal import Decimal
 from uuid import UUID
 
 import pytest
-from conftest import basis_vector, vector_with_cosine
+from conftest import ACTIVE_SCORER_VERSION, basis_vector, vector_with_cosine
 from httpx import AsyncClient
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
@@ -273,7 +273,7 @@ async def test_console_contributions_sum_exactly_and_control_inserts_a_version(
                 project_key=None,
                 agent_kind="general",
                 prompt_text="console fixture",
-                scorer_version="v0",
+                scorer_version=ACTIVE_SCORER_VERSION,
                 memory_id=memory_id,
                 memory_kind="fact",
                 features={
@@ -307,7 +307,7 @@ async def test_console_contributions_sum_exactly_and_control_inserts_a_version(
     payload = console.json()
     assert payload["scope"] == "CURRENT"
     point = payload["candidates"][0]["points"][0]
-    total = sum(Decimal(value) for value in point["contributions"].values())
+    total = sum(Decimal(value) for value in point["contributions"].values() if value is not None)
     assert total == Decimal(point["score"])
     assert len(payload["descriptors"]) == 11
 
@@ -318,7 +318,7 @@ async def test_console_contributions_sum_exactly_and_control_inserts_a_version(
         json={
             "principal_id": "owner",
             "injection_id": str(UUID(int=9203)),
-            "base_version": "v0",
+            "base_version": ACTIVE_SCORER_VERSION,
             "values": values,
             "slice_parameter_id": "scorer.top_k",
         },
@@ -330,7 +330,7 @@ async def test_console_contributions_sum_exactly_and_control_inserts_a_version(
     event_uid = "01KZ4R10000000000000000002"
     request = {
         "event_uid": event_uid,
-        "base_version": "v0",
+        "base_version": ACTIVE_SCORER_VERSION,
         "values": values,
         "simulation_digest": receipt["simulation_digest"],
         "force": True,
@@ -401,14 +401,14 @@ async def test_competing_force_values_take_a_fresh_snapshot_after_the_control_lo
         json={
             "principal_id": "owner",
             "injection_id": None,
-            "base_version": "v0",
+            "base_version": ACTIVE_SCORER_VERSION,
             "values": values,
             "slice_parameter_id": "scorer.top_k",
         },
     )
     assert simulation.status_code == 200
     base_request = {
-        "base_version": "v0",
+        "base_version": ACTIVE_SCORER_VERSION,
         "values": values,
         "simulation_digest": simulation.json()["simulation_digest"],
         "force": True,
@@ -438,7 +438,13 @@ async def test_competing_force_values_take_a_fresh_snapshot_after_the_control_lo
     assert stale.json()["detail"] == "M2K operation refused: stale_base."
     async with memory_session_factory() as session:
         configs = (
-            (await session.execute(select(ScorerConfigRow).where(ScorerConfigRow.version != "v0")))
+            (
+                await session.execute(
+                    select(ScorerConfigRow).where(
+                        ScorerConfigRow.version.not_in(("v0", ACTIVE_SCORER_VERSION))
+                    )
+                )
+            )
             .scalars()
             .all()
         )
@@ -497,7 +503,7 @@ async def test_console_learning_view_is_one_exact_server_authored_scoreboard(
             project_key=None,
             agent_kind="general",
             prompt_text="learning read model fixture",
-            scorer_version="v0",
+            scorer_version=ACTIVE_SCORER_VERSION,
             memory_id=UUID(int=9600 + seed),
             memory_kind="fact",
             features={
@@ -544,7 +550,7 @@ async def test_console_learning_view_is_one_exact_server_authored_scoreboard(
                     run_uid="01KZ4R30000000000000000009",
                     trigger="background",
                     result="not_better",
-                    incumbent_version="v0",
+                    incumbent_version=ACTIVE_SCORER_VERSION,
                     proposal_version=None,
                     eligible_dispositions=3,
                     training_dispositions=2,
@@ -603,7 +609,7 @@ async def test_console_learning_view_is_one_exact_server_authored_scoreboard(
         "evaluated_through": 3,
         "signals_since_last_run": 0,
         "signals_until_next_run": 2,
-        "active_scorer_version": "v0",
+        "active_scorer_version": ACTIVE_SCORER_VERSION,
         "right": 2,
         "wrong": 1,
         "weighted_right": "1.25",
@@ -631,7 +637,7 @@ async def test_console_learning_view_is_one_exact_server_authored_scoreboard(
             "kind": "retrain",
             "event_uid": "01KZ4R30000000000000000009",
             "ts": (started + timedelta(minutes=5)).isoformat().replace("+00:00", "Z"),
-            "version": "v0",
+            "version": ACTIVE_SCORER_VERSION,
             "result": "not_better",
         }
     ]
@@ -682,7 +688,7 @@ async def test_f033_production_legacy_aliases_render_the_honest_owner_scoreboard
             project_key=None,
             agent_kind="general",
             prompt_text="Prior production verification hygiene",
-            scorer_version="v0",
+            scorer_version=ACTIVE_SCORER_VERSION,
             memory_id=UUID(int=11600 + index),
             memory_kind="fact",
             features={
@@ -719,7 +725,7 @@ async def test_f033_production_legacy_aliases_render_the_honest_owner_scoreboard
                 project_key=None,
                 agent_kind="general",
                 prompt_text="F033 production correlation",
-                scorer_version="v0",
+                scorer_version=ACTIVE_SCORER_VERSION,
                 memory_id=UUID(int=9900 + index),
                 memory_kind="fact",
                 features={
@@ -776,7 +782,7 @@ async def test_f033_production_legacy_aliases_render_the_honest_owner_scoreboard
     assert [point["event_uid"] for point in learning["live_agreement"]] == [
         "01KY54AX6YSYMXA4X7V1KZHH2A"
     ]
-    assert payload["active_version"] == "v0"
+    assert payload["active_version"] == ACTIVE_SCORER_VERSION
     assert payload["proposed_versions"] == []
 
 
@@ -800,7 +806,7 @@ async def test_console_and_deep_simulation_use_the_annotation_aware_evidence_pro
             project_key=None,
             agent_kind="general",
             prompt_text="deep annotation fixture",
-            scorer_version="v0",
+            scorer_version=ACTIVE_SCORER_VERSION,
             memory_id=UUID(int=10100 + seed),
             memory_kind="fact",
             features={
@@ -846,7 +852,7 @@ async def test_console_and_deep_simulation_use_the_annotation_aware_evidence_pro
     request = {
         "principal_id": "owner",
         "injection_id": None,
-        "base_version": "v0",
+        "base_version": ACTIVE_SCORER_VERSION,
         "values": values,
         "slice_parameter_id": "scorer.top_k",
     }
@@ -899,7 +905,7 @@ async def test_only_learner_proposals_can_be_activated_and_accuracy_is_measured(
     injection_id = UUID(int=9301)
     memory_id = UUID(int=9302)
     async with memory_session_factory() as session, session.begin():
-        base = await session.get(ScorerConfigRow, "v0")
+        base = await session.get(ScorerConfigRow, ACTIVE_SCORER_VERSION)
         assert base is not None
         params = dict(base.params)
         params["_learner"] = {
@@ -957,7 +963,7 @@ async def test_only_learner_proposals_can_be_activated_and_accuracy_is_measured(
                 project_key=None,
                 agent_kind="general",
                 prompt_text="audition fixture",
-                scorer_version="v0",
+                scorer_version=ACTIVE_SCORER_VERSION,
                 memory_id=memory_id,
                 memory_kind="fact",
                 features={
@@ -1014,7 +1020,7 @@ async def test_only_learner_proposals_can_be_activated_and_accuracy_is_measured(
             .scalars()
             .one()
         )
-    assert incumbent.version == "v0"
+    assert incumbent.version == ACTIVE_SCORER_VERSION
 
     activated = await memory_client.post(
         "/v1/scorer-configs/learner-proposal/activate",

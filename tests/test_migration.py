@@ -23,7 +23,7 @@ def test_packaged_migration_tree_has_one_expected_head() -> None:
 
     assert config.attributes[DATABASE_URL_ATTRIBUTE] == database_url
     assert scripts.get_base() == "0001"
-    assert scripts.get_heads() == ["0013"]
+    assert scripts.get_heads() == ["0014"]
 
 
 def test_0004_backfills_legacy_rows_and_downgrades_cleanly(
@@ -80,7 +80,7 @@ async def test_c2_migration_and_v0_seed(migrated_database_url: str) -> None:
                     await connection.execute(
                         text(
                             "SELECT version, weights, params, active "
-                            "FROM scorer_config WHERE version = 'v0'"
+                            "FROM scorer_config WHERE active"
                         )
                     )
                 )
@@ -159,7 +159,7 @@ async def test_c2_migration_and_v0_seed(migrated_database_url: str) -> None:
                 .one()
             )
 
-        assert revision == "0013"
+        assert revision == "0014"
         expected_tables = {
             "memory_unit",
             "memory_revision",
@@ -195,7 +195,7 @@ async def test_c2_migration_and_v0_seed(migrated_database_url: str) -> None:
             "tgenabled": "O",
             "proname": "memory_unit_refresh_search_tsv",
         }
-        assert scorer["version"] == "v0"
+        assert scorer["version"] == "m3f-location-v1"
         assert scorer["active"] is True
         assert scorer["weights"] == {
             "sem": 0.42,
@@ -216,6 +216,13 @@ async def test_c2_migration_and_v0_seed(migrated_database_url: str) -> None:
             "never_bias_step": -0.15,
             "quarantine_kills": 3,
             "candidate_pool": 50,
+            "location_weight": 0.08,
+            "half_life_location_hops": 2.0,
+            "_m3f_activation": {
+                "migration": "0014",
+                "previous_version": "v0",
+                "requirement": "R16",
+            },
         }
     finally:
         await engine.dispose()

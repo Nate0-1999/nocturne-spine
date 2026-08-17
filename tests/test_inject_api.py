@@ -6,7 +6,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
-from conftest import ScriptedEmbeddingProvider, basis_vector
+from conftest import ACTIVE_SCORER_VERSION, ScriptedEmbeddingProvider, basis_vector
 from httpx import AsyncClient, Response
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -17,7 +17,7 @@ from spine.db.models import InjectionEvent, MemoryRevision, MemoryUnit, Thread
 from spine.embeddings import EmbeddingTransportError
 from spine.ids import mint_ulid
 
-FEATURE_NAMES = {"sem", "kw", "time", "proj", "freq", "hist"}
+FEATURE_NAMES = {"sem", "kw", "time", "proj", "freq", "hist", "loc"}
 DEFAULT_STATS = {
     "injections": 0,
     "removals": 0,
@@ -95,6 +95,7 @@ async def _insert_memory(
     kind: str = "fact",
     keywords: list[str] | None = None,
     project_key: str | None = "alpha",
+    origin_path: str | None = None,
     pin: bool = False,
     status: str = "active",
     stats: dict[str, Any] | None = None,
@@ -121,6 +122,7 @@ async def _insert_memory(
                     embedding_model="test-embedding-1536",
                     project_key=project_key,
                     thread_origin=None,
+                    origin_path=origin_path,
                     pin=pin,
                     status=status,
                     revision=1,
@@ -232,7 +234,7 @@ async def test_prepare_commit_replays_gate_and_prepare_updates_only_injected(
     assert payload["final_block"] is None
     UUID(payload["injection_id"])
     snapshot_ts = datetime.fromisoformat(payload["snapshot_ts"])
-    assert payload["scorer_version"] == "v0"
+    assert payload["scorer_version"] == ACTIVE_SCORER_VERSION
     assert [card["memory_id"] for card in payload["injected"]] == [str(injected_id)]
     assert [card["memory_id"] for card in payload["near_misses"]] == [str(near_id)]
 
@@ -268,7 +270,10 @@ async def test_prepare_commit_replays_gate_and_prepare_updates_only_injected(
         "hist": 2 ** (-edit_age_days / 7),
     }
     assert set(injected["features"]) == FEATURE_NAMES
-    assert injected["features"] == pytest.approx(expected_features, abs=2e-5)
+    assert injected["features"]["loc"] is None
+    assert {key: injected["features"][key] for key in expected_features} == pytest.approx(
+        expected_features, abs=2e-5
+    )
     expected_score = (
         0.42 * expected_features["sem"]
         + 0.16 * expected_features["kw"]
@@ -283,6 +288,7 @@ async def test_prepare_commit_replays_gate_and_prepare_updates_only_injected(
     assert near["rank"] == 2
     assert near["features"]["sem"] == pytest.approx(0.0, abs=1e-6)
     assert near["features"]["proj"] == pytest.approx(0.5)
+    assert near["features"]["loc"] is None
     assert set(near["features"]) == FEATURE_NAMES
     assert embedding_provider.calls == [(prompt,)]
 
@@ -498,6 +504,46 @@ async def test_exact_keyword_with_weak_embedding_reaches_the_gate_via_fts(
     assert event is not None
     assert event.shown_as == "injected"
     assert event.features["_retrieval"] == {"sources": ["fts"]}
+
+
+async def test_r16_prepare_ranks_same_location_above_equal_two_hop_memory(
+    memory_client: AsyncClient,
+    embedding_provider: ScriptedEmbeddingProvider,
+    memory_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """R16 is live through C.4 and the migrated scorer, not only pure score math."""
+
+    same_id = UUID(int=1101)
+    far_id = UUID(int=1102)
+    for memory_id, label, origin_path in (
+        (same_id, "Same feet", "src/feature"),
+        (far_id, "Other branch", "src/other"),
+    ):
+        await _insert_memory(
+            memory_session_factory,
+            memory_id=memory_id,
+            label=label,
+            body="Equal semantic evidence.",
+            embedding=basis_vector(0),
+            origin_path=origin_path,
+        )
+    prompt = "location proof"
+    embedding_provider.set(prompt, basis_vector(0))
+
+    payload = _assert_json(
+        await memory_client.post(
+            "/v1/inject/prepare",
+            json=_prepare_body(prompt=prompt, location_path="src/feature"),
+        ),
+        200,
+    )
+
+    assert payload["scorer_version"] == ACTIVE_SCORER_VERSION
+    cards = {UUID(card["memory_id"]): card for card in payload["injected"]}
+    assert cards[same_id]["features"]["loc"] == pytest.approx(1.0)
+    assert cards[far_id]["features"]["loc"] == pytest.approx(0.5)
+    assert cards[same_id]["score"] > cards[far_id]["score"]
+    assert cards[same_id]["rank"] < cards[far_id]["rank"]
 
 
 async def test_hybrid_pool_uses_or_terms_and_exact_uuid_tie_boundaries(

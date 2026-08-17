@@ -77,7 +77,7 @@ def project_learning_evidence(
             raise LearnerDataError(
                 f"event {row.event_uid} references missing scorer {row.scorer_version!r}"
             )
-        features = _features(row)
+        features = _features(row, source)
         baseline_bias = float(row.score) - math.fsum(
             weight * feature
             for weight, feature in zip(_weight_tuple(source), features, strict=True)
@@ -105,7 +105,10 @@ def project_learning_evidence(
     )
 
 
-def _features(row: InjectionEvent) -> tuple[float, float, float, float, float, float]:
+def _features(
+    row: InjectionEvent,
+    source: RuntimeScorerConfig,
+) -> tuple[float, float, float, float, float, float]:
     values: list[float] = []
     for name in FEATURE_NAMES:
         value = row.features.get(name)
@@ -115,6 +118,9 @@ def _features(row: InjectionEvent) -> tuple[float, float, float, float, float, f
         if not math.isfinite(normalized) or not 0.0 <= normalized <= 1.0:
             raise LearnerDataError(f"event {row.event_uid} feature {name} is outside [0,1]")
         values.append(normalized)
+    location = row.features.get("loc")
+    if isinstance(location, (int, float)) and not isinstance(location, bool):
+        values = [value * (1.0 - source.params.location_weight) for value in values]
     return tuple(values)  # type: ignore[return-value]
 
 

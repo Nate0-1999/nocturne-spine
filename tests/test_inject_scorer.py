@@ -44,6 +44,7 @@ def _candidate(
     keywords: tuple[str, ...] = (),
     embedding: tuple[float, ...] = (1.0, 0.0),
     project_key: str | None = None,
+    origin_path: str | None = None,
     pin: bool = False,
     updated_at: datetime = SNAPSHOT,
     last_human_edit_at: datetime | None = None,
@@ -58,6 +59,7 @@ def _candidate(
         keywords=keywords,
         embedding=embedding,
         project_key=project_key,
+        origin_path=origin_path,
         pin=pin,
         updated_at=updated_at,
         last_human_edit_at=last_human_edit_at,
@@ -399,6 +401,39 @@ def test_config_json_boundary_uses_only_the_scoring_fields() -> None:
     )
 
     assert config == _config()
+
+
+def test_r16_location_distance_and_null_renormalization_follow_the_feet() -> None:
+    """R16 activates same-directory affinity without penalizing missing location."""
+
+    candidate = _candidate(1, project_key="atlas", origin_path="src/feature")
+    config = _config(location_weight=0.08, half_life_location_hops=2, tau=0.0)
+
+    def scored(location_path: str | None, project_key: str = "atlas"):
+        return score_and_select(
+            prompt="the",
+            query_embedding=(1.0, 0.0),
+            snapshot_ts=SNAPSHOT,
+            thread_project_key=project_key,
+            location_path=location_path,
+            pinned_candidates=(),
+            regular_candidates=(candidate,),
+            model_context_tokens=10_000,
+            config=config,
+        ).injected[0]
+
+    same = scored("src/feature")
+    two_hops = scored("src/other")
+    missing = scored(None)
+    other_workspace = scored("src/feature", project_key="other")
+
+    assert same.features.loc == 1.0
+    assert two_hops.features.loc == pytest.approx(0.5)
+    assert missing.features.loc is None
+    assert other_workspace.features.loc == 0.0
+    assert same.score == pytest.approx(0.7148)
+    assert two_hops.score == pytest.approx(0.6748)
+    assert missing.score == pytest.approx(0.69)
 
 
 def test_active_learner_version_adds_immutable_offset_to_online_head_bias() -> None:

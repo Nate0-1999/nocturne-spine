@@ -385,6 +385,16 @@
           "kw": {
             "$ref": "#/components/schemas/SignedDecimalString"
           },
+          "loc": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SignedDecimalString"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "proj": {
             "$ref": "#/components/schemas/SignedDecimalString"
           },
@@ -1354,6 +1364,17 @@
             "title": "Kw",
             "type": "number"
           },
+          "loc": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Loc"
+          },
           "proj": {
             "title": "Proj",
             "type": "number"
@@ -2011,6 +2032,17 @@
             },
             "title": "Excluded Memory Ids",
             "type": "array"
+          },
+          "location_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Path"
           },
           "machine_id": {
             "title": "Machine Id",
@@ -2855,7 +2887,8 @@
           "reason": {
             "enum": [
               "human_control",
-              "learner_proposal"
+              "learner_proposal",
+              "contract_migration"
             ],
             "title": "Reason",
             "type": "string"

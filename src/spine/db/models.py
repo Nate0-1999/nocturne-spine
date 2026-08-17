@@ -670,7 +670,7 @@ class ScorerActivation(Base):
             name="scorer_activation_actor_class_check",
         ),
         CheckConstraint(
-            "reason IN ('human_control','learner_proposal')",
+            "reason IN ('human_control','learner_proposal','contract_migration')",
             name="scorer_activation_reason_check",
         ),
         Index("scorer_activation_ts_idx", "ts", "event_uid"),

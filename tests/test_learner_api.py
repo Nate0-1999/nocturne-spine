@@ -8,6 +8,7 @@ from typing import Literal
 from uuid import UUID
 
 import pytest
+from conftest import ACTIVE_SCORER_VERSION
 from httpx import AsyncClient
 from sqlalchemy import delete, select, text, update
 from sqlalchemy.exc import DBAPIError
@@ -49,7 +50,11 @@ def _service(
 async def _reset_proposals(session_factory: async_sessionmaker[AsyncSession]) -> None:
     async with session_factory() as session, session.begin():
         await session.execute(text("TRUNCATE learner_run"))
-        await session.execute(delete(ScorerConfigRow).where(ScorerConfigRow.version != "v0"))
+        await session.execute(
+            delete(ScorerConfigRow).where(
+                ScorerConfigRow.version.not_in(("v0", ACTIVE_SCORER_VERSION))
+            )
+        )
 
 
 @asynccontextmanager
@@ -118,7 +123,7 @@ async def _insert_gate(
     *,
     gate: int,
     machine_id: str = "studio-mac",
-    scorer_version: str = "v0",
+    scorer_version: str = ACTIVE_SCORER_VERSION,
 ) -> None:
     base = datetime(2026, 8, 3, tzinfo=UTC) + timedelta(hours=gate)
     injection_id = UUID(int=gate)
@@ -205,7 +210,7 @@ async def _insert_passive_disposition(
                 project_key=None,
                 agent_kind="general",
                 prompt_text="learner fixture",
-                scorer_version="v0",
+                scorer_version=ACTIVE_SCORER_VERSION,
                 memory_id=UUID(int=3),
                 memory_kind="fact",
                 features={
@@ -257,7 +262,13 @@ async def test_retrain_proposes_inactive_content_addressed_winner_idempotently(
     assert second.json()["proposal_version"] == payload["proposal_version"]
     async with memory_session_factory() as session:
         proposals = (
-            (await session.execute(select(ScorerConfigRow).where(ScorerConfigRow.version != "v0")))
+            (
+                await session.execute(
+                    select(ScorerConfigRow).where(
+                        ScorerConfigRow.version.not_in(("v0", ACTIVE_SCORER_VERSION))
+                    )
+                )
+            )
             .scalars()
             .all()
         )
@@ -290,7 +301,7 @@ async def test_retrain_hygiene_excludes_whole_verification_gate(
     assert response.status_code == 200
     assert response.json() == {
         "status": "insufficient_data",
-        "incumbent_version": "v0",
+        "incumbent_version": ACTIVE_SCORER_VERSION,
         "proposal_version": None,
         "eligible_dispositions": 0,
         "training_dispositions": 0,
@@ -332,7 +343,7 @@ async def test_retrain_hygiene_excludes_whole_annotated_gate(
     assert response.status_code == 200
     assert response.json() == {
         "status": "insufficient_data",
-        "incumbent_version": "v0",
+        "incumbent_version": ACTIVE_SCORER_VERSION,
         "proposal_version": None,
         "eligible_dispositions": 0,
         "training_dispositions": 0,
@@ -385,7 +396,7 @@ async def test_background_retrain_crosses_authentic_floor_and_never_activates(
     assert len(runs) == 1
     assert runs[0].trigger == "background"
     assert runs[0].eligible_dispositions == 3
-    assert active.version == "v0"
+    assert active.version == ACTIVE_SCORER_VERSION
 
 
 @pytest.mark.asyncio
@@ -434,7 +445,7 @@ async def test_real_worker_startup_and_work_wake_persists_background_inactive_wi
         )
     assert proposal is not None and proposal.active is False
     assert proposal.params["_learner"]["status"] == "proposed"
-    assert active.version == "v0"
+    assert active.version == ACTIVE_SCORER_VERSION
 
 
 @pytest.mark.asyncio
@@ -459,7 +470,7 @@ async def test_force_values_basin_yields_visible_measured_inactive_learner_propo
                 project_key=None,
                 agent_kind="general",
                 prompt_text="force-values basin",
-                scorer_version="v0",
+                scorer_version=ACTIVE_SCORER_VERSION,
                 memory_id=UUID(int=3502),
                 memory_kind="fact",
                 features={
@@ -494,7 +505,7 @@ async def test_force_values_basin_yields_visible_measured_inactive_learner_propo
         json={
             "principal_id": "owner",
             "injection_id": str(seed_injection_id),
-            "base_version": "v0",
+            "base_version": ACTIVE_SCORER_VERSION,
             "values": values,
             "slice_parameter_id": "scorer.tau",
         },
@@ -505,7 +516,7 @@ async def test_force_values_basin_yields_visible_measured_inactive_learner_propo
         "/v1/scorer-configs",
         json={
             "event_uid": force_event_uid,
-            "base_version": "v0",
+            "base_version": ACTIVE_SCORER_VERSION,
             "values": values,
             "simulation_digest": simulation.json()["simulation_digest"],
             "force": True,
@@ -609,7 +620,7 @@ async def test_background_cursor_uses_monotonic_evidence_not_transaction_timesta
                     run_uid="cursor-six",
                     trigger="background",
                     result="not_better",
-                    incumbent_version="v0",
+                    incumbent_version=ACTIVE_SCORER_VERSION,
                     proposal_version=None,
                     eligible_dispositions=6,
                     training_dispositions=4,
@@ -625,7 +636,7 @@ async def test_background_cursor_uses_monotonic_evidence_not_transaction_timesta
                     run_uid="cursor-four",
                     trigger="manual",
                     result="not_better",
-                    incumbent_version="v0",
+                    incumbent_version=ACTIVE_SCORER_VERSION,
                     proposal_version=None,
                     eligible_dispositions=4,
                     training_dispositions=2,
@@ -679,7 +690,13 @@ async def test_manual_receipt_makes_waiting_background_fresh_noop(
     async with memory_session_factory() as session:
         runs = (await session.execute(select(LearnerRun))).scalars().all()
         proposals = (
-            (await session.execute(select(ScorerConfigRow).where(ScorerConfigRow.version != "v0")))
+            (
+                await session.execute(
+                    select(ScorerConfigRow).where(
+                        ScorerConfigRow.version.not_in(("v0", ACTIVE_SCORER_VERSION))
+                    )
+                )
+            )
             .scalars()
             .all()
         )
@@ -693,7 +710,7 @@ async def test_manual_receipt_makes_waiting_background_fresh_noop(
     ]
     assert [proposal.version for proposal in proposals] == [manual.proposal_version]
     assert proposals[0].active is False
-    assert active.version == "v0"
+    assert active.version == ACTIVE_SCORER_VERSION
 
 
 @pytest.mark.asyncio
@@ -724,7 +741,13 @@ async def test_competing_backgrounds_at_one_boundary_fit_once(
     async with memory_session_factory() as session:
         runs = (await session.execute(select(LearnerRun))).scalars().all()
         proposals = (
-            (await session.execute(select(ScorerConfigRow).where(ScorerConfigRow.version != "v0")))
+            (
+                await session.execute(
+                    select(ScorerConfigRow).where(
+                        ScorerConfigRow.version.not_in(("v0", ACTIVE_SCORER_VERSION))
+                    )
+                )
+            )
             .scalars()
             .all()
         )
@@ -738,7 +761,7 @@ async def test_competing_backgrounds_at_one_boundary_fit_once(
     ]
     assert [proposal.version for proposal in proposals] == [first.proposal_version]
     assert proposals[0].active is False
-    assert active.version == "v0"
+    assert active.version == ACTIVE_SCORER_VERSION
 
 
 @pytest.mark.asyncio

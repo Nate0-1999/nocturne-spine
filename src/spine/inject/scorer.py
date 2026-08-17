@@ -8,6 +8,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from fractions import Fraction
+from pathlib import PurePosixPath
 from typing import Any
 from uuid import UUID
 
@@ -69,6 +70,8 @@ class ScorerParams:
     half_life_time_days: float
     half_life_hist_days: float
     candidate_pool: int
+    location_weight: float = 0.0
+    half_life_location_hops: float = 2.0
 
     def __post_init__(self) -> None:
         if not 0.0 <= self.tau <= 1.0:
@@ -85,6 +88,10 @@ class ScorerParams:
             raise ValueError("scorer half lives must be positive")
         if self.candidate_pool <= 0:
             raise ValueError("candidate_pool must be positive")
+        if not 0.0 <= self.location_weight < 1.0:
+            raise ValueError("location_weight must be at least zero and less than one")
+        if self.half_life_location_hops <= 0.0:
+            raise ValueError("location half life must be positive")
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -155,6 +162,10 @@ class ScorerConfig:
                 half_life_time_days=_number(params, "half_life_time_days"),
                 half_life_hist_days=_number(params, "half_life_hist_days"),
                 candidate_pool=_integer(params, "candidate_pool"),
+                location_weight=_optional_number(params, "location_weight", 0.0),
+                half_life_location_hops=_optional_number(
+                    params, "half_life_location_hops", 2.0
+                ),
             ),
             bias_offsets=bias_offsets,
         )
@@ -176,6 +187,7 @@ class ScoringCandidate:
     keywords: tuple[str, ...]
     embedding: tuple[float, ...]
     project_key: str | None
+    origin_path: str | None = None
     pin: bool
     updated_at: datetime
     last_human_edit_at: datetime | None
@@ -187,7 +199,7 @@ class ScoringCandidate:
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class ScoreFeatures:
-    """The exact six explainability features persisted for every decision."""
+    """The explainability features persisted for every decision."""
 
     sem: float
     kw: float
@@ -195,18 +207,23 @@ class ScoreFeatures:
     proj: float
     freq: float
     hist: float
+    loc: float | None = None
 
-    def as_dict(self) -> dict[str, float]:
+    def as_dict(self) -> dict[str, float | None]:
         """Return the exact public feature object without scorer internals."""
 
-        return {
+        values: dict[str, float | None] = {
             "sem": self.sem,
             "kw": self.kw,
             "time": self.time,
             "proj": self.proj,
             "freq": self.freq,
             "hist": self.hist,
+            "loc": self.loc,
         }
+        if self.loc is None:
+            del values["loc"]
+        return values
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -238,6 +255,7 @@ def score_and_select(
     query_embedding: Sequence[float],
     snapshot_ts: datetime,
     thread_project_key: str | None,
+    location_path: str | None = None,
     pinned_candidates: Sequence[ScoringCandidate],
     regular_candidates: Sequence[ScoringCandidate],
     locked_memory_ids: frozenset[UUID] = frozenset(),
@@ -262,6 +280,7 @@ def score_and_select(
             prompt_keywords=keywords,
             snapshot_ts=snapshot_ts,
             thread_project_key=thread_project_key,
+            location_path=location_path,
             weights=config.weights,
             params=config.params,
             learned_bias=config.bias_offset(candidate.memory_id),
@@ -279,6 +298,7 @@ def score_and_select(
             prompt_keywords=keywords,
             snapshot_ts=snapshot_ts,
             thread_project_key=thread_project_key,
+            location_path=location_path,
             weights=config.weights,
             params=config.params,
             learned_bias=config.bias_offset(candidate.memory_id),
@@ -365,6 +385,7 @@ def _score_candidate(
     prompt_keywords: frozenset[str],
     snapshot_ts: datetime,
     thread_project_key: str | None,
+    location_path: str | None,
     weights: ScorerWeights,
     params: ScorerParams,
     learned_bias: float = 0.0,
@@ -398,8 +419,15 @@ def _score_candidate(
                 half_life_days=params.half_life_hist_days,
             )
         ),
+        loc=_location_feature(
+            location_path=location_path,
+            origin_path=candidate.origin_path,
+            thread_project_key=thread_project_key,
+            memory_project_key=candidate.project_key,
+            half_life_hops=params.half_life_location_hops,
+        ),
     )
-    score = math.fsum(
+    base_score = math.fsum(
         (
             weights.sem * features.sem,
             weights.kw * features.kw,
@@ -407,10 +435,15 @@ def _score_candidate(
             weights.proj * features.proj,
             weights.freq * features.freq,
             weights.hist * features.hist,
-            candidate.bias,
-            learned_bias,
         )
     )
+    score = (
+        base_score
+        if features.loc is None
+        else (1.0 - params.location_weight) * base_score
+        + params.location_weight * features.loc
+    )
+    score += candidate.bias + learned_bias
     if not math.isfinite(score):
         raise ValueError(f"score for {candidate.memory_id} is not finite")
     return _UnrankedCandidate(
@@ -499,6 +532,47 @@ def _project_feature(*, thread_project_key: str | None, memory_project_key: str 
     return 0.0
 
 
+def _location_feature(
+    *,
+    location_path: str | None,
+    origin_path: str | None,
+    thread_project_key: str | None,
+    memory_project_key: str | None,
+    half_life_hops: float,
+) -> float | None:
+    """Compute ADR-010 distance only when workspace identity is provable."""
+
+    if location_path is None or origin_path is None:
+        return None
+    if (
+        thread_project_key is None
+        or memory_project_key is None
+        or thread_project_key != memory_project_key
+    ):
+        return 0.0 if thread_project_key is not None and memory_project_key is not None else None
+    origin = origin_path
+    if origin == memory_project_key:
+        origin = "."
+    elif origin.startswith(f"{memory_project_key}/"):
+        origin = origin[len(memory_project_key) + 1 :]
+    current_parts = _location_parts(location_path)
+    origin_parts = _location_parts(origin)
+    common = 0
+    for current, learned in zip(current_parts, origin_parts, strict=False):
+        if current != learned:
+            break
+        common += 1
+    hops = len(current_parts) + len(origin_parts) - 2 * common
+    return 2.0 ** (-hops / half_life_hops)
+
+
+def _location_parts(value: str) -> tuple[str, ...]:
+    path = PurePosixPath(value)
+    if path.is_absolute() or ".." in path.parts:
+        raise ValueError("location paths must be workspace-relative")
+    return tuple(part for part in path.parts if part not in {".", ""})
+
+
 def _citations(stats: Mapping[str, Any]) -> float:
     value = stats.get("citations", 0)
     if isinstance(value, bool) or not isinstance(value, (int, float)):
@@ -555,6 +629,10 @@ def _integer(mapping: Mapping[str, Any], key: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int):
         raise ValueError(f"scorer config {key} must be an integer")
     return value
+
+
+def _optional_number(mapping: Mapping[str, Any], key: str, default: float) -> float:
+    return _finite_number(mapping.get(key, default), key)
 
 
 __all__ = [

@@ -17,6 +17,7 @@ from spine.main import create_app
 
 TOKEN = "p0-test-token"
 EMBED_DIM = 1536
+ACTIVE_SCORER_VERSION = "m3f-location-v1"
 
 
 def basis_vector(index: int) -> list[float]:
@@ -123,15 +124,37 @@ async def memory_session_factory(
     )
     async with engine.begin() as connection:
         await connection.execute(truncate)
-        await connection.execute(text("DELETE FROM scorer_config WHERE version <> 'v0'"))
-        await connection.execute(text("UPDATE scorer_config SET active = (version = 'v0')"))
+        await connection.execute(
+            text(
+                "DELETE FROM scorer_config WHERE version NOT IN ('v0', :active_version)"
+            ),
+            {"active_version": ACTIVE_SCORER_VERSION},
+        )
+        await connection.execute(
+            text("UPDATE scorer_config SET active = false WHERE active")
+        )
+        await connection.execute(
+            text("UPDATE scorer_config SET active = true WHERE version = :active_version"),
+            {"active_version": ACTIVE_SCORER_VERSION},
+        )
     try:
         yield session_factory
     finally:
         async with engine.begin() as connection:
             await connection.execute(truncate)
-            await connection.execute(text("DELETE FROM scorer_config WHERE version <> 'v0'"))
-            await connection.execute(text("UPDATE scorer_config SET active = (version = 'v0')"))
+            await connection.execute(
+                text(
+                    "DELETE FROM scorer_config WHERE version NOT IN ('v0', :active_version)"
+                ),
+                {"active_version": ACTIVE_SCORER_VERSION},
+            )
+            await connection.execute(
+                text("UPDATE scorer_config SET active = false WHERE active")
+            )
+            await connection.execute(
+                text("UPDATE scorer_config SET active = true WHERE version = :active_version"),
+                {"active_version": ACTIVE_SCORER_VERSION},
+            )
         await engine.dispose()
 
 
