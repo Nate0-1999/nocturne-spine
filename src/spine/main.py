@@ -21,7 +21,8 @@ from spine.config import Settings
 from spine.db.engine import make_engine
 from spine.db.migrate import packaged_head
 from spine.db.session import make_session_factory
-from spine.embeddings import EmbeddingProvider, OpenAIEmbeddingProvider
+from spine.embeddings import EmbeddingProvider
+from spine.embeddings.router import build_embedding_router
 from spine.inject.annotations import InjectionEventAnnotationService
 from spine.inject.decisions import DecisionService
 from spine.inject.router import router as inject_router
@@ -85,13 +86,7 @@ def create_app(
 
     owned_provider = None
     if embedding_provider is None:
-        owned_provider = OpenAIEmbeddingProvider(
-            api_key=configured_key or None,
-            model=resolved.embed_model,
-            dimensions=resolved.embed_dim,
-            base_url=resolved.embed_base_url,
-            receipt_sink=spend_service,
-        )
+        owned_provider = build_embedding_router(resolved, spend_service)
         embedding_provider = owned_provider
 
     memory_service = MemoryService(

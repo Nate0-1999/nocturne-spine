@@ -100,25 +100,24 @@ def test_embedding_runtime_wires_default_and_direct_provider_without_network(
 
     provider = ScriptedEmbeddingProvider()
     provider.aclose = AsyncMock()  # type: ignore[attr-defined]
-    fake_adapter = Mock(return_value=provider)
+    fake_router = Mock(return_value=provider)
 
     def unused_session_factory() -> None:
         raise AssertionError("configuration test must not access Postgres")
 
-    monkeypatch.setattr(spine_main, "OpenAIEmbeddingProvider", fake_adapter)
+    monkeypatch.setattr(spine_main, "build_embedding_router", fake_router)
     app = spine_main.create_app(
         _settings(openai_api_key="compatible-key"),
         session_factory=unused_session_factory,  # type: ignore[arg-type]
     )
 
-    fake_adapter.assert_called_once()
-    assert fake_adapter.call_args.kwargs == {
-        "api_key": "compatible-key",
-        "model": expected_model,
-        "dimensions": 1536,
-        "base_url": expected_base_url,
-        "receipt_sink": app.state.spend_service,
-    }
+    fake_router.assert_called_once()
+    routed_settings, receipt_sink = fake_router.call_args.args
+    assert routed_settings.openai_api_key.get_secret_value() == "compatible-key"
+    assert routed_settings.embed_model == expected_model
+    assert routed_settings.embed_dim == 1536
+    assert routed_settings.embed_base_url == expected_base_url
+    assert receipt_sink is app.state.spend_service
     assert (app.state.reconciliation_service is not None) is (
         expected_base_url == "https://openrouter.ai/api/v1"
     )
