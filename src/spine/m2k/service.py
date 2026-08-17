@@ -164,7 +164,7 @@ class M2KService:
                 as_of = await _transaction_time(session)
                 statement = select(MemoryUnitRow).where(
                     MemoryUnitRow.principal_id == query.principal_id,
-                    MemoryUnitRow.status != "candidate",
+                    MemoryUnitRow.status.not_in(("candidate", "staged")),
                 )
                 if query.memory_ids is not None:
                     statement = statement.where(MemoryUnitRow.id.in_(query.memory_ids))

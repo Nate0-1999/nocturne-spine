@@ -45,6 +45,8 @@ from spine.spend.reconciliation import (
 from spine.spend.router import router as spend_router
 from spine.spend.service import SpendService
 from spine.spend.views import SpendViewRefresher
+from spine.symphony.router import router as symphony_router
+from spine.symphony.service import SymphonyService
 from spine.transcripts.router import router as transcripts_router
 from spine.transcripts.service import TranscriptService
 from spine.vitals.router import router as vitals_router
@@ -98,6 +100,7 @@ def create_app(
         memory_max_tokens=resolved.memory_max_tokens,
     )
     queue_service = QueueService(session_factory, memory_service)
+    symphony_service = SymphonyService(session_factory, memory_service, queue_service)
     prepare_service = PrepareService(session_factory, embedding_provider)
     decision_service = DecisionService(session_factory)
     injection_event_annotation_service = InjectionEventAnnotationService(session_factory)
@@ -182,6 +185,7 @@ def create_app(
     app.state.settings = resolved
     app.state.memory_service = memory_service
     app.state.queue_service = queue_service
+    app.state.symphony_service = symphony_service
     app.state.prepare_service = prepare_service
     app.state.decision_service = decision_service
     app.state.injection_event_annotation_service = injection_event_annotation_service
@@ -268,6 +272,7 @@ def create_app(
     app.include_router(memory_router)
     app.include_router(queue_router)
     app.include_router(spend_router)
+    app.include_router(symphony_router)
     app.include_router(transcripts_router)
     app.include_router(vitals_router)
     return app

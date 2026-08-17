@@ -53,7 +53,7 @@ async def queue(
     request: Request,
     principal_id: str = Query(min_length=1),
     thread_id: UUID | None = None,
-    birthplace: str | None = Query(default=None, pattern="^(thread|seed)$"),
+    birthplace: str | None = Query(default=None, pattern="^(thread|seed|symphony)$"),
 ) -> QueueResponse:
     return await request.app.state.queue_service.list_pending(principal_id, thread_id, birthplace)
 
@@ -81,7 +81,7 @@ async def decide(
     "/v1/approval-queue/batches/{batch_uid}/decisions",
     response_model=BatchDecisionResponse,
     responses=ERRORS
-    | {404: problem_openapi("Seed batch missing"), 409: problem_openapi("Seed batch conflict")},
+    | {404: problem_openapi("Queue batch missing"), 409: problem_openapi("Queue batch conflict")},
 )
 async def decide_batch(
     batch_uid: UUID, body: QueueDecisionRequest, request: Request

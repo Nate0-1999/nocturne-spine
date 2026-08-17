@@ -57,11 +57,14 @@ class SeedRequest(ContractModel):
 class QueueCard(ContractModel):
     item_uid: str
     candidate: MemoryUnit
-    birthplace: Literal["thread", "seed"]
+    birthplace: Literal["thread", "seed", "symphony"]
     birthplace_thread_id: UUID | None
     batch_uid: UUID | None
     source_name: str | None
     source_sha256: str | None
+    birthplace_run_id: str | None
+    birthplace_origin_agent: str | None
+    judged_context: dict[str, object] | None
     verdict: Verdict
     neighbors: list[SimilarityMemoryCard]
     target_ids: list[UUID]

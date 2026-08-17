@@ -1057,3 +1057,25 @@ history. Server-generated sequence makes retry races ambiguous. A JSONB rewrite
 would discard byte identity. Object storage adds an infrastructure lifecycle,
 while a second thread/catalog table creates state that can disagree with the
 journal it is meant to recover.
+
+## 040 — Stage in the authoritative Palace, resolve once [P1.6, A-059]
+
+**Decision.** Represent a Symphony attempt write as an ordinary memory head in
+status `staged`, carrying its run ULID and materialized origin-agent path. The
+normal corpus paths exclude staged heads; one run-aware query returns committed
+ACTIVE corpus plus the exact caller attempt's staging. Run close is one
+principal-locked transaction: a winner prefix becomes candidate queue cards in
+one shared Symphony batch, every other staged head receives a revisioned
+tombstone, and one immutable resolution receipt binds the batch, winner,
+machine, and three-seat judged context. Public contract 0.1.4 and schema 0015
+ship on the next authorized release.
+
+**Motivation.** P1.6 fails if losing timelines can shape siblings or corpus
+importance, but it also fails if their earned evidence disappears. Keeping one
+head and changing only its lifecycle state preserves lineage while making the
+visibility predicate and final resolution mechanically inspectable.
+
+**Rejected alternatives.** A second staging database duplicates Palace
+authority. Keeping attempt memories only in worker files loses cross-machine
+durability. Directly activating the winner bypasses owner consent. Deleting
+losers destroys the evidence ADR-017 says makes search compound.

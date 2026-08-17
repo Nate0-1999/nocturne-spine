@@ -170,6 +170,27 @@ class QueueService:
             cards = [await self._card(session, row) for row in rows]
         return QueueResponse(cards=cards)
 
+    async def list_batch(self, batch_uid: UUID, *, birthplace: str) -> list[QueueCard]:
+        """Return one complete grouped consent batch, including decided cards."""
+
+        queue = ApprovalQueueItem.__table__
+        async with self._session_factory() as session:
+            rows = (
+                (
+                    await session.execute(
+                        select(*queue.c)
+                        .where(
+                            queue.c.batch_uid == batch_uid,
+                            queue.c.birthplace == birthplace,
+                        )
+                        .order_by(queue.c.created_at, queue.c.item_uid)
+                    )
+                )
+                .mappings()
+                .all()
+            )
+            return [await self._card(session, row) for row in rows]
+
     async def decide(self, item_uid: str, request: QueueDecisionRequest) -> QueueDecisionResponse:
         queue = ApprovalQueueItem.__table__
         async with self._session_factory() as session:
@@ -191,7 +212,7 @@ class QueueService:
         self, batch_uid: UUID, request: QueueDecisionRequest
     ) -> BatchDecisionResponse:
         if request.approval_mode != "explicit" or request.actor_class != "human":
-            raise QueueValidationError("seed batches require an explicit human decision")
+            raise QueueValidationError("queue batches require an explicit human decision")
         queue = ApprovalQueueItem.__table__
         async with self._session_factory() as session:
             async with session.begin():
@@ -199,7 +220,10 @@ class QueueService:
                     (
                         await session.execute(
                             select(*queue.c)
-                            .where(queue.c.batch_uid == batch_uid, queue.c.birthplace == "seed")
+                            .where(
+                                queue.c.batch_uid == batch_uid,
+                                queue.c.birthplace.in_(("seed", "symphony")),
+                            )
                             .order_by(queue.c.created_at, queue.c.item_uid)
                             .with_for_update()
                         )
@@ -525,6 +549,9 @@ class QueueService:
             batch_uid=row["batch_uid"],
             source_name=row["source_name"],
             source_sha256=row["source_sha256"],
+            birthplace_run_id=row["birthplace_run_id"],
+            birthplace_origin_agent=row["birthplace_origin_agent"],
+            judged_context=row["judged_context"],
             verdict=row["verdict"],
             neighbors=neighbors,
             target_ids=[UUID(value) for value in row["target_ids"]],

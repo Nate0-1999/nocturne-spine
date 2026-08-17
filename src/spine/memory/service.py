@@ -211,6 +211,10 @@ class MemoryValidationError(MemoryServiceError):
     """A memory label or body exceeds an enacted C.2/C.5 limit."""
 
 
+class StagedMemoryConflictError(MemoryServiceError):
+    """A client-minted Symphony memory ID already names different evidence."""
+
+
 class MemoryService:
     """Own C.4 memory transactions while keeping HTTP concerns in the router."""
 
@@ -527,6 +531,54 @@ class MemoryService:
                     neighbors=tuple(matches),
                 )
 
+    async def stage_symphony(
+        self,
+        command: CreateMemoryCommand,
+        *,
+        memory_id: UUID,
+        run_id: str,
+        origin_agent: str,
+    ) -> Mapping[str, Any]:
+        """Write or exactly replay one run-private Symphony memory head."""
+
+        self._validate_label(command.label)
+        self._validate_body(command.body)
+        async with self._session_factory() as session:
+            existing = await self._staged_replay_row(session, memory_id, command)
+            if existing is not None:
+                _require_staged_identity(existing, run_id=run_id, origin_agent=origin_agent)
+                return existing
+
+        embedding = await embed_one(
+            self._embedding_provider,
+            command.body,
+            expected_dimensions=_EMBEDDING_DIMENSIONS,
+            receipt_context=EmbeddingReceiptContext(
+                principal_id=command.principal_id,
+                machine_id=command.machine_id,
+                origin_agent=origin_agent,
+            ),
+        )
+        async with self._session_factory() as session:
+            async with session.begin():
+                await session.execute(
+                    text("SELECT pg_advisory_xact_lock(hashtextextended(:memory_id, 0))"),
+                    {"memory_id": str(memory_id)},
+                )
+                existing = await self._staged_replay_row(session, memory_id, command)
+                if existing is not None:
+                    _require_staged_identity(existing, run_id=run_id, origin_agent=origin_agent)
+                    return existing
+                return await self._insert_root(
+                    session,
+                    command,
+                    embedding,
+                    status="staged",
+                    memory_id=memory_id,
+                    run_id=run_id,
+                    origin_agent=origin_agent,
+                )
+
     async def create_split_source(
         self,
         command: CreateMemoryCommand,
@@ -710,7 +762,7 @@ class MemoryService:
         unit = MemoryUnit.__table__
         filters = []
         if query.status is None:
-            filters.append(unit.c.status != "candidate")
+            filters.append(unit.c.status.not_in(("candidate", "staged")))
         if query.project_key is not None:
             filters.append(unit.c.project_key == query.project_key)
         if query.status is not None:
@@ -881,6 +933,9 @@ class MemoryService:
         embedding: Sequence[float],
         *,
         status: str = "active",
+        memory_id: UUID | None = None,
+        run_id: str | None = None,
+        origin_agent: str | None = None,
     ) -> Mapping[str, Any]:
         unit = MemoryUnit.__table__
         row = (
@@ -888,6 +943,7 @@ class MemoryService:
                 await session.execute(
                     insert(unit)
                     .values(
+                        **({"id": memory_id} if memory_id is not None else {}),
                         principal_id=command.principal_id,
                         label=command.label,
                         body=command.body,
@@ -898,6 +954,8 @@ class MemoryService:
                         project_key=command.project_key,
                         thread_origin=command.thread_origin,
                         origin_path=command.origin_path,
+                        run_id=run_id,
+                        origin_agent=origin_agent,
                         status=status,
                         pin=False,
                         revision=1,
@@ -921,6 +979,58 @@ class MemoryService:
                 reason=command.revision_reason,
             )
         )
+        return row
+
+    async def _staged_replay_row(
+        self,
+        session: AsyncSession,
+        memory_id: UUID,
+        command: CreateMemoryCommand,
+    ) -> Mapping[str, Any] | None:
+        row = (
+            (
+                await session.execute(
+                    select(*MemoryUnit.__table__.c).where(MemoryUnit.id == memory_id)
+                )
+            )
+            .mappings()
+            .one_or_none()
+        )
+        if row is None:
+            return None
+        revision = (
+            (
+                await session.execute(
+                    select(*MemoryRevision.__table__.c).where(
+                        MemoryRevision.memory_id == memory_id,
+                        MemoryRevision.revision == 1,
+                    )
+                )
+            )
+            .mappings()
+            .one_or_none()
+        )
+        expected = {
+            "principal_id": command.principal_id,
+            "label": command.label,
+            "body": command.body,
+            "kind": command.kind,
+            "keywords": list(command.keywords),
+            "project_key": command.project_key,
+            "origin_path": command.origin_path,
+            "status": "staged",
+        }
+        if any(row[key] != value for key, value in expected.items()) or revision is None:
+            raise StagedMemoryConflictError("memory_id already names a different memory")
+        revision_expected = {
+            "editor": command.editor,
+            "origin_machine_id": command.machine_id,
+            "reason": command.revision_reason,
+        }
+        if any(revision[key] != value for key, value in revision_expected.items()):
+            raise StagedMemoryConflictError(
+                "memory_id already names different staging provenance"
+            )
         return row
 
 
@@ -1015,6 +1125,13 @@ def _similarity_card_from_row(row: Mapping[str, Any]) -> SimilarityMemoryCard:
 
 def _provided(value: object) -> bool:
     return value is not UNSET and value is not None
+
+
+def _require_staged_identity(
+    row: Mapping[str, Any], *, run_id: str, origin_agent: str
+) -> None:
+    if row["run_id"] != run_id or row["origin_agent"] != origin_agent:
+        raise StagedMemoryConflictError("memory_id already names a different run attempt")
 
 
 def _classify_dedup_score(

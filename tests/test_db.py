@@ -152,6 +152,7 @@ async def test_models_match_authoritative_c2_schema(
         "memory_edge",
         "approval_queue_item",
         "approval_decision",
+        "symphony_run_resolution",
         "thread",
         "injection_event",
         "injection_event_annotation",
@@ -177,6 +178,8 @@ async def test_models_match_authoritative_c2_schema(
             "project_key",
             "thread_origin",
             "origin_path",
+            "run_id",
+            "origin_agent",
             "pin",
             "status",
             "revision",
@@ -213,6 +216,9 @@ async def test_models_match_authoritative_c2_schema(
             "batch_uid",
             "source_name",
             "source_sha256",
+            "birthplace_run_id",
+            "birthplace_origin_agent",
+            "judged_context",
             "verdict",
             "neighbor_ids",
             "target_ids",
@@ -226,6 +232,15 @@ async def test_models_match_authoritative_c2_schema(
             "decision",
             "approval_mode",
             "actor_class",
+            "created_at",
+        ),
+        "symphony_run_resolution": (
+            "run_id",
+            "principal_id",
+            "batch_uid",
+            "winner_origin_agent",
+            "machine_id",
+            "judged_context",
             "created_at",
         ),
         "thread": (
@@ -353,7 +368,13 @@ async def test_models_match_authoritative_c2_schema(
         for name, table in Base.metadata.tables.items()
     }
     assert nullable == {
-        "memory_unit": {"project_key", "thread_origin", "origin_path"},
+        "memory_unit": {
+            "project_key",
+            "thread_origin",
+            "origin_path",
+            "run_id",
+            "origin_agent",
+        },
         "memory_revision": {"parent_uid", "revision"},
         "memory_edge": set(),
         "approval_queue_item": {
@@ -361,9 +382,13 @@ async def test_models_match_authoritative_c2_schema(
             "batch_uid",
             "source_name",
             "source_sha256",
+            "birthplace_run_id",
+            "birthplace_origin_agent",
+            "judged_context",
             "decided_at",
         },
         "approval_decision": set(),
+        "symphony_run_resolution": set(),
         "thread": {"project_key", "snapshot_ts"},
         "injection_event": {"project_key", "outcome"},
         "injection_event_annotation": set(),
@@ -404,6 +429,7 @@ async def test_models_match_authoritative_c2_schema(
         "memory_edge": ("edge_uid",),
         "approval_queue_item": ("item_uid",),
         "approval_decision": ("decision_uid",),
+        "symphony_run_resolution": ("run_id",),
         "thread": ("id",),
         "injection_event": ("id",),
         "injection_event_annotation": ("target_event_uid",),
@@ -434,6 +460,8 @@ async def test_models_match_authoritative_c2_schema(
         "memory_unit.project_key": "TEXT",
         "memory_unit.thread_origin": "TEXT",
         "memory_unit.origin_path": "TEXT",
+        "memory_unit.run_id": "TEXT",
+        "memory_unit.origin_agent": "TEXT",
         "memory_unit.pin": "BOOLEAN",
         "memory_unit.status": "TEXT",
         "memory_unit.revision": "INTEGER",
@@ -464,6 +492,9 @@ async def test_models_match_authoritative_c2_schema(
         "approval_queue_item.batch_uid": "UUID",
         "approval_queue_item.source_name": "TEXT",
         "approval_queue_item.source_sha256": "TEXT",
+        "approval_queue_item.birthplace_run_id": "TEXT",
+        "approval_queue_item.birthplace_origin_agent": "TEXT",
+        "approval_queue_item.judged_context": "JSONB",
         "approval_queue_item.verdict": "TEXT",
         "approval_queue_item.neighbor_ids": "JSONB",
         "approval_queue_item.target_ids": "JSONB",
@@ -476,6 +507,13 @@ async def test_models_match_authoritative_c2_schema(
         "approval_decision.approval_mode": "TEXT",
         "approval_decision.actor_class": "TEXT",
         "approval_decision.created_at": "TIMESTAMP WITH TIME ZONE",
+        "symphony_run_resolution.run_id": "TEXT",
+        "symphony_run_resolution.principal_id": "TEXT",
+        "symphony_run_resolution.batch_uid": "UUID",
+        "symphony_run_resolution.winner_origin_agent": "TEXT",
+        "symphony_run_resolution.machine_id": "TEXT",
+        "symphony_run_resolution.judged_context": "JSONB",
+        "symphony_run_resolution.created_at": "TIMESTAMP WITH TIME ZONE",
         "thread.id": "UUID",
         "thread.principal_id": "TEXT",
         "thread.agent_id": "TEXT",
@@ -607,6 +645,7 @@ async def test_models_match_authoritative_c2_schema(
         "approval_queue_item.state": "'pending'",
         "approval_queue_item.created_at": "now()",
         "approval_decision.created_at": "now()",
+        "symphony_run_resolution.created_at": "now()",
         "thread.created_at": "now()",
         "injection_event.agent_kind": "'general'",
         "injection_event.actor_class": "'human'",
@@ -641,8 +680,12 @@ async def test_models_match_authoritative_c2_schema(
                 "kind IN ('fact','preference','procedure','project_note','persona','pinned')"
             ),
             "memory_unit_status_check": (
-                "status IN ('active','candidate','quarantined','tombstoned')"
+                "status IN ('active','candidate','staged','quarantined','tombstoned')"
             ),
+            "memory_unit_run_lineage_pair_check": (
+                "(run_id IS NULL) = (origin_agent IS NULL)"
+            ),
+            "memory_unit_staged_lineage_check": "status <> 'staged' OR run_id IS NOT NULL",
         },
         "memory_revision": {},
         "memory_edge": {
@@ -651,13 +694,22 @@ async def test_models_match_authoritative_c2_schema(
             )
         },
         "approval_queue_item": {
-            "approval_queue_item_birthplace_check": "birthplace IN ('thread','seed')",
+            "approval_queue_item_birthplace_check": (
+                "birthplace IN ('thread','seed','symphony')"
+            ),
             "approval_queue_item_birthplace_shape_check": (
                 "(birthplace = 'thread' AND birthplace_thread_id IS NOT NULL "
-                "AND batch_uid IS NULL AND source_name IS NULL AND source_sha256 IS NULL) OR "
+                "AND batch_uid IS NULL AND source_name IS NULL AND source_sha256 IS NULL "
+                "AND birthplace_run_id IS NULL AND birthplace_origin_agent IS NULL "
+                "AND judged_context IS NULL) OR "
                 "(birthplace = 'seed' AND birthplace_thread_id IS NULL "
                 "AND batch_uid IS NOT NULL AND source_name IS NOT NULL "
-                "AND source_sha256 IS NOT NULL)"
+                "AND source_sha256 IS NOT NULL AND birthplace_run_id IS NULL "
+                "AND birthplace_origin_agent IS NULL AND judged_context IS NULL) OR "
+                "(birthplace = 'symphony' AND birthplace_thread_id IS NULL "
+                "AND batch_uid IS NOT NULL AND source_name IS NULL AND source_sha256 IS NULL "
+                "AND birthplace_run_id IS NOT NULL AND birthplace_origin_agent IS NOT NULL "
+                "AND judged_context IS NOT NULL)"
             ),
             "approval_queue_item_state_check": ("state IN ('pending','approved','rejected')"),
             "approval_queue_item_verdict_check": (
@@ -669,6 +721,7 @@ async def test_models_match_authoritative_c2_schema(
             "approval_decision_mode_check": ("approval_mode IN ('explicit','passive')"),
             "approval_decision_value_check": "decision IN ('approve','deny')",
         },
+        "symphony_run_resolution": {},
         "thread": {},
         "injection_event": {
             "injection_event_actor_class_check": ("actor_class IN ('human','passive')"),
@@ -770,6 +823,7 @@ async def test_models_match_authoritative_c2_schema(
         "memory_unit_embedding_idx",
         "memory_unit_search_tsv_idx",
         "memory_unit_principal_id_status_project_key_idx",
+        "memory_unit_principal_run_origin_status_idx",
         "memory_unit_active_label",
     }
     assert indexes["memory_unit_embedding_idx"].dialect_options["postgresql"]["using"] == "hnsw"

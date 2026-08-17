@@ -94,6 +94,7 @@ class VitalsService:
                     select(func.count())
                     .select_from(MemoryUnit)
                     .where(
+                        MemoryUnit.status != "staged",
                         MemoryUnit.created_at > window_start,
                         MemoryUnit.created_at <= as_of,
                     )

@@ -39,8 +39,16 @@ class MemoryUnit(Base):
             name="memory_unit_kind_check",
         ),
         CheckConstraint(
-            "status IN ('active','candidate','quarantined','tombstoned')",
+            "status IN ('active','candidate','staged','quarantined','tombstoned')",
             name="memory_unit_status_check",
+        ),
+        CheckConstraint(
+            "(run_id IS NULL) = (origin_agent IS NULL)",
+            name="memory_unit_run_lineage_pair_check",
+        ),
+        CheckConstraint(
+            "status <> 'staged' OR run_id IS NOT NULL",
+            name="memory_unit_staged_lineage_check",
         ),
         Index(
             "memory_unit_embedding_idx",
@@ -58,6 +66,13 @@ class MemoryUnit(Base):
             "principal_id",
             "status",
             "project_key",
+        ),
+        Index(
+            "memory_unit_principal_run_origin_status_idx",
+            "principal_id",
+            "run_id",
+            "origin_agent",
+            "status",
         ),
         Index(
             "memory_unit_active_label",
@@ -92,6 +107,8 @@ class MemoryUnit(Base):
     project_key: Mapped[str | None] = mapped_column(Text)
     thread_origin: Mapped[str | None] = mapped_column(Text)
     origin_path: Mapped[str | None] = mapped_column(Text)
+    run_id: Mapped[str | None] = mapped_column(Text)
+    origin_agent: Mapped[str | None] = mapped_column(Text)
     pin: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
     status: Mapped[str] = mapped_column(
         Text,
@@ -188,14 +205,22 @@ class ApprovalQueueItem(Base):
             name="approval_queue_item_state_check",
         ),
         CheckConstraint(
-            "birthplace IN ('thread','seed')",
+            "birthplace IN ('thread','seed','symphony')",
             name="approval_queue_item_birthplace_check",
         ),
         CheckConstraint(
             "(birthplace = 'thread' AND birthplace_thread_id IS NOT NULL "
-            "AND batch_uid IS NULL AND source_name IS NULL AND source_sha256 IS NULL) OR "
+            "AND batch_uid IS NULL AND source_name IS NULL AND source_sha256 IS NULL "
+            "AND birthplace_run_id IS NULL AND birthplace_origin_agent IS NULL "
+            "AND judged_context IS NULL) OR "
             "(birthplace = 'seed' AND birthplace_thread_id IS NULL "
-            "AND batch_uid IS NOT NULL AND source_name IS NOT NULL AND source_sha256 IS NOT NULL)",
+            "AND batch_uid IS NOT NULL AND source_name IS NOT NULL AND source_sha256 IS NOT NULL "
+            "AND birthplace_run_id IS NULL AND birthplace_origin_agent IS NULL "
+            "AND judged_context IS NULL) OR "
+            "(birthplace = 'symphony' AND birthplace_thread_id IS NULL "
+            "AND batch_uid IS NOT NULL AND source_name IS NULL AND source_sha256 IS NULL "
+            "AND birthplace_run_id IS NOT NULL AND birthplace_origin_agent IS NOT NULL "
+            "AND judged_context IS NOT NULL)",
             name="approval_queue_item_birthplace_shape_check",
         ),
         UniqueConstraint("candidate_memory_id"),
@@ -214,6 +239,9 @@ class ApprovalQueueItem(Base):
     batch_uid: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
     source_name: Mapped[str | None] = mapped_column(Text)
     source_sha256: Mapped[str | None] = mapped_column(Text)
+    birthplace_run_id: Mapped[str | None] = mapped_column(Text)
+    birthplace_origin_agent: Mapped[str | None] = mapped_column(Text)
+    judged_context: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     verdict: Mapped[str] = mapped_column(Text, nullable=False)
     neighbor_ids: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
     target_ids: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
@@ -248,6 +276,23 @@ class ApprovalDecision(Base):
     decision: Mapped[str] = mapped_column(Text, nullable=False)
     approval_mode: Mapped[str] = mapped_column(Text, nullable=False)
     actor_class: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class SymphonyRunResolution(Base):
+    """One immutable G11 winner/loser resolution for a Symphony run."""
+
+    __tablename__ = "symphony_run_resolution"
+    __table_args__ = (UniqueConstraint("batch_uid"),)
+
+    run_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    principal_id: Mapped[str] = mapped_column(Text, nullable=False)
+    batch_uid: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    winner_origin_agent: Mapped[str] = mapped_column(Text, nullable=False)
+    machine_id: Mapped[str] = mapped_column(Text, nullable=False)
+    judged_context: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )
