@@ -8,7 +8,7 @@
    "prepare for" — flag instead (garden/FLAGS.md).
 4. Every non-dictated decision -> DECISIONS.md, citing a Problem Tree node
    (SPEC §2). Features that cannot name their problem do not get built.
-5. Defects -> Blight Protocol (SPEC 2.1): deepest containing node;
+5. Defects -> Blight Protocol (SPEC v2.80): deepest containing node;
    escalate ancestors/contracts via FLAG.
 6. Contracts are literal: DDL C.2, API C.4, envelope C.7, invariants 1.3.
    A contract gap or self-contradiction is a COMPLETION (PLAN §2): enact
