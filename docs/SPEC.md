@@ -1,6 +1,6 @@
 # NOCTURNE — Harness + Memory Palace Specification
 
-**Version 2.81** (2026-08-18) — THE SCOUT'S WORD (owner, after the F056 mechanism review: 'a single scouts report should not be taken as gospel out of context unless it is operating a specific test we've aligned on'): B.6 rule 13 — a scout's report is evidence, not verdict; items are ALIGNED (an owner/gate-aligned test — verdict is a finding) or DERIVED (scout-designed under rule 9 — verdict is a CLAIM until the gate mechanism-checks it against code or the owner aligns the test; claims reach the owner in neutral words with no severity; core-law claims never reach the owner before their mechanism check). B.6 rule 12 (test motivation, D.2 088) gains its missing body stub. F056 corrected on the record: a Rack project-control binding defect, not a memory-law defect — the injection fence makes cross-project injection impossible and the scorer has no thread feature (D.2 121). Full version lineage: Appendix D.2 (rows) and D.3 (narrative).
+**Version 2.82** (2026-08-18) — EDITOR PASS IV (content-preserving consolidation, mirroring v2.0/v2.12/v2.23; D.2 123): enacted amendments A-020..A-048 were folded verbatim into the sections they amend (the token-cost policy into C.5; the gate, panel and re-scoring contracts into C.4/C.6/C.7; the M2 surfaces into ADR-005/009/019/021/023/024; fixture and test-motivation law into B.6, with rule 12's body restored from D.4), the D.2 112–114 numbering collision was resolved by suffixing the later-written rows 112b/113b/114b (row 122), ADR-017 and ADR-018 were reconciled with the Symphony enactment, R10 and R21 by appended Reconciliation subsections, and §2's P-nodes gained component pointers from the registry. Full version lineage: Appendix D.2 (rows) and D.3 (narrative).
 content-preserving. Audience: implementing agents (via /goal) and the human owner.
 Everything here is binding unless marked OPEN or given a non-accepted status.
 ADR numbers are immutable; superseding requires a new ADR. The chronological
@@ -53,7 +53,9 @@ Both are model/token agnostic.
   `nocturne` — PyPI collision resolved, D.2 073) and the
   front door; every component name below is unchanged beneath it.
 - **The Escher view** — the Cube's formal name (ADR-018): six projections
-  of one object no single face can fully show.
+  of one object no single face can fully show. R10 (D.2 114b) dissolved the
+  rotating container into six independent 3D modules sharing one selection —
+  see ADR-018's Reconciliation.
 - **The Chrysopoeia** — the learning loop (ADR-005 signals → M2 weight
   learning): the transmutation of gate decisions into scorer gold.
 - **A shared Palace** — a team's combined memory palace, built by
@@ -212,6 +214,14 @@ understand why its component exists, and treats defects at the deepest node
 that contains them (2.1). Node IDs are citable everywhere (DECISIONS.md,
 commits, reviews).
 
+Component pointers (v2.82; D.2 114b): each top-level P-node carries a brief
+"(components: …)" list naming what answers it, staged in
+notes/component-registry.md and folded here as pointers only. A packet's
+MOTIVATION names a P-node; the node's component list is the "account for the
+relevant ones" answer; RECIPE surfaces name what the packet touches from that
+list. The registry describes what exists; it mandates nothing architectural —
+Nocturne is one product with a few processes.
+
 **P0.** An agent's knowledge of its human dies with the context window;
 agents scattered across machines each start ignorant; and when retrieval is
 wrong, the human has no lever to correct it.
@@ -221,6 +231,8 @@ wrong, the human has no lever to correct it.
 
 - **P1. Memory must outlive every process and machine.**
   → S1: cloud spine, Postgres as single source of truth. [ADR-003 · C.2]
+  (components: the spine — Palace API; the palace DB; the journal; the
+  memory bridge [planned, Symphony S2])
   - **P1.1** Many machines must see one memory identically.
     → S1.1: HTTP service + thin MemoryCapability; the API is the coupling.
     [ADR-002 · C.4]
@@ -267,6 +279,8 @@ wrong, the human has no lever to correct it.
     promotion, pruned-branch negative-result capture. [ADR-021 R1–R5]
 - **P2. A human cannot trust or steer what they cannot see.**
   → S2: the visibility layer. [ADR-009]
+  (components: the rack — web SPA; the module family [3D, planned W2];
+  the recipe module [planned S4])
   - **P2.1** Where are my agents? → presence events → Ant Farm. [ADR-006, M3]
   - **P2.2** What is filling each context window? → Context Bars. [M2]
   - **P2.3** What does the memory know, and why was THIS injected?
@@ -283,17 +297,20 @@ wrong, the human has no lever to correct it.
   (including a phone).
   → S3: workspace-anchored loops; daemons dial out; relay-through-spine;
   browser command center; machines as an ownership-agnostic abstraction.
-  [ADR-008, ADR-010]
+  [ADR-008, ADR-010] (components: the relay — codex CLI/app + the gate; the
+  garden adapter [planned S1]; the beads+Dolt store [planned S1]; the
+  supervisor; the conductor [planned S2]; the judge panel [planned S3])
 - **P4. One human, with agents as the workforce, must be able to build and
   evolve all of the above without it collapsing.**
   → S4: Python-first polyglot-by-boundary [ADR-001]; two repos, contracts at
   the seams [B.2, C.1]; scope ledger with FORBIDDEN [B.4]; normativity model
-  and DECISIONS.md [1.4]; this tree [§2].
+  and DECISIONS.md [1.4]; this tree [§2]. (components: harness daemon + CLI;
+  the PI toolset unit; the golden suite + UI canon; CI; release machinery)
   - **P4.1** Spend must be TRUE — attributable, fine-grained,
     self-auditing against the invoice. → the spend ledger + canonical
     views + Vitals. [ADR-024]
   - **P4.2** Spend must be GOVERNED — before (policy), during (walls),
-    and at the cliff (breaker). → token-cost policy [A-020/021];
+    and at the cliff (breaker). → token-cost policy [A-020/021 → C.5, v2.82];
     spend walls [ADR-024]; the D2 breaker.
 
 ### 2.1 The Blight Protocol (local defect, local remedy)
@@ -599,6 +616,38 @@ Weights versioned (`scorer_version` on every event) → auditability, rollback,
 offline replay. Citation detection v1: n-gram heuristic; OPEN (OQ-5):
 LLM-judge later (cost).
 
+**Folded amendment (A-036, v2.82)** — enacted by M2L against [ADR-005 citation
+heuristic; C.3 f_freq; C.4 /v1/feedback], node(s) P1.2; law text verbatim from
+AMENDMENTS.md:
+Citation v1 tokenizes with C.3's maximal runs of Unicode alphanumeric
+characters after lowercase conversion. For each memory selected in the
+exact context of one ordinary model call, let n be the smaller of eight
+and that memory body's token count. A body with fewer than four tokens is
+not autonomously cited. Otherwise the memory is cited exactly when at
+least one of its contiguous n-token sequences occurs contiguously in the
+successful final assistant text. Labels, prompts, thinking, tool traffic,
+system instructions, and failed or cancelled outputs do not participate.
+Repeated matches in one output still produce one signal for that memory.
+
+Harness snapshots the selected bodies and each member's current
+injection-event source at the same model/feedback lock boundary M2G uses,
+then submits one existing `cited` feedback per detected member after the
+successful model call and before releasing that boundary. Thus every
+post-first message attributes reuse to its own autonomous scoring batch;
+the first gated message attributes it to the committed gate batch. A
+citation-feedback failure emits the existing safe memory-unavailable
+error with phase `citation` but does not retract or replace an assistant
+answer already produced. Each member is attempted independently; no
+background retry queue or cross-member batch endpoint is introduced.
+
+Spine permits `cited` from `kept`, `added_back`, or `auto_entered`.
+Its first successful transition atomically changes that event outcome to
+`cited`, increments the current head's `stats.citations` once through C.2
+CAS, and appends the ordinary revision with editor `system:feedback`, the
+event machine, and reason `feedback/cited`. An identical replay is an
+idempotent no-op. This is the f_freq numerator; no weight, bias, status,
+or other statistic changes. Existing outcome-conflict rules remain.
+
 **Learning scope (ACCEPTED, phased):** M1 = no learning, log the full context
 tuple (project_key, agent_kind, memory_kind, scorer_version) so any scope is a
 modeling change, not a migration; offline replay is a first-class evaluation
@@ -665,6 +714,71 @@ with full feature vector + scorer_version (every override traceable to
 the exact weights that made the wrong call), and SUCCESSES ARE STORED TOO
 — they are the denominators, the anchor for what must not change, and
 dispositions in their own right.
+
+**Folded amendment (A-031, v2.82)** — enacted by M2F against [ADR-005 learning
+scope and scoreboard], node(s) P1.2; law text verbatim from AMENDMENTS.md:
+The M2F learner reads one repeatable-read snapshot of `injection_event`,
+ordered by gate time then injection UUID, and groups rows by injection_id.
+Hygiene excludes a group when any row's principal or machine identity is
+test/fixture/verification-class: exact or delimited `test`, `fixture`, or
+`verification`, including a machine value ending in `-verification`.
+Eligible positive dispositions are human `kept`, every `added_back`,
+`cited`, and `mid_thread_added`, plus passive `kept` and `auto_entered`;
+eligible negatives are every `removed:not_relevant`, `removed:never`, and
+`mid_thread_removed`. Explicit disposition/feedback outcomes have weight
+1 even when they replace a row originally created with actor_class
+`passive`; only passive `kept` and `auto_entered` positives receive the
+configurable discount, default 0.25. Null, `removed:wrong`, `auto_exited`,
+and every other outcome are ungraded.
+
+Sort eligible gates by `(max(ts), injection_id)`. The newest configurable
+fraction, default 0.20 rounded up to whole gates, is holdout; every older
+gate is training. At least one gate and one eligible disposition must
+remain on each side. Before the first challenger, require configurable
+minimum eligible dispositions, default 25. Training creates every
+positive-negative pair within each training gate and performs one
+deterministic whole-log convex re-fit using squared hinge loss,
+configurable pair margin default 0.05, non-negative global weights
+constrained to sum exactly 1, and L2-shrunk per-memory bias offsets with
+configurable coefficient default 1.0. A pair containing a passive example
+receives the smaller actor weight. The online head bias remains the
+immediate never-kill safety term; a version's learned offset is added to
+it, not substituted for it.
+
+Replay grades each eligible holdout disposition as one binary decision.
+A pin predicts injected. A regular row predicts injected exactly when its
+recomputed score meets the incumbent version's manual tau; budget and k
+remain manual and are not learner variables. This per-disposition replay
+is the v1 meaning of ADR-005's storage-complete claim: it uses the recorded
+feature tuple and frozen body, never fabricates candidates outside the
+logged gate. Each mismatch adds its actor weight; cheaper-at-tie sums
+`cl100k_base` body tokens for predicted injected dispositions. A challenger
+wins when its weighted mismatches improve on the incumbent's recorded
+decisions by the configurable absolute margin, default 1.0, or when
+weighted mismatches tie exactly and it injects fewer tokens.
+
+POST `/retrain` has no request body and returns
+`{status, incumbent_version, proposal_version, eligible_dispositions,
+training_dispositions, holdout_dispositions, training_pairs, incumbent,
+challenger, reason}`. Status is `insufficient_data`, `not_better`, or
+`proposed`; proposal_version and both score objects are nullable where no
+comparison exists. A score object is
+`{disagreements, weighted_disagreements, injected_tokens}` with the
+weighted value serialized as an exact decimal string. The trigger never
+activates a version.
+
+A winner inserts one inactive `scorer_config`. Its deterministic version
+derives from a canonical digest of the incumbent, ordered training and
+holdout examples, and learner settings. It copies every manual scorer
+parameter unchanged and stores under params `_learner`: status
+`proposed`, algorithm id, source digest and boundary, settings, fit
+diagnostics, replay scores, and the learned memory-id-to-bias-offset map.
+Repeating an identical fit returns the same proposal idempotently. Active
+scorer loading applies that map when such a version is later activated;
+old rows have an empty map. Optional positive
+`SPINE_LEARNER_SCHEDULE_HOURS` runs the same operation periodically;
+unset means manual-only. Concurrent triggers serialize on one database
+advisory transaction lock.
 
 **Location relevance (ACCEPTED 2026-07-19; D.2 030):** every memory carries
 `origin_path` — the workspace-relative directory context where it was
@@ -1109,6 +1223,107 @@ away from a weak stratagem, one graft producing a leaf that outscores
 both parents, pruned-branch lessons appearing as Palace units, and
 exactly one card at convergence.
 
+**Reconciliation (editor pass IV, 2026-08-18).** Appended so this ADR reads
+true beside the law it grew into; no clause above is deleted. The governing
+law is D.2 102 (the three-judge minimum + the recipe card), D.2 103 (the
+location fence + recipe-card practice), D.2 114b (THE SYMPHONY ENACTMENT:
+planning rulings R1-R23, acceptance bar S1-S4, the primitive alignment
+charter, the four-wave plan in notes/symphony-plan.md, and the G-rulings), and
+AMENDMENTS A-059 (the SYM6 memory-bridge contract). Rulings cited by number
+are in notes/m3-planning-agenda.md; the surfaces are named in GLOSSARY.md (the
+judge panel, the recipe card, ratatouille criteria, the Athanor). Clause by
+clause:
+
+1. "A NODE is (conversation, workspace checkpoint, spec)" — SUPPLEMENTED, not
+   replaced. A node is now also a BEAD in a typed dependency DAG with cycle
+   rejection, a ready frontier, atomic claim, and gates-as-nodes (the beads
+   register, R23; D.2 114b), held behind the garden adapter (Wave S1, SYM1). A
+   `symphony`-marked step becomes a parent node and the conductor spawns N
+   diverse child attempts (S2). Worktree isolation and the ADR-016 shadow
+   ledger stand (SYM5 reuses the M3E worktree locations).
+
+2. "Four operators … STRATAGEMS enumerated at spec alignment" — SUPERSEDED in
+   mechanism, kept in vocabulary. Spec alignment is now DELIBERATION (SYM10):
+   judge charters and performance metrics are fixed in conversation before any
+   builder runs (D.2 102), and charters are immutable per deliberation —
+   changing one FORKS the symphony (G19, D.2 114b). Child attempts are
+   authored by the conductor as WORKER BRIEFS (G5) under
+   subdivide-never-add-scope (G4), with admission handles and the distillate
+   contract (R23). EXPAND and FORK become the packet explosion of S2; GRAFT
+   survives as graft lineage edges in rounds (SYM9, delta frontier: passed
+   work stands); PRUNE survives with the loser-tombstone rule of clause 6
+   below.
+
+3. "The VALUE FUNCTION is the judge: a BENCHMARK when MEASURED, a judge MODEL
+   when JUDGED" — SUPERSEDED by the THREE-JUDGE MINIMUM (D.2 102): every
+   symphony emits at least a MOTIVATION judge (holds the whole why), an
+   IMPLEMENTATION judge (sensibleness of the how), and a PERFORMANCE judge
+   that judges against PRECALCULATED METRICS agreed at plan time and persisted
+   in a cross-symphony ledger so the bar rises — the MEASURED case now lives
+   inside that seat. Users may add judges; none may be removed. Judges sit
+   fresh (B.6 separation), evaluate at the recipe card's merge points, and
+   UNANIMITY terminates; a FAIL persists its feedback as new packets minted
+   through the adapter (SYM8, the enacted feedback law). STAGED JUDGING — a
+   cheap smoke gate before expensive completion — is the SYM7 design.
+
+4. "The BUDGET is a portfolio … beam width = max_parallel_project_agents …
+   evaluation competes with expansion" — BOUNDED by R22 (D.2 114b): per search
+   node, attempts 3, spend wall $10, max rounds 3, depth cap 2, children per
+   attempt 4, duration ceiling 30 min, overridable per charge AUTHORITY. Spend
+   walls remain ADR-024 boundary crossings; the dual brakes (spend wall,
+   same-failure-twice) stand from D.2 102. Portfolio reallocation inside those
+   caps (beam narrowing, SYM7) stands as design intent; where the portfolio
+   language and the R22 caps disagree, the caps govern.
+
+5. "CONVERGENCE: target metric hit, budget exhausted, or judge COMPLETE →
+   exactly one premiere card" — RESTATED: convergence is judge-panel UNANIMITY
+   or a brake (D.2 102; R22 ceilings). The premiere card stands and is the
+   SYMPHONY CARD on the Deck (SYM11); BLOCKED surfaces with its lineage (T4).
+   The owner steers the conductor only, and owner interventions classify per
+   G19 (D.2 114b): (a) clarification / logged follow-up, (b) attempt
+   cancellation within T2, (c) charter or scope change — class (c) forks the
+   symphony and the old run's lineage stands append-only.
+
+6. "THE REMEMBERING ORCHESTRA … every branch — especially pruned ones — files
+   atomic lessons to the Palace" — SUPERSEDED as written by the SWARM MEMORY
+   LAW (R12, S3, G11; D.2 114b; ADR-021 R1-R5; A-059): workers read the shared
+   palace; an attempt's own writes are STAGED and visible only to itself
+   during the run; at resolution the WINNER's batch routes to the PALACE QUEUE
+   with its judged context attached (consent surface intact, no fast lane),
+   and the LOSERS' memories TOMBSTONE as attempt lineage — never injectable,
+   never discarded. Pruned branches therefore do not file lessons directly; a
+   negative-result lesson reaches the Palace only through the judge's verdict
+   duties (ADR-021 R3) and the ordinary queue. Kernel compaction is never
+   palace memory (S3). The moat survives in its intended form: the next search
+   on similar ground opens with the admitted lessons injected.
+
+7. The Motivation paragraph — EXTENDED by the PRIMITIVE REGISTERS (R23), which
+   bound what may enter: from Prime/RLM — context-as-variable, child-as-call
+   with handles, the distillate contract, distill-and-die, supervisor/worker
+   separation, parent-attributed cost, bounded-autonomy caps; from beads —
+   typed DAG with cycle rejection, ready frontier, atomic claim, lease
+   machinery (post-release), gates-as-nodes, append-only history, versioned
+   truth with generated views; ours, binding — motivation/template, judge
+   unanimity, consent surfaces, fence/locations, palace policies, brakes.
+   NOTHING outside the registers is taken. The adapter refuses to mint a bead
+   without a validated MOTIVATION (S4). There is no mode switch: symphony is a
+   property of the work (mode-scale law; SYM10). The plan artifact is the
+   RECIPE CARD (D.2 102: rows, per-row prep, merge cells as join barriers,
+   ratatouille criteria — D.2 103), rendered live by the recipe module (SYM12
+   = M3J); the live search is watched through the ATHANOR (GLOSSARY,
+   owner-coined 2026-08-16). The iterative build test is Symphony's first real
+   customer (symphony-plan cross-wave law). The manual relay remains the
+   standing fallback until parity earns trust.
+
+8. The Rejected list — UNCHANGED. "Deleting pruned branches" stays rejected: a
+   tombstone is lineage, not deletion.
+
+9. The Verification clause — "pruned-branch lessons appearing as Palace units"
+   is SUPERSEDED: verify instead that loser rows tombstone with reason
+   `symphony/loser-tombstone` and the winner's rows arrive as one Palace-queue
+   batch carrying judged context (A-059); budget reallocation is verified
+   against the R22 caps; "exactly one card at convergence" stands.
+
 ### ADR-018 — The Cube and the plugin rack
 
 **Status: ACCEPTED (2026-07-20; D.2 041).** CONTRACT for the M2/M3 viz
@@ -1206,6 +1421,85 @@ and procedural determinism is judged directly — render the same `as_of`
 twice and diff the geometry (must be identical), change one metadata
 input and verify exactly the corresponding visual property moves.
 
+**Reconciliation (editor pass IV, 2026-08-18).** Appended so this ADR reads
+true beside the later law; no clause above is deleted. The governing law is
+R10 and R21 (planning rulings, notes/m3-planning-agenda.md; enacted and
+blessed in D.2 114b), D.2 083 (the module scope law, superseded in part), D.2
+107-119 (the theme lineage), GLOSSARY.md (the Athanor, the Cauldron),
+notes/component-registry.md (the module family) and the Wave 2 backlog (agenda
+item 10: the 3D stage). Clause by clause:
+
+1. Clause 1 — FACES, ORBIT, faces render FLAT when focused — SUPERSEDED by R10
+   (D.2 114b): THE CUBE DISSOLVES INTO MODULES. Each of the six faces — FARM,
+   ROOTS, TIPS, LEDGER, PALACE, SCORE — becomes ITS OWN MODULE: an
+   independent, literally-3D asset on the stage ("super liquid and smooth
+   looking"). The single rotating container is out, ORBIT is mooted, and no
+   face renders flat on focus because there is no cube to rotate. The DECK
+   remains the left rail and the only surface that may demand (unchanged).
+   Every per-face encoding above — colony burrows, roots as spend / meander /
+   depth / junctions / desiccation, selection-focus opacity (OQ-17), TIPS as
+   the frontier grid — is unchanged and travels with its module. HARDWARE
+   TIERS are required (R10): graceful quality degradation (LOD and the gaming
+   ecosystem's standard solutions) on ordinary hardware; the upper end must
+   look amazing. The module family also takes in the LANDSCAPE (ADR-009 item
+   4, v2.43; colocated with the curators), the ATHANOR (the live symphony
+   view; GLOSSARY, owner-coined 2026-08-16), the CAULDRON (the pixel-art
+   Chrysopoeia module — hardware-free, the family's contrast member; working
+   name pending the owner's word; GLOSSARY, D.2 115,
+   notes/m3-planning-seeds.md), the recipe module (SYM12) and the device chain
+   (D.2 114b(3)). Wave 2 item 10 builds FARM (the Ant Farm), ROOTS and TIPS
+   first.
+
+2. Clause 2 — ONE SELECTION shared by every face — SURVIVES in substance (R10:
+   the one-object / one-selection law holds across the six modules), but its
+   LINKING mechanism is SUPERSEDED by R21 SPATIAL LINKING (blessed D.2 114b):
+   POSITION is the primitive (layer + place — the true-primitives doctrine,
+   R19). WITHIN A LAYER, modules snapped together form a FRAME and share one
+   selection — proximity links. GLOBAL is the one deliberate escape from
+   position: a setting, and a GLOBAL module watches everything from any layer.
+   ACROSS LAYERS, deliberately nothing: layers are rooms, and watchers live
+   beside what they watch — cross-layer invisible wiring is the inelegance
+   being escaped. PORTALS (a spatial mirror of a frame on another layer) are a
+   future exception on the YAGNI clock, only if mission-control needs arrive
+   twice. R21 replaces the GLOBAL|CURRENT toggle of ADR-023 clause 5 (D.2 083)
+   at the module family's build and replaces the link-channels candidate
+   (agenda item 5; R8). "Selection is also navigation" stands. The ROLLBACK
+   BAR stands and is sharpened into a REQUIREMENT ON the 3D module wave:
+   generators take `as_of` from day one; the scrubber UI may phase (D.2
+   114b(3)).
+
+3. Clause 3 — MEMORY-TRACE SANCTITY — UNCHANGED.
+
+4. Clause 5 — STACK — STANDS, with R10's consequence: the stage is still one
+   renderer (React DOM for rails and all text; one WebGL/WebGPU scene; TSL
+   shaders; instancing and compute; text never in the canvas; Chromium-class
+   only through M4), but the six modules are placed on it as independent 3D
+   assets rather than as faces of one container, and hardware tiers / LOD join
+   the stack's requirements. The parallel DOM/table rendering for
+   accessibility is unchanged.
+
+5. Clause 6 — PROCEDURAL LAW — UNCHANGED and extended: to aesthetics (D.2 107
+   the reference plate; D.2 114 the plate press), to script (D.2 118-119 the
+   sigil forge, grammar not glyphs), and by the `as_of` requirement of item 2.
+
+6. Clause 7 — THEMES — UNCHANGED and extended by D.2 112-114 (first-written
+   set: the audition loop and the two faces, the three-theme ruling, the plate
+   press), D.2 115 (the grimoire themes + the conjuration law) and D.2 116-119
+   (the rune crank, the elder scripts, the sigil forge, grammar not glyphs).
+
+7. Rejected — "literal always-3D rendering (readability loses to spectacle)" —
+   IN TENSION with R10's "independent, literally-3D asset". R10 governs as the
+   later owner ruling (D.2 114b); the readability motive survives through
+   Invariant 10, the hardware tiers, and clause 5's parallel DOM/table
+   rendering. Recorded here for the owner's confirmation rather than resolved
+   by the editor.
+
+8. Verification — "selection made on any face must appear on all faces and the
+   trace drawer within one event cycle" now reads: a selection made in any
+   module of a FRAME appears in every module of that frame and in every GLOBAL
+   watcher within one event cycle, and in no module of another layer. The
+   double-render determinism diff and the palette validation stand.
+
 ### ADR-019 — Onboarding: the two-secrets rule and packaging
 
 **Status: ACCEPTED (2026-07-20; D.2 046).** CONTRACT for the packaging
@@ -1294,6 +1588,198 @@ setup attention is still attention.
    the Palace. Rides M2's extraction + approval-queue machinery; no new
    persistence. A palace should never start empty unless its owner wants
    it to.
+
+**Folded amendment (A-033, v2.82)** — enacted by M2I against [ADR-019 clause
+4; ADR-021 unified queue; ADR-022 splitting], node(s) P1.4, P1.5; law text
+verbatim from AMENDMENTS.md:
+Harness exposes JSON POST `/v1/seeds` to its own rack surface with
+`{batch_uid,source_name,markdown}`. `batch_uid` is a client-minted UUID;
+`source_name` is the basename of a `.md` or `.markdown` file; markdown is
+nonblank valid UTF-8 and at most 24 KiB. The browser may submit several
+selected files, but each file is one independent request and one batch.
+Markdown is the only M2I format. The tools-free splitter receives the
+complete document and emits one or more independently comprehensible
+candidates, each with one claim, its own label, kind, and 2-5 keywords.
+It may emit at most 64 children, and every child must satisfy the standing
+128-token memory limit. If those bounds cannot preserve the source, the
+request fails visibly; it never truncates, mechanically chops, summarizes,
+or partially substitutes the document.
+
+Harness fetches the active neighborhood and proposes the standing
+new/merge/supersede/contradict verdict for every split child, then submits
+the whole result to bearer-protected Spine POST `/v1/seeds`. Spine verifies
+the SHA-256 digest of the supplied markdown, creates one queue-invisible
+tombstoned-as-split source head whose first revision retains the exact
+markdown, and runs every child through M2H's same candidate create/dedup
+path. Each admitted child's first revision has `parent_uid` equal to that
+source revision; every admitted sibling pair receives symmetric
+`relates_to` edges. Hard duplicates produce no child card and increment
+the batch duplicate count. Candidate children remain invisible to list,
+search, and injection.
+
+Extend each approval queue row/card with birthplace exactly `thread` or
+`seed`, nullable thread UUID, and for seed rows non-null `batch_uid`,
+`source_name`, and lowercase SHA-256 digest. Existing rows migrate as
+thread-born. Queue reads can filter birthplace; thread-end surfaces always
+request thread-born rows, and seed rows render only in the law-bound Palace
+queue module. Reusing a batch UID with the same principal, source name, and
+digest returns its existing batch without re-splitting; any mismatch is
+409. There is no stored upload blob beyond the tombstoned source revision
+and no filesystem copy.
+
+POST `/v1/approval-queue/batches/{batch_uid}/decisions` accepts only
+`{decision:approve|deny,approval_mode:explicit,actor_class:human,machine_id}`
+and decides every pending card in that seed batch in one transaction.
+Approval enacts each card's standing verdict; denial tombstones every
+candidate. An identical replay returns the existing decisions; a mixed or
+conflicting replay is 409 and changes nothing. Any stale implicated target
+makes the whole approval 409 and leaves the batch pending. Seed batches
+never passive-approve, expire, notify, or appear in a thread-end card.
+
+**Owner lifecycle contracts (folded v2.82 — editor pass IV).** The M2N
+lifecycle-hardening amendments A-041 through A-046 (config versions, local
+backup generations, doctor, resources gauge, informed restore, owner-cloud
+backup receipts) are folded here in enactment order; A-044 is folded once, at
+ADR-009 item 5 (Palace Vitals), and pointed to from its place below.
+
+**Folded amendment (A-041, v2.82)** — enacted by M2N against [ADR-019 v0.1
+positioning; C.2 migration discipline], node(s) P1.3, P4; law text verbatim
+from AMENDMENTS.md:
+Local config version 2 adds `NOCTURNE_BACKUP_GENERATIONS`, an integer in
+the inclusive range 1..50 with default 5. Loading a private version-1
+config upgrades it atomically in place before returning: preserve every
+existing value byte-for-byte, add the default retention value, set the
+version to 2, fsync and replace under mode 0600. An unknown or future
+version is refused without mutation. New initialization writes version 2.
+
+Every online Alembic run acquires the PostgreSQL session advisory lock
+keyed by signed bigint `5642809481902573646` on the same connection before
+configuring or beginning migration work, holds it through the complete
+upgrade/downgrade transaction sequence, and releases it in `finally`.
+Local and owner-cloud paths both use the packaged migration entrypoint and
+therefore the same lock. Offline SQL generation takes no database lock.
+
+The local Compose database image is the multi-platform OCI index
+`pgvector/pgvector:pg16@sha256:a36250871de0833b8757561c72f2477ef1ddd1101afa4e617fb552e0de514c6b`.
+Historical support currently means every packaged revision from 0001
+through head; the upgrade matrix must execute each of those revisions to
+the single current head against real Postgres.
+
+**Folded amendment (A-042, v2.82)** — enacted by M2N against [ADR-019 owner
+lifecycle; C.2 migration discipline], node(s) P1.3, P4; law text verbatim from
+AMENDMENTS.md:
+A local backup is one mode-0700 generation directory under
+`NOCTURNE_HOME/backups`, named by a client-minted ULID. It contains exactly
+`palace.pgdump`, a mode-0600 PostgreSQL custom-format dump made with
+`--no-owner --no-privileges`, and mode-0600 `receipt.json`. The receipt is
+UTF-8 JSON with schema version 1 and these fields: `backup_id`, aware UTC
+`created_at`, `reason` (`manual` or `pre_migration`), `database`, nullable
+`alembic_revision`, `postgres_image`, `archive`, `archive_bytes`, and
+lowercase `archive_sha256`. Before publication, `pg_restore --list` must
+accept the completed archive and the recorded digest and byte count must
+match it. Failure publishes no generation. A successful manual backup and
+every local packaged migration attempt use this same writer. After a new
+generation is durably published, prune oldest valid generation directories
+by ULID order until the configured A-041 retention count remains; ignore
+every unrecognized file or directory rather than deleting it. Backup and
+receipt command failures expose safe owner-language errors and never print
+config values, database credentials, or raw subprocess output.
+
+**Folded amendment (A-043, v2.82)** — enacted by M2N against [ADR-019 owner
+lifecycle; ADR-016 journal law], node(s) P1.3, P4; law text verbatim from
+AMENDMENTS.md:
+`nocturne doctor` is a read-only local inspection. It reports the logical
+database size, conversation-journal size, retained-backup size, and free
+space on the filesystem containing `NOCTURNE_HOME`. It warns early when
+free space is at or below the greater of 5 GiB or 10 percent of that
+filesystem's capacity. This is a conservative diagnostic boundary, not
+the later configured Deck threshold and never a deletion or hard stop.
+
+Doctor verifies the private home/config modes, local PostgreSQL
+reachability, and every recognized A-042 generation. Generation
+verification requires the exact receipt schema and values, an aware UTC
+timestamp, private modes, no extra generation entries, matching archive
+byte count and SHA-256, and acceptance by the pinned image's
+`pg_restore --list`. Unknown backup entries remain ignored and untouched,
+as in retention. The command prints no secret or raw subprocess output.
+
+The result is `healthy`, `warning`, or `failed`: healthy exits 0; an early
+disk warning exits 1 so scripts can observe it; a failed privacy,
+reachability, or backup-integrity check exits 2. Every result still prints
+the measurements it could safely obtain and one short owner-language line
+per warning or failure.
+
+**A-044 (v2.82)** — the RESOURCES gauge, startup disk warning and the daemon
+soak bound: law text folded once, at ADR-009 item 5 (Palace Vitals); it amends
+ADR-016's journal law and this ADR's owner lifecycle equally.
+
+**Folded amendment (A-045, v2.82)** — enacted by M2N against [ADR-019 owner
+lifecycle; D.2 092 informed restore], node(s) P1.3, P4; law text verbatim from
+AMENDMENTS.md:
+Local config version 3 adds `NOCTURNE_POSTGRES_VOLUME`. Version 2 upgrades
+atomically by setting it to Compose's existing
+`<compose-project>_nocturne_postgres` volume; new initialization writes
+that same default. Compose mounts exactly the configured named volume.
+Restore-created names are `<compose-project>_restore_<backup-id-lower>`.
+Config accepts only that project's default or restore-name grammar, so a
+config value cannot redirect lifecycle commands to an unrelated volume.
+
+`nocturne restore BACKUP_ID` is local-only and refuses while the Harness
+or Spine service is reachable. It accepts only one recognized A-042
+generation whose receipt, digest, modes, contents, and pg_restore listing
+reverify. It creates a fresh managed volume and isolated pinned-image
+PostgreSQL container, restores the archive there, upgrades that candidate
+through the packaged locked migration path, and queries both live
+databases before asking anything. Any failure removes only the candidate
+container and candidate volume; the live container, config, and volume
+remain unchanged.
+
+The ROLLBACK MANIFEST names, by label and UUID: current memory heads absent
+from the candidate as `memories lost`; shared heads whose revision or
+stored unit values differ as `edits reverted`; and current pins absent or
+unpinned in the candidate as `pins undone`. It also prints current,
+candidate, and signed delta counts for `memory_revision`,
+`injection_event`, `spend_event`, `approval_decision`,
+`scorer_activation`, and `spend_reconciliation`. The owner confirms by
+typing the exact `RESTORE BACKUP_ID`; every other response cancels and
+removes the candidate without touching live state.
+
+After confirmation, restore stops the live PostgreSQL container, atomically
+changes only the active-volume config value, starts the candidate through
+normal Compose, and verifies reachability. If start or verification fails,
+it atomically restores the former pointer and restarts the former volume.
+Success retains the former volume and writes a private mode-0600 rollback
+receipt under a mode-0700 `NOCTURNE_HOME/rollback-volumes` directory,
+recording the restore id, backup id, switch time, former and active volume
+names, and manifest counts. Restore never prunes volumes; the receipt makes
+the former live volume discoverable for explicit future recovery.
+
+**Folded amendment (A-046, v2.82)** — enacted by M2N against [ADR-019 owner
+lifecycle; C.2 migration discipline], node(s) P1.3, P4; law text verbatim from
+AMENDMENTS.md:
+Before an owner-cloud packaged migration, Harness mints a ULID receipt ID
+and creates one Cloud SQL ON_DEMAND backup of the fixed D1 instance with
+description `nocturne-pre-migration-<lowercase-receipt-id>`, explicit
+project, instance, and `us-central1` location. It may request the backup
+asynchronously only to capture its operation and backup IDs; it waits at
+most 30 minutes for that exact operation, then independently describes the
+exact backup. Migration may begin only when the operation is DONE with
+type BACKUP_VOLUME for the fixed project and instance and the described
+backup is SUCCESSFUL, ON_DEMAND, in the fixed location, with the exact
+instance, ID, and description.
+
+Before migration begins, Harness atomically persists mode-0600 UTF-8 JSON
+at `NOCTURNE_HOME/cloud-backups/<receipt-id>.json` beneath a mode-0700
+directory and fsyncs both file and directory. Schema version 1 contains
+exactly: `schema_version`, `receipt_id`, aware UTC `created_at`,
+`reason=pre_migration`, `provider=gcp_cloud_sql`, `project`, `region`,
+`instance`, `database`, `operation_id`, `backup_id`, `description`,
+`status`, `type`, `location`, `enqueued_time`, `start_time`, and
+`end_time`. Cloud or receipt failure stops before Alembic and exposes only
+a safe owner-language error, never credentials or raw command output.
+These receipts are evidence and locators, not backup archives. M2N neither
+restores nor deletes a Cloud SQL backup and never claims automated cloud
+recovery; cloud restore remains an explicit human operation.
 
 MULTIMODALITY (named future surface, v2.37 — so it is never accidental
 scope): today NOCTURNE is text end-to-end — envelope payloads, chat UI,
@@ -1467,6 +1953,57 @@ EXPIRY TIMERS: deck-ridden items resolve with their card; module items
 persist and shrink structurally via earned autonomy. Nothing pending is
 ever visible to injection or search (standing law), and the queue never
 notifies — a Vitals depth count and the module are its whole presence.
+
+**Folded amendment (A-032, v2.82)** — enacted by M2H against [ADR-021 clause 4
+and unified queue; ADR-022 kinships], node(s) P1.4, P1.5; law text verbatim
+from AMENDMENTS.md:
+Add `candidate` to memory-unit status and add append-only
+`memory_edge` plus `approval_queue_item` and `approval_decision` rows.
+A queue item owns one candidate unit, one birthplace thread, ordered
+machine-fetched neighbor IDs, zero or more implicated target IDs, and one
+proposed verdict: `new`, `merge`, `supersede`, or `contradict`. Its state
+is `pending`, `approved`, or `rejected`. Candidate creation runs under the
+same principal advisory lock, embedding provider, body/label limits, and
+cosine thresholds as ordinary creation, but deduplicates against both
+ACTIVE and CANDIDATE heads. A hard duplicate creates no candidate or queue
+row; a similar match is admitted and appears in ordered neighbors.
+
+POST `/v1/extractions` accepts one thread-born batch of at most five
+atomic, nonblank, keyworded candidates and returns the admitted queue
+cards. Each candidate supplies its proposed verdict and implicated target
+IDs; targets must be same-principal ACTIVE units and must be present in
+the machine-fetched neighbor set. GET `/v1/approval-queue` reads pending
+cards, optionally narrowed to birthplace thread. POST
+`/v1/approval-queue/{item_uid}/decisions` accepts `approve` or `deny`,
+`approval_mode` explicit or passive, and actor class human or passive.
+Deny is always explicit/human, tombstones the candidate with revision
+reason `rejected`, and appends the decision. Approve activates the
+candidate and appends the decision. `new` changes nothing else; `merge`
+and `supersede` revision-tombstone their implicated targets and append
+respectively `merged_from` or `supersedes` edges from the new unit;
+`contradict` leaves targets active and appends `contradicts` edges.
+Contradiction rejects passive mode mechanically. A repeated identical
+decision is idempotent; a conflicting second decision is 409. These are
+the minimal deterministic verdict mechanics M2H needs, not the M3 curator
+agent, report, autonomy, generic tool SDK, or graph retrieval.
+
+Harness extraction reads the durable M2D transcript on explicit
+`POST /v1/threads/{thread_id}/archive`; a daemon idle sweep uses the same
+path after configurable positive `EXTRACTION_IDLE_HOURS`. The model emits
+working summary, open loops, and at most five candidate drafts. Archive is
+idempotent per transcript tail. Failed extraction leaves the thread
+unarchived and returns a visible service error; an idle failure is logged
+and retried without blocking chat. The thread-end rack card shows the
+final assistant post above its candidate list. An IntersectionObserver
+marks an individual uncollapsed, non-contradiction row seen only when its
+whole row intersects the literal viewport. Resolving the card explicitly
+denies selected rows and passively approves only those marked seen;
+unseen, collapsed, and contradiction rows remain pending for the Palace
+queue module. Passive sends actor class passive and approval_mode passive;
+taps send human/explicit. No timer resolves queue items and no queue event
+notifies the owner. The law-bound module declares CURRENT by default,
+follows the shared thread selection, and persists GLOBAL|CURRENT only as
+rack layout presentation state.
 
 **Multi-agent write rules (Symphony / sub-agents; owner's simple rules):**
 - R1. ALL agents may save memories, always fire-and-forget.
@@ -1809,6 +2346,58 @@ DOCUMENT THE EDGES, DON'T POLICE THE INTERIOR.
    through the parameter registry; each manifest declares its default
    scope. Existing modules (the spend strip) adopt the toggle at their
    next touch.
+   R21 SPATIAL LINKING (blessed D.2 114b) supersedes this toggle at the
+   module family's build — proximity frames within a layer share one
+   selection, GLOBAL stays as the one deliberate escape, layers are rooms;
+   see ADR-018's Reconciliation. The toggle remains law until that build.
+
+**Folded amendment (A-034, v2.82)** — enacted by M2J against [ADR-023 clauses
+3 and 5; C.5; v2.26 resolution points], node(s) P2.5, P3, P4; law text
+verbatim from AMENDMENTS.md:
+The M2J Harness registry declares exactly these free-journaled thread
+descriptors: `model.slug` (nonblank OpenRouter model string),
+`model.temperature` (nullable number, 0..2), `model.top_p` (nullable
+number, 0..1), `model.top_k` (nullable integer, 0..500),
+`model.max_tokens` (nullable integer, 1..131072), and `model.effort`
+(nullable option: none|minimal|low|medium|high|xhigh). Null means inherit
+the provider default and is every model-parameter descriptor's default.
+The selector's displayed default is the thread's resolved slug. The
+superseded A-020 environment floor is not resurrected: A-021's policy
+grammar remains configuration, and PLAN M2J's delivered controls are the
+per-thread selector and five request parameters.
+
+Extend ADR-023's public rack query surface with resource `parameters`,
+requiring a thread UUID for CURRENT. A live result is
+`{thread_id,as_of,resolved_model,descriptors,values,changes}`; descriptors
+carry the clause-3 fields, values contains the six current values, and
+changes is ordered by timestamp then event id. `as_of=now` reads current
+state; an aware ISO-8601 timestamp replays daemon-lifetime registry events
+at or before that instant. A timestamp earlier than the retained process
+history is still an honest replay from descriptor defaults and the
+thread's first resolution; M2D's capture-only journal is not served back.
+
+The public control action submits
+`{module_id,thread_id,parameter_id,value}`. The host and daemon both require
+the module manifest to bind that exact descriptor. A successful write
+validates the descriptor, atomically changes thread state, and publishes
+one C.7 `parameter.change` event with event id, actor `human`, timestamp,
+old and new values, and scope/thread identity; transcript capture makes
+the event durable. Null resets a request parameter to provider inheritance.
+`model.slug` invokes the existing `resolve_named` seam, preserves the five
+request overrides, starts a new stickiness epoch, and emits the standing
+`model_change` event as well as `parameter.change`. Writes while that
+thread has a live run are refused so a request cannot change underneath
+execution.
+
+Any unknown, unbound, law-bound, invalid, or busy write changes nothing
+and publishes one C.7 `parameter.refused` event with the attempted id,
+module id, timestamp, and stable reason; values and credentials are not
+copied into refusal events. The MODEL DEVICE manifest is a control plugin
+bound only to the six descriptors above. CURRENT follows the shared thread
+selection and may write. GLOBAL shows the same registry descriptors and
+inherited defaults without a thread target and is read-only until a real
+global descriptor ships; the GLOBAL|CURRENT toggle remains saved rack
+presentation state and never enters the registry.
 
 **Rejected:** per-visualizer data plumbing (the three surfaces are the
 whole API); plugin notify capability (would re-open the attention wall);
@@ -1830,7 +2419,7 @@ reflows without breakage at min and max.
 Build: the M2 INSTRUMENT PACKET (ledger DDL, views, Vitals, spend strip);
 spend walls ride M2/M3 config. Model-selection POLICY law lives in
 A-020/A-021 (AMENDMENTS; fold into Part C deferred to the pre-M2 editor
-pass) — policy chooses the price BEFORE spend; this ADR records the truth
+pass — done: folded into C.5 at v2.82, editor pass IV) — policy chooses the price BEFORE spend; this ADR records the truth
 AFTER; walls govern BETWEEN.
 
 **Motivation (P4).** One human funds the workforce; input-token spend on
@@ -1860,7 +2449,8 @@ dollared.
 
 **The ledger — spend_event, append-only, perpetual, RECEIPT-LINE NORMAL
 FORM (owner vocabulary):** one line per price class; an LLM request
-emits 3-4 lines sharing a `ref` (broker generation id). Columns:
+emits 3-4 lines sharing a `ref` (broker generation id) — that shorthand is
+replaced by A-027's receipt-line rule, folded below (v2.82). Columns:
 `event_uid` ULID PK (the id IS the timestamp) · `ts` · `product_type`
 (what was bought: llm.request, llm.embedding, llm.fee,
 infra.db.instance, infra.db.storage, infra.run.serve, infra.run.job,
@@ -1877,6 +2467,39 @@ curation, judge, remember, embedding, scout) · lineage (`principal_id`,
 `memory_id` nullable) · `model`/`provider`/`quantization` · `ref` ·
 `meta` jsonb. THE GLOSSARY SHIPS WITH THE DDL in receipt language; the
 intuition test is ROW-READS-AS-A-SENTENCE.
+
+**Folded amendment (A-027, v2.82)** — enacted by M2A against [ADR-024 ledger
+and broker seam], node(s) P4; law text verbatim from AMENDMENTS.md:
+Spine exposes bearer-protected POST `/v1/spend/events` with body
+`{events:[SpendEvent...]}` and response `{accepted:n}`. The nonempty batch
+contains unique client-minted ULID `event_uid` values and every ADR-024
+spend_event column. M2A accepts only `llm.request` and `llm.embedding`.
+The write is atomic and append-only. Replaying an event_uid with every
+normalized field equal is an idempotent acceptance; reusing one with any
+different field returns RFC7807 409 and inserts nothing. `accepted` is the
+number of supplied lines, including identical replays. The route uses the
+standing application bearer unchanged.
+
+Replace "an LLM request emits 3-4 lines" with: "A successful broker
+request emits one receipt line for each nonzero price class the provider
+reports, all sharing the broker response or generation id as `ref`.
+Unreported and zero-value classes emit no synthetic line. When reasoning
+tokens are reported as a distinct billed subset of output, subtract them
+from the ordinary output quantity and emit a `reasoning` line; otherwise
+they remain output and the raw provider detail stays in `meta`. Embeddings
+emit `llm.embedding` input_fresh lines. If a broker supplies only aggregate
+native USD, allocate that exact total across its lines, mark those lines
+`basis=allocated`, and record the allocation source in `meta`; a directly
+attributable broker amount is `measured`. Missing cost remains NULL and
+never changes a measured token quantity into an estimate."
+
+Harness mints chat receipt ids and submits the complete response batch
+before terminalizing the turn. Spine's production embedding adapter mints
+and appends its receipt before returning vectors to memory behavior.
+Receipt-write failure fails the enclosing operation visibly; no
+best-effort background queue is introduced. A missing broker generation id
+uses the provider request-id header, or finally the first event_uid, as
+`ref`, with that fallback named in `meta`.
 
 **Grains are GROUP BYs, never new tables:** cost of a request = ref; a
 query = prompt_id (embedding line + allocated db sliver); a thread, a
@@ -1896,6 +2519,55 @@ IS the meter); a daily reconciliation job ingests the GCP billing export
 into infra.* lines AND reconciles ledger-sum against the actual invoice —
 drift alerts. The D2 breaker stays the independent backstop, never a
 consumer of this ledger.
+
+**Folded amendment (A-037, v2.82)** — enacted by M2M against [ADR-024 sourcing
+and self-audit], node(s) P4.1; law text verbatim from AMENDMENTS.md:
+M2M uses the existing OpenRouter bearer only; it never requests a
+management key. Spine reads cumulative current-key usage from official
+`GET /api/v1/key` field `data.usage`, a finite non-negative USD number.
+Reconciliation is active only when the configured embedding base URL is
+the OpenRouter API and `SPINE_OPENAI_API_KEY` is present. Direct-provider
+overrides remain honest `not_recorded`, never queried with the wrong key.
+
+Add append-only table `spend_reconciliation` with ULID `event_uid` primary
+key, aware database timestamp `ts`, provider `openrouter`, status exactly
+`baseline|balanced|drift|unavailable`, nullable cumulative
+`broker_usage_usd` and `ledger_cost_usd`, nullable
+`broker_since_baseline_usd`, `ledger_since_baseline_usd`, and signed
+`drift_usd`, non-negative `tolerance_usd`, non-negative
+`unpriced_lines`, and nullable stable `error_code`. Successful numeric
+fields use the ledger's 12-decimal USD precision. `unavailable` has null
+USD observations except tolerance, may retain the current ledger
+unpriced-line count, and carries only
+`broker_unavailable` or `invalid_broker_response`; raw errors, response
+bodies, headers, and credentials are never persisted.
+
+One advisory-locked reconciliation reads broker usage and, in the same
+run, sums every non-null `cost_usd` on `llm.request` and `llm.embedding`
+rows and counts their null costs. The first successful observation is a
+baseline. Every later success compares cumulative growth from the oldest
+successful baseline:
+  `broker_since = broker_now - broker_baseline`
+  `ledger_since = ledger_now - ledger_baseline`
+  `drift = ledger_since - broker_since`.
+A negative cumulative growth is an invalid broker response. Status is
+`drift` exactly when `abs(drift) > tolerance`, otherwise `balanced`.
+Default `SPINE_RECONCILIATION_TOLERANCE_USD` is `0.000001`; default
+`SPINE_RECONCILIATION_HOURS` is 24, both positive. The owned Spine
+process runs once at startup and then at that cadence. Failures append an
+unavailable observation and are logged; they never block receipts, chat,
+embeddings, Vitals, or the next scheduled run. No GCP resource or billing
+export is read or created.
+
+Both Vitals scopes add Palace-wide `reconciliation` with status exactly
+`not_recorded|baseline|balanced|drift|unavailable`, nullable `checked_at`,
+the latest row's exact decimal-string observations, tolerance,
+`unpriced_lines`, source `openrouter:/api/v1/key` when configured, and a
+safe nullable error code. With no configured reconciler or no row, status
+is `not_recorded` and observations are null. The rack renders this as a
+compact watchable line: baseline, aligned, signed drift, temporarily
+unavailable, or not yet recorded. Drift uses the theme's sole danger
+color but creates no popup, notification, card, or new attention channel.
 
 **Storage:** the palace's own Cloud SQL Postgres, segregated module (the
 presence precedent: one spine, two schemas; extraction is a deploy
@@ -1947,6 +2619,46 @@ Three named visualizations, all fed by data the spine already logs
    context visualizer: category breakdown, compaction threshold line,
    compaction table; extended with a "memory" category for the injected
    block's share.
+
+   **Folded amendment (A-039, v2.82)** — enacted by M2R against [ADR-009 item
+   1, ADR-023 clauses 1 and 5], node(s) P2.2, P2.5; law text verbatim from
+   AMENDMENTS.md:
+   Harness owns one daemon-lifetime context observation per thread, replaced
+   only after a model request returns. The observation's `used_tokens` is the
+   terminal broker response's per-request input-token count, never the run's
+   cumulative usage. Its `context_tokens` is the exact context length on that
+   request's immutable `ThreadModelResolution`. Before a completed request,
+   no observation exists and the instrument says that it is waiting for the
+   first model response.
+
+   The four displayed categories are `system`, `history`, `memory`, and
+   `tools`. Because the broker does not report this split, Harness labels it
+   `estimated breakdown`: memory is the cl100k count of the exact injected
+   MEMORY BLOCK; system and tools are cl100k counts of the owned capability
+   instruction text and stable public tool definitions; history is the
+   non-negative remainder of broker-reported input after those three values.
+   If the three estimates exceed broker input, they are reduced in
+   tools-then-system-then-memory order until the category sum equals the
+   broker total. The aggregate used count and context limit remain measured
+   facts even when category estimates are imperfect.
+
+   The instrument draws a presentation-only threshold at 80% of the resolved
+   context length, says `Compaction is not active`, and shows a compact table
+   of category token counts. It never compacts, warns, blocks, predicts, or
+   changes a run. CURRENT returns the selected thread's observation. GLOBAL
+   returns every observed thread plus aggregate used and capacity totals; its
+   bars and table show those category sums. Missing CURRENT selection or an
+   unobserved thread is a truthful empty state. The first-party CONTEXT BARS
+   module is compact by default beside Palace Vitals and uses only the public
+   Rack query, selection, and scope surfaces.
+
+   Customer-facing copy across the existing owner app must not expose Garden
+   identifiers, packet names, amendment numbers, ADR references, scenario
+   lineage, or implementation vocabulary as product explanation. Internal
+   protocol values and developer-only diagnostics may remain stable; visible
+   labels and recoverable errors are rephrased in owner language without
+   changing their behavior.
+
 2. **Ant Farm** (per machine / fleet) [M3] — directory tree with agent badges
    at CWDs, heat-decay trails on touched paths; fed by ADR-006 events.
    (Spawn/exit animations excised: encoded nothing — Invariant 10.)
@@ -2023,6 +2735,163 @@ Three named visualizations, all fed by data the spine already logs
    honors clause 5; deep-simulate returns the same score replay would
    (same engine, same holdout); a forced set's journal entry carries
    its honest delta.
+
+   **Folded amendment (A-035, v2.82)** — enacted by M2K against [ADR-009 items
+   3-4; ADR-023 clauses 3 and 5; Invariant 6], node(s) P1.2.3, P2.3, P2.5; law
+   text verbatim from AMENDMENTS.md:
+   Spine exposes bearer-protected POST `/v1/memory-graph/query` with
+   `{principal_id,memory_ids}` where `memory_ids` is null for GLOBAL or a
+   unique UUID list for CURRENT. GLOBAL returns every non-candidate memory
+   head of that principal; CURRENT returns only requested same-principal
+   non-candidate heads and names any omitted IDs. The live result is
+   `{as_of,graph_edge_sim,nodes,edges,omitted_memory_ids}`. Each node carries
+   the complete current MemoryUnit, `in_current_context`, and its ordered
+   revision trail `{rev_uid,parent_uid,revision,ts,reason}`. Node size derives
+   only from `stats.injections`; color only from kind; brightness only from
+   updated_at recency; pin alone supplies a halo; quarantine is ghosted;
+   tombstone is visibly struck/faded; CURRENT membership alone supplies the
+   live-thread border pulse.
+
+   Graph edges join returned nodes only. `similarity` carries exact cosine
+   similarity and exists iff it is at least configurable
+   `SPINE_GRAPH_EDGE_SIM` (default 0.75), using the stored embedding space.
+   `lineage` carries the exact stored memory_edge type. A head with more than
+   one revision also receives one self-edge `edit_trail` carrying its
+   revision count; the inspector renders the ordered revision trail. Node
+   click publishes a memory selection only: the existing Memory Panel owns
+   the C.4 CAS edit. The Memory Graph remains a visualizer and never writes.
+   Historical graph reconstruction is `historical_unavailable` until head
+   status/stats/pin have replay-complete logs; current heads never masquerade
+   as past truth.
+
+   Spine exposes bearer-protected POST `/v1/scorer-console/query` with
+   `{principal_id,thread_id,as_of}`. Null thread is GLOBAL; a UUID thread is
+   CURRENT. It returns the typed law-bound descriptors, configuration and
+   activation history, active version, PROPOSED learner versions with their
+   replay manifests, accuracy points, and scored-candidate histories. GLOBAL
+   includes the principal's events; CURRENT includes that thread only.
+   Candidate points retain event_uid, time, version, score, rank, shown_as,
+   outcome, six raw features, and seven decimal-string contributions:
+   `sem|kw|time|proj|freq|hist = stored feature * that event version's
+   weight`; `bias = stored score - exact decimal sum of those six`.
+   Consequently the seven decimal contributions sum exactly to the stored
+   score. Gate and Memory Panel cards render these weighted contributions;
+   a unit with no scored event says `Not scored yet` rather than inventing
+   bars. Accuracy is
+   `100 * (holdout_dispositions - disagreements) / holdout_dispositions`
+   from the learner replay manifest, or null/`not_recorded` when that
+   denominator is absent. M2K may add the denominator to future M2F proposal
+   manifests; existing proposal content is never rewritten.
+
+   The console declares exactly these GLOBAL law-bound descriptors:
+   `scorer.tau` number 0..1; `scorer.top_k` integer 1..8;
+   `scorer.budget_tokens` integer >=1; `scorer.half_life_time_days` and
+   `scorer.half_life_hist_days` numbers >0; and six numbers 0..1 named
+   `scorer.weight.sem|kw|time|proj|freq|hist`, whose enacted vector must sum
+   to 1 within 1e-9. Step hints are .01, 1, 128, .5, and .01 respectively;
+   a step is presentation, never rounding authority. The console manifest
+   binds all eleven IDs. Its scope toggle changes the READ candidate set;
+   the descriptors remain visibly Palace-wide in both scopes and never
+   become thread parameters.
+
+   POST `/v1/scorer-configs` accepts the base version, the complete eleven-
+   value set, and daemon-owned human/machine attribution. It validates the
+   base is active, copies every non-controlled parameter unchanged, INSERTs
+   one new scorer_config version, deactivates the prior version, activates
+   the new one, and appends one scorer_activation row in one transaction.
+   POST `/v1/scorer-configs/{version}/activate` accepts only an inactive
+   learner-PROPOSED version and atomically makes it active. Every activation
+   appends `{event_uid,version,previous_version,actor_class,machine_id,
+   reason,changes,ts}`; exact old/new controlled values are journaled and a
+   matching `scorer.change` C.7 event is published. Replays of an event UID
+   are idempotent only when identical. No update mutates a configuration's
+   weights or params. WHAT-IF re-ranking and AUDITION remain entirely M2P.
+
+   For the spend strip's CURRENT scope, Spine adds bearer-protected GET
+   `/v1/vitals/threads/{thread_id}`. It returns the existing Vitals shape,
+   but spend lanes group trailing-hour authoritative spend_event rows for
+   that exact thread and label `source_view="spend_event"`; palace gauges
+   remain explicitly Palace-wide. GET `/v1/vitals` and its canonical
+   `v_spend_rate` projection are unchanged. Every graph, console, and Vitals
+   module persists its GLOBAL|CURRENT toggle only in rack layout state and
+   every CURRENT query follows the shared selected thread without a second
+   selector.
+
+   **Folded amendment (A-047, v2.82)** — enacted by M2P against [ADR-009 item
+   4; ADR-023 clauses 3 and 5], node(s) P1.2.3, P2.5; law text verbatim from
+   AMENDMENTS.md:
+   Spine exposes bearer-protected POST `/v1/scorer-simulations` with
+   `{principal_id,injection_id,base_version,values,slice_parameter_id}`.
+   `injection_id` is nullable; when present it names one same-principal
+   frozen injection. `values` is the complete existing eleven-value
+   ScorerValues contract. `slice_parameter_id` is one of those eleven
+   descriptor IDs. The response contains `{simulation_digest,base_version,
+   values,source_boundary,holdout_dispositions,accuracy_percent,
+   incumbent_accuracy_percent,delta_percent,instant,slice}`.
+
+   DEEP uses exactly M2F's hygiene, actor weighting, chronological whole-gate
+   holdout split, binary target, pin rule, and percentage denominator. It
+   scores the supplied weights and tau; top_k and budget remain manual
+   selection controls and therefore do not alter A-031's binary replay
+   referee. A changed half-life deterministically rescales each nonzero
+   stored decay feature by recovering its elapsed age from that event's
+   scorer version; zero remains zero. `source_boundary` is the greatest
+   eligible event ULID, or null when no score is available. Percentages are
+   exact decimal strings or null with zero holdout. `delta_percent` is
+   tentative minus incumbent. The digest is SHA-256 over the canonical
+   base version, exact values, source boundary, denominator, both scores,
+   and delta.
+
+   INSTANT re-scores only the named frozen injection's visible candidate
+   rows under the tentative values, preserving pins, score/UUID order,
+   top_k, and greedy token budget. Each row reports incumbent and preview
+   score/rank/selected state plus `also_shown|would_add|would_drop|still_out`.
+   Future prepare events retain the exact model-context limit in their
+   private replay metadata; a legacy batch without enough frozen inputs
+   returns `instant.status=not_replayable`, never an approximation. Instant
+   writes nothing.
+
+   `slice` is nine ordered accuracy points for the requested descriptor.
+   Bounded descriptors span their complete range; positive unbounded
+   descriptors use multipliers 0.25 through 2 around the tentative value.
+   A weight slice changes that weight and rescales the other five
+   proportionally to preserve the simplex (equal shares if their prior sum
+   is zero). Selection-only controls produce an honestly flat replay curve
+   because A-031 does not grade them. Every point uses the same held-out
+   source boundary.
+
+   POST `/v1/scorer-auditions` accepts
+   `{principal_id,injection_id,proposal_version}` and returns the same
+   instant row comparison for the active incumbent versus that inactive
+   learner-PROPOSED version. Missing, active, or non-learner versions are
+   refused. The operation is read-only; the incumbent remains the sole
+   injection authority.
+
+   Extend POST `/v1/scorer-configs` with required `simulation_digest` and
+   `force:true`. In the same advisory-locked transaction as the version
+   insert, Spine recomputes DEEP from the current evidence and exact body
+   values. A stale base, changed evidence, changed value, or mismatched
+   digest refuses the write. Success keeps the existing immutable version
+   insert and activation journal, and adds `_force` to that journal's
+   changes with the digest, source boundary, denominator, incumbent score,
+   tentative score, and signed delta. No confirmation dialog exists: the
+   displayed score is the confirmation; any knob change clears the browser's
+   receipt and disables FORCE until another DEEP simulation.
+
+   Harness exposes these operations only through the Injection Console's
+   existing public rack query/action bridge. CURRENT follows the shared
+   thread selection and may preview/audition its latest frozen injection;
+   GLOBAL keeps the Palace-wide deep score and slice but has no fabricated
+   gate. Gate and panel audition marks are presentation-only consumers of
+   the returned comparison and never enter commit, feedback, or context.
+
+   **Folded amendment (A-048, v2.82)** — enacted by M2P against [ADR-009 item
+   4; ADR-023 clause 5], node(s) P1.2.3; law text verbatim from AMENDMENTS.md:
+   In A-047, read "nine ordered accuracy points" as "up to nine distinct
+   ordered accuracy points." Bounded integer descriptors enumerate their
+   complete legal domain when it contains fewer than nine values. All other
+   A-047 slice rules remain unchanged.
+
 5. **Palace Vitals — usage gauges** [M2 basic; categories grow with their
    machinery] (owner directive, v2.11) — main-window gauges, read-only
    views over logs that already exist (injection_event, memory_revision,
@@ -2051,6 +2920,108 @@ Three named visualizations, all fed by data the spine already logs
    total; dollar-true from the broker's native per-call cost, attributed
    via the purpose-enum + origin_agent tags; lane click = selection focus;
    scrubs on the shared as_of timeline; collapsible (Invariant 14).
+
+   **Folded amendment (A-028, v2.82)** — enacted by M2C against [ADR-009 item
+   5; ADR-023 query surface; ADR-024 views], node(s) P2.4, P4.1; law text
+   verbatim from AMENDMENTS.md:
+   Spine exposes bearer-protected GET `/v1/vitals` with no query parameters.
+   It returns one live trailing-hour snapshot with this exact shape:
+     `{as_of, window_minutes:60,
+       spend:{source_view:"v_spend_rate", latest_minute,
+         lanes:[{dimension:"total"|"purpose"|"model", key, label,
+           points:[{minute, cost_usd, receipt_lines, unpriced_lines}]}]},
+       lifecycle_rates:[{metric, status, per_hour, source}],
+       palace_counts:[{metric, status, count, source}]}`.
+   `as_of`, `minute`, and nullable `latest_minute` are offset-aware timestamps.
+   A total lane has `key=null`; purpose/model keys are their exact canonical
+   values, with a null model represented by the stable key `unreported` and
+   human label "Model not reported". `cost_usd` is an exact non-negative
+   decimal string or null. Counts are non-negative integers. Lane points are
+   grouped only from rows of `v_spend_rate` whose minute is within
+   `(as_of - 60 minutes, as_of]`, ordered by minute; lanes are ordered total,
+   purpose key, then model key. Total, purpose, and model regroup the same
+   canonical rows, so priced dollars, receipt lines, and unpriced lines
+   conserve across all three dimensions. A mixed-price point carries the sum
+   of known dollars plus its positive `unpriced_lines`; an all-unpriced point
+   keeps `cost_usd=null`. Missing cost is never rendered or aggregated as
+   free. The endpoint reads the materialized view at its ordinary cadence and
+   never refreshes it on demand.
+
+   Gauge `status` is exactly `measured`, `not_recorded`, or `placeholder`.
+   A non-measured gauge has a null numeric value and null source; it is never
+   encoded as zero. M2C measures only `created` per hour from
+   `memory_unit.created_at`, plus current `active_units` and active
+   `pinned_units` counts from `memory_unit`. It returns the named lifecycle
+   metrics `reinforced`, `superseded`, `merged`, `quarantined`, `tombstoned`,
+   and `add_backs` as `not_recorded` until a canonical transition timestamp
+   exists. It returns `candidates_pending`, `edges`, and `staged_units` as
+   `not_recorded`, and `queue_depth` as the packet's explicit `placeholder`.
+   The UI says these signals are not recorded or not active yet; it does not
+   parse revision reasons, borrow prepare timestamps for later decisions, or
+   infer transitions from a head's current `updated_at`.
+
+   The compiled first-party Vitals resident obtains this response only through
+   ADR-023's public query surface with
+   `{resource:"vitals", as_of:null|"now"}`. Other `as_of` values return the
+   existing `historical_unavailable` result. Hover/touch scrub publishes the
+   minute on the shared selection surface together with the currently focused
+   spend lane; it does not claim historical Palace counters. The frame retains
+   `connect-src 'none'` and never receives Spine credentials or a private
+   transport. M2C implements PLAN's wave-one total/purpose/model lanes; no
+   plugin loader, authoring SDK, parameter registry, or lifecycle writer is
+   introduced.
+
+   **Folded amendment (A-029, v2.82)** — enacted by M2C against [A-028 model
+   lane keys; ADR-024 views], node(s) P2.4, P4.1; law text verbatim from
+   AMENDMENTS.md:
+   Reserve public model-lane key `unreported` solely for a null canonical
+   model. A non-null canonical model normally remains its exact public key.
+   If its value equals `unreported` or begins with `~`, prefix one `~` to form
+   the public key; its human label remains the exact canonical value. Thus a
+   real `unreported` model has key `~unreported`, a real `~unreported` model
+   has key `~~unreported`, and neither collides with the null-model lane.
+   Deterministic model-lane ordering uses these resulting public keys. This
+   key escape affects only the Vitals read projection and selection identity;
+   it never rewrites a canonical ledger row.
+
+   **Folded amendment (A-044, v2.82)** — enacted by M2N against [ADR-009
+   Palace Vitals; ADR-016 journal law], node(s) P1.3, P2.4, P4; law text
+   verbatim from AMENDMENTS.md:
+   Both Spine Vitals scopes add `resources` with exact shape
+   `{status,daemon_rss_bytes,daemon_uptime_seconds,disk_free_bytes,
+   disk_total_bytes,database_bytes,journal_bytes,backup_bytes,warning}`.
+   Every byte/count value is a non-negative integer or null. `status` is
+   `partial` or `measured`; `warning` is null or `low_disk`. Spine measures
+   `database_bytes` with `pg_database_size(current_database())` in the same
+   read transaction as the Vitals snapshot, leaves every Harness-local value
+   null, sets status partial, and never guesses them.
+
+   Harness enriches that same object only at its public Rack boundary. It
+   measures current daemon RSS, integer monotonic uptime seconds, the free and
+   total capacity of the filesystem containing `NOCTURNE_HOME`, and the
+   symlink-ignoring journal and backup byte counts shared with doctor.
+   `measured` means every field is present; if current RSS cannot be read,
+   status remains partial and only RSS is null. Harness sets `low_disk`
+   exactly at A-043's greater-of-5-GiB-or-10-percent boundary. Both GLOBAL
+   and CURRENT expose the same process/filesystem/database resources.
+
+   `nocturne up` performs the same filesystem measurement before pulling or
+   starting a container. At `low_disk` it prints one owner-language warning
+   and continues; this is the required warning before any future journal
+   hard stop, not the configured Deck threshold and not a prompt.
+
+   The rack renders RESOURCES as a compact passive gauge: free disk, database
+   size, daemon RSS and uptime, with journal and backup size available in the
+   expanded view. `low_disk` may use the theme's sole danger color but has no
+   alert role, popup, notification, card, or new attention channel. Partial
+   data says unavailable rather than zero.
+
+   The rule-7 resource soak drives 10,000 sequential live Rack Vitals queries
+   through a production-composed daemon after 500 warm-up queries, samples
+   current RSS at least every 250 queries, and requires both peak and final
+   RSS growth from the post-warm-up baseline to remain at or below 32 MiB.
+   Provider and Spine responses are deterministic fakes; the daemon, HTTP
+   query path, resource measurement, validation, and serialization are real.
 
 **Mobile:** the SPA is responsive from day one (hard requirement on all M1 UI
 work; gate and chat must be phone-usable). PWA manifest + install flow [M3].
@@ -2300,9 +3271,108 @@ acceptance criterion — never merely when code exists or unit tests pass.
    reconciliation surfaces the drift loudly. Invariant 9's posture
    extends to accounting — no ledger failure may brick the harness.
 
-12. **Test motivation (v2.45; D.2 088).** Every test carries a
-   motivation docstring citing its statute; mechanically enforced.
-   (Body stub — full text lives in D.2 088; editor pass folds it.)
+   **Folded amendment (A-038, v2.82)** — enacted by M2O against [B.6 rules
+   10-11], node(s) P3, P4.1; law text verbatim from AMENDMENTS.md:
+   Every Harness fixture/scenario app has one nonblank identity ending in
+   ` REGRESSION`, exposes it from GET `/__scenario__/identity` as
+   `{fixture,deterministic:true}`, and redirects a top-level UI request that
+   lacks the exact `fixture` query value to the same URL with that value.
+   It refuses every request received on product port 8765 before serving UI
+   or accepting a WebSocket. The rack renders the verified identity as a
+   pointer-transparent, viewport-covering FIXTURE overlay; a query string
+   alone never creates the overlay. Fixture launchers run in the foreground
+   or own the child in a `finally` cleanup, reject port 8765, and browser
+   automation creates a fresh temporary profile which it removes on exit.
+
+   The one-time polluted-catalog cleanup is explicit and narrow. The thread
+   rail offers `Remove fixture threads` only when the browser-local catalog
+   contains a title produced from the first prompt of a pre-M2O H4, H5, H6,
+   H8, or M2G deterministic scenario. It shows the count and removes only
+   those exact catalog entries after the human activates it; it never clears
+   all storage, guesses from substrings, deletes transcripts, or touches a
+   catalog on a distinct fixture origin.
+
+   A failed or incomplete POST `/v1/spend/events` never changes a completed
+   model outcome. Harness changes each failed batch line's basis to
+   `estimated`, retains its event_uid and broker timestamp, records the
+   original basis plus queue time in safe meta, and stores one atomic
+   mode-0600 JSON batch beneath `NOCTURNE_HOME/receipt-queue`. It retries
+   queued batches oldest-first at daemon startup and before a later current
+   receipt. A file is removed only after Spine accepts its complete batch;
+   replay therefore rides A-027 idempotency. Queue or retry failure emits a
+   safe `spend_pending` event but does not fail, retract, or replace the turn.
+   If disk enqueue itself fails, the process retains the batch in memory and
+   reports degraded accounting; accounting remains fail-open.
+
+   Harness enriches only its public Rack Vitals result (the Spine A-028 body
+   is unchanged) with `accounting:{status,pending_lines,oldest_queued_at,
+   source}`. Status is `clear`, `pending`, or `degraded`; source is always
+   `harness.receipt_queue`; counts include disk and memory batches; oldest is
+   null exactly when no line is pending. `degraded` means at least one
+   pending batch is not durable. Vitals renders pending/degraded in the
+   theme's sole danger color as a persistent accounting-drift line, without
+   an alert role, popup, notification, or card. Successful replay returns it
+   to clear. Broker reconciliation remains the dollar authority and exposes
+   any cumulative mismatch on its existing cadence.
+
+12. **Test motivation (owner, v2.45).** A test is LAW MADE EXECUTABLE,
+   and it cites its statute: every test function carries a motivation
+   docstring — one or two sentences naming what law or problem it
+   defends and what failure it prevents — containing at least one
+   citation token (SPEC section, ADR, amendment, Invariant, Problem
+   Tree node, or regression flag). Enforced MECHANICALLY: a
+   deterministic pre-commit checker in both repos fails unmotivated
+   tests; the existing suite is grandfathered by a baseline file that
+   the M2Q sweep retires (ratchet: new or modified tests comply now).
+   A test that cannot be motivated is a discovery, not an exemption:
+   it defends unwritten law (propose the completion) or defends
+   nothing (delete it, journaled). THE INVERSE INDEX: the citations
+   generate the LAW-COVERAGE REPORT — every section with its defending
+   tests, zero-defender sections highlighted; untested law becomes as
+   visible as unpriced spend.
+   [Body moved here from the end of D.4 in editor pass IV (v2.82), per
+   A-040's first sentence. The v2.81 stub — "Every test carries a
+   motivation docstring citing its statute; mechanically enforced. (Body
+   stub — full text lives in D.2 088; editor pass folds it.)" — is retired,
+   its words preserved in this note.]
+
+   **Folded amendment (A-040, v2.82)** — enacted by M2Q against [SPEC B.6 rule
+   12], node(s) P4; law text verbatim from AMENDMENTS.md:
+   Treat the paragraph beginning `12. Test motivation (owner, v2.45)` as
+   B.6 rule 12 immediately after B.6 rule 11. D.4's Session-affinity bullet
+   ends after `session affinity would have changed rankings.`; no normative
+   test law lives in D.4.
+
+   In each repository, the deterministic checker scans every Python
+   `test_*` function or method under `tests/`. Its motivation is the
+   function docstring. It also scans JavaScript test calls under
+   `web/tests/` when that directory exists; their equivalent motivation is
+   the immediately preceding JSDoc block. A motivation is nonblank prose
+   containing at least one exact citation token: `SPEC <section>`,
+   `ADR-NNN`, `A-NNN`, `Invariant N`, Problem Tree node `P...`, or regression
+   flag `FNNN`.
+
+   The temporary baseline keys a test by repository-relative path plus
+   qualified name (or JavaScript call line) and stores a SHA-256 digest of
+   its normalized source. Python normalization spans decorators through the
+   function body, normalizes newlines, removes common indentation, and
+   ignores trailing line whitespace. Only the exact unchanged test is
+   grandfathered: new, renamed, or source-modified tests comply immediately. A
+   deleted baseline entry is reported as stale debt but does not fail the
+   ratchet. The checker itself and its local pre-commit hook have no network
+   dependency.
+
+   The law-coverage report catalogs SPEC numbered parts, ADR headings, and
+   B/C/D sections from the repository's committed `docs/SPEC.md`, maps exact
+   citations from compliant motivations to sorted test identities, and
+   explicitly marks catalog entries with zero defenders. Amendment,
+   invariant, problem-node, and regression citations are listed in a
+   separate referenced-statutes index because they are valid statutes but
+   are not SPEC headings. The report also states current baseline and stale
+   debt. Mechanical citation validity is checker-owned; whether the prose
+   truthfully names the defended law and prevented failure remains the M2Q
+   human sweep.
+
 
 13. **The scout's word (v2.81; D.2 121).** A single scout's report is
    EVIDENCE, not verdict. Two classes of item, and every scout labels
@@ -2474,6 +3544,15 @@ cloud-head revision's `rev_uid`, and `body` / `label` equal to the resulting
 `memory_unit` values. A failed CAS changes neither table. [folded from A-001]
 Tombstone = status change, never DELETE.
 
+Schema extensions enacted by amendment and folded at v2.82 (the DDL above is
+the M1 authority; each addition's exact law sits at its fold site): A-030
+`injection_event.actor_class` (C.4); A-032 status `candidate`, `memory_edge`,
+`approval_queue_item`, `approval_decision` (ADR-021); A-033 queue birthplace
+`thread|seed`, `batch_uid`, `source_name`, digest (ADR-019); A-035
+`scorer_activation` (ADR-009 item 4); A-037 `spend_reconciliation` (ADR-024);
+A-041 the migration advisory lock (ADR-019). Later amendments (A-049 onward)
+remain in AMENDMENTS.md until the next editor pass.
+
 ## C.3 Scorer v0 (hand-set)
 
 For prompt q and candidate m (status='active', principal match, and
@@ -2624,6 +3703,21 @@ POST /v1/inject/commit
                                      # UI opens the edit flow with a valid
                                      # expected_revision; [] when none
 
+  **Folded amendment (A-022, v2.82)** — enacted by H5 FIXER against [SPEC C.4
+  commit, C.6, ADR-005], node(s) P1.2.1b; law text verbatim from
+  AMENDMENTS.md:
+  In POST `/v1/inject/commit`, a `removed` item may name an injected or
+  pinned row with any existing removal reason, or a near_miss row only
+  when its reason is `never`. A near-miss ID in both `removed` and
+  `added_back` remains an RFC7807 422 with no write. The desired outcome
+  for a near-miss veto is `removed:never`; an untouched near miss remains
+  NULL. The veto uses exactly the same event transition, scorer-version
+  `never_bias_step`, removals and never_kills increments, quarantine
+  threshold, CAS revision, retry/idempotency rule, and final-block
+  exclusion as removed:never on an injected or pinned row. A-019 browser
+  membership validation uses the same class/reason rule. C.6's gate renders
+  mutually exclusive Add and Never controls for every near miss.
+
 POST /v1/feedback            # mid-thread, ad-hoc
   req: {injection_id, memory_id, signal: "mid_thread_removed"|"cited"}
   res: {ok: true}
@@ -2640,6 +3734,69 @@ POST /v1/feedback            # mid-thread, ad-hoc
   writes the outcome but does not change `stats.citations`, write a memory
   revision, or affect scorer v0, whose citation feature remains inert.
   [folded from A-010]
+  Citation v1 (`cited` from kept / added_back / auto_entered; the
+  `stats.citations` transition): A-036, folded at ADR-005 (v2.82).
+  Autonomous re-scoring, `actor_class`, `mid_thread_added`: A-030, folded
+  below (v2.82).
+
+  **Folded amendment (A-030, v2.82)** — enacted by M2G against [SPEC C.2, C.4
+  POST /v1/inject/prepare and /v1/feedback; ADR-005], node(s) P1.2, P1.4; law
+  text verbatim from AMENDMENTS.md:
+  Add non-null `actor_class TEXT NOT NULL DEFAULT 'human'` to
+  `injection_event`, constrained for M2G writes to `human` or `passive`.
+  Existing rows are `human`. Extend POST `/v1/inject/prepare` with optional
+  `mode`, exactly `gate` (default) or `autonomous`, and optional UUID lists
+  `current_memory_ids`, `confirmed_memory_ids`, and `excluded_memory_ids`,
+  each defaulting empty. Extend its response with nullable `final_block`,
+  which is null in gate mode and the canonical C.6 block in autonomous mode.
+
+  Gate mode requires all three lists empty and retains the existing one-shot
+  prepare/commit behavior unchanged. Autonomous mode requires an already
+  prepared thread with identical principal, agent, machine, and project
+  identity; lists contain no duplicates,
+  `confirmed_memory_ids` is a subset of `current_memory_ids`, and
+  `excluded_memory_ids` is disjoint from both. One repeatable-read
+  transaction locks that thread, advances `thread.snapshot_ts` to its own
+  database-clock snapshot, retrieves the ordinary live candidate union plus
+  every active eligible current or confirmed unit, and excludes every listed
+  excluded unit before scoring. Missing, inactive, wrong-principal, or
+  project-ineligible current/confirmed IDs return RFC7807 409 rather than
+  silently weakening a lock.
+
+  Selection remains score-descending threshold plus token-budget selection;
+  configured top-k remains only its standing safety/display cap. Active pins
+  and confirmed units are binary forced members: pins order first by UUID,
+  then non-pin confirmed units by score DESC and UUID ASC. Both classes
+  bypass threshold and top-k, their token costs reduce the ordinary regular
+  budget to no less than zero, and they alone may overflow it. Remaining
+  regular candidates retain C.3 order and greedy selection. Each autonomous
+  batch writes one event for every returned selected or near-miss unit and
+  for every prior current unit that exits. Selected prior members have
+  outcome `kept`; selected new members `auto_entered`; unselected prior
+  members `auto_exited`; undispositioned near misses remain null. Those rows
+  have actor_class `passive`; gate rows have actor_class `human`.
+  `final_block` is rendered from exactly the selected events in rank order.
+
+  Extend feedback signal with `mid_thread_added`. It is valid only as the
+  exactly-once/idempotent transition from `mid_thread_removed` on the same
+  event membership; a later `mid_thread_removed` may symmetrically replace
+  `mid_thread_added` on that membership. A first `mid_thread_removed` may
+  transition a passive `kept` or `auto_entered` membership as well as the
+  standing human outcomes; otherwise the panel could not remove context
+  that entered through autonomous scoring. Re-addition does not change
+  corpus counters. The Harness keeps
+  daemon-lifetime per-thread current, confirmed, excluded, and event-source
+  sets as trusted state: first-gate survivors become confirmed; panel remove
+  moves a member from confirmed/current to excluded after Spine accepts
+  `mid_thread_removed`; panel add moves it from excluded to confirmed/current
+  after Spine accepts `mid_thread_added`. Each post-first ordinary prompt
+  supplies those sets to autonomous prepare, atomically replaces only the
+  autonomous portion of current context from `final_block`, and emits an
+  unprompted `memory.panel.update` state when membership changes, using a
+  daemon-minted request_id and state result `rescored`. Remember
+  commands retain their command path and do not invoke re-scoring. The first
+  gate remains the only modal memory review. Memory-panel state items add
+  boolean `thread_excluded`; only those non-context rows expose re-add.
 
 POST /v1/memories
   req: {principal_id, label, body, kind, keywords?,
@@ -2726,6 +3883,223 @@ any-model escape hatch; keys (Anthropic, OpenAI, OpenRouter) live in
 harness/.env (untracked; .env.example is the shape); model selectable per
 thread.
 
+**Model selection policy (folded v2.82 — editor pass IV).** The token-cost
+policy law enacted as amendments A-020, A-021, A-025 and A-026 (AMENDMENTS.md)
+lives here as C.5 config law from this version; ADR-024 records the truth
+after spend, this block chooses the price before it. A-021 supersedes A-020
+clauses (a) and (c); A-020 is folded whole because A-021 incorporates their
+mechanics by reference (the floor rule, price-sorted providers).
+
+  **Folded amendment (A-020, v2.82)** — enacted by H9 against [SPEC C.5;
+  C.6/A-019 model_context_tokens], node(s) P4; law text verbatim from
+  AMENDMENTS.md; clauses (a) and (c) are SUPERSEDED by A-021
+  (a-revised)/(c-revised) below and stand only as the mechanics A-021 names by
+  reference:
+  (a) FLAT INTELLIGENCE FLOOR. Harness config gains optional
+  model_intelligence_floor (env MODEL_INTELLIGENCE_FLOOR, positive
+  number, default unset). When unset, model selection is unchanged. When
+  set, the daemon resolves each new thread's chat model at that thread's
+  first run: among the broker's benchmark listing
+  (GET /api/v1/benchmarks?source=artificial-analysis), the model with
+  the lowest prompt price whose intelligence_index is >= the floor;
+  ties break by completion price, then permaslug. The benchmark response
+  may be cached for at most 24 hours. Selection is deterministic given
+  the cached table, and the daemon logs the chosen slug, its
+  intelligence_index, both prices, and the table's fetch timestamp. An
+  explicit per-thread model override (existing C.5 law) beats the floor.
+  Per-prompt classifier routing (openrouter/auto*) is REJECTED as law:
+  model choice must be reproducible and auditable from a numeric table,
+  never a third party's opaque per-prompt judgment.
+  (b) THREAD-STABLE, CACHE-STICKY ROUTING. A thread's resolved model does
+  not change within the daemon lifetime of that thread. Every OpenRouter
+  chat request carries session_id equal to the C.7 thread_id, so the
+  broker pins the serving provider (and model) from the first turn and
+  KV-cache prefix reuse survives the whole run. Broker-side expiry of
+  sticky state after inactivity is acceptable. Provider fallbacks remain
+  enabled; the daemon never sets allow_fallbacks=false.
+  (c) CHEAPEST HOST. Floor-selected requests set provider sort to price.
+  Config gains optional provider_quantizations (default unset); when set
+  it is forwarded verbatim as the broker's provider.quantizations filter,
+  because a host serving an int4 quantization of a floor-qualified model
+  silently defeats the floor. The default stays unset so an incomplete
+  host table can never empty the provider pool.
+  (d) CONTEXT WINDOW FOLLOWS THE MODEL. A-019 requires
+  model_context_tokens to match the model in use. When the floor selects
+  the model, the daemon sources that model's context length from the
+  broker's model listing at selection time and sends it to
+  inject/prepare for that thread, in place of the static default. The
+  static MODEL_CONTEXT_TOKENS default continues to govern when the floor
+  is unset.
+  (e) TRUTHFUL ACCOUNTING, NO NEW SURFACE. Broker-reported usage,
+  including cached-token and cache-write details, is recorded on the
+  existing run usage path. ADR-014 run walls are unchanged. No cost UI
+  is built in M1; Palace Vitals gauges remain M2 law.
+  (f) FENCES. The floor never applies to embed_model — C.2 fixes the
+  1536-dimension space and a changed embedding model corrupts it — and
+  the /remember label agent simply follows the thread's resolved model
+  per decision 008. Benchmark-endpoint failure, an empty eligible set,
+  or a missing context length fails open to the static chat_model
+  default (with its static context tokens) and a logged warning — never
+  a blocked run and never a question to the human.
+
+  **Folded amendment (A-021, v2.82)** — enacted by H9 against [SPEC C.5;
+  supersedes A-020 clauses (a) and (c)], node(s) P4; law text verbatim from
+  AMENDMENTS.md:
+  (a-revised) TOKEN-COST POLICY TYPE. Model selection is a POLICY — a
+  role-generic type with exactly five M1 values:
+    pinned:<model> — the named model verbatim (existing chat_model
+      syntax); no benchmark table consulted.
+    max — the model with the highest intelligence_index in the cached
+      benchmark table; ties break by lower prompt price, then permaslug.
+    elbow — the point of diminishing returns on the cost-intelligence
+      Pareto frontier, computed deterministically as follows. A model
+      is DOMINATED when another model has intelligence_index >= its
+      AND prompt price <= its, at least one strictly; the FRONTIER is
+      the set of non-dominated models (duplicate price/index pairs
+      keep the lexically first permaslug), sorted by
+      intelligence_index ascending — along it, price rises with
+      intelligence. Map each frontier model to
+      x = (intelligence_index - min) / (max - min) and
+      y = (log10 prompt_price - min) / (max - min), min and max taken
+      over the frontier, so the cheapest, least-intelligent model
+      sits at (0,0) and the priciest, most-intelligent at (1,1). The
+      CHORD is the diagonal y = x; its slope is the frontier's own
+      average exchange rate of log-price for intelligence. Each
+      model's SIGNED OFFSET is x - y: positive means its log price
+      sits below the chord — a better-than-average trade. The elbow
+      is the model with the greatest positive offset, the deepest
+      bargain relative to the frontier's average rate; ties break by
+      lower prompt price, then permaslug; if no model has a positive
+      offset, elbow falls back to max. This is a slope rule whose
+      threshold the table computes for itself: the offset grows
+      wherever intelligence is being bought below the frontier's
+      average log-price rate and shrinks wherever it is bought above
+      that rate, so there is no hand-set slope constant, and dense
+      pockets of similar models — point spacing, not value — cannot
+      move the answer the way they whipsaw a local-derivative rule.
+      Worked example (index, $/M prompt): A(20, 0.10) B(35, 0.30)
+      C(55, 1.00) D(60, 8.00), none dominated. log10 prices: -1,
+      -0.523, 0, 0.903. x: 0, .375, .875, 1. y: 0, .251, .525, 1.
+      Offsets x - y: 0, .124, .350, 0 → elbow = C. D buys five more
+      index points at eight times the price; C is the last
+      better-than-average trade.
+      [Clause revised by the owner's pen 2026-07-28, pre-claim, in
+      the audit window: terms defined for agents without the design
+      session's context, and the original unsigned perpendicular-
+      distance rule — which on a concave frontier could select a
+      worse-than-average point — replaced by signed offset, an
+      identical ranking on the intended side of the chord.]
+    slope:<λ> — pay for intelligence until its marginal price
+      exceeds λ, a positive number in prompt-dollars per M tokens
+      per intelligence-index point (raw units, never normalized).
+      Compute the frontier exactly as defined under elbow, sorted by
+      intelligence_index ascending, in raw (intelligence_index,
+      prompt price) space — no logs, no normalization. Take its
+      LOWER CONVEX HULL: the chain of frontier models running from
+      the cheapest to the most intelligent such that every frontier
+      model lies on or above every chain segment — the taut string
+      stretched beneath the points. Hull segment slopes
+      (delta price / delta intelligence_index) are non-decreasing by
+      construction, so the slope crosses any λ at most once; models
+      the hull skips are strictly worse buys than the hull vertices
+      bracketing them. The selection is the upper endpoint of the
+      last hull segment whose slope is <= λ — the most intelligent
+      model reachable while every marginal index point still costs
+      <= λ. If the first segment's slope already exceeds λ, select
+      the hull's cheapest vertex; if no segment's slope exceeds λ,
+      select the hull's most intelligent vertex. Collinear frontier
+      models on a hull segment count as hull vertices; remaining
+      ties break by cheaper prompt price, then permaslug.
+      Worked example: frontier (54, $0.90) (55, $1.00) (55.3, $1.60)
+      (58, $1.70) (65, $9.00). Adjacent secant slopes 0.10, 2.00,
+      0.04, 1.04 whipsaw around any threshold, but the lower hull is
+      (54, $0.90)-(55, $1.00)-(58, $1.70)-(65, $9.00) with slopes
+      0.10, 0.23, 1.04 — monotone — so at λ=0.5 the crossing is
+      unique and the selection is (58, $1.70). Design intent for M3,
+      non-binding, nothing built now: the frontier models a hull
+      segment skips — the dense pocket around the selection — are
+      natural diversity shards for Symphony search pools.
+      [slope:<λ> added by the owner's pen 2026-07-28, pre-claim:
+      the owner's ratified marginal-price rule; the hull is part of
+      the law so the λ-crossing is unique on a discrete table.]
+    [Calibration record, owner's pen 2026-07-28. On the owner's
+      reference chart of the budget tier (frontier, prices read
+      approximately: 44.4/$0.09, 51.2/$0.20, 55.0/$0.53, 57.1/$0.60,
+      60.7/$1.15), elbow computes signed offsets 0, +.10, -.05,
+      +.03, 0 and selects 51.2 — matching the owner's independently
+      stated "52 today" with zero configuration. The owner's
+      underlying intent, recorded for whoever tunes role policies:
+      buy the COMMODITY TIER — the capability level competition has
+      already priced to the bone — and do not pay the scarcity
+      premium single models charge for the last few index points.
+      The dense pocket of near-frontier models crowding just above
+      the elbow is the market confirming that tier (the same skipped
+      pocket noted under slope as M3 diversity shards); density is
+      the market's echo of the elbow, not an independent selection
+      signal, which is why no density policy exists. elbow is
+      therefore the recommended chat policy value at enable time.
+      slope:<λ> remains for expressing an absolute willingness-to-
+      pay, with a measured caution: λ=0.5 is far too generous for
+      the budget tier — on this chart it buys to the top; the
+      owner's revealed rate there is nearer $0.03-0.05 per index
+      point.]
+    floor:<n> — A-020(a)'s rule unchanged: lowest prompt price with
+      intelligence_index >= n; ties by completion price, then permaslug.
+  Table sourcing, the 24-hour cache, per-thread resolution timing,
+  logging of the choice (now including the policy value), the per-thread
+  manual override, and the REJECTION of per-prompt classifier routing
+  all stand as A-020 wrote them. A-020 clauses (b), (d), (e), (f) stand
+  unchanged and apply to every policy; read A-020(d)'s "floor-selected"
+  as "policy-selected (non-pinned)". Env MODEL_INTELLIGENCE_FLOOR is
+  superseded by the policy grammar and is not built.
+  (a2) ROLES. Config binds one policy per agent role. M1 has two roles:
+  chat (env MODEL_POLICY_CHAT, default pinned:<chat_model> — unset
+  preserves today's behavior) and the /remember label agent, which
+  follows the chat thread's resolved model per harness decision 008 and
+  receives no independent policy in M1. Later-milestone roles MUST adopt
+  this same policy type when their milestones arrive; their config keys
+  do not exist until then (B.5). Design intent recorded for those
+  milestones: price a role by the blast radius and reviewability of its
+  errors, not by task difficulty — high-volume judge-filtered leaf work
+  runs economic policies (slope, elbow, floor); low-volume compounding roles
+  (orchestrators, judges, curators) run pinned or max. A spend-rate
+  policy (budget:$/hr) is deliberately absent until the M2 Vitals spend
+  lanes (v2.17) supply measured burn.
+  (c-revised) The quantization filter is struck, not built:
+  Artificial Analysis publishes per-model indices and polices — rather
+  than measures — endpoint precision, and the broker's benchmark rows
+  carry no endpoint dimension. provider_quantizations does not exist.
+  Non-binding future exploration: adopt endpoint-level intelligence data
+  if a source ever publishes it. A-020(c)'s surviving sentence — sort
+  providers by price — applies to every non-pinned policy.
+  (g) DEGENERATE TABLES. elbow over a frontier of fewer than three
+  points falls back to max over that frontier; all other degenerate or
+  unavailable-table cases keep A-020(f)'s fail-open to the static
+  chat_model default.
+
+  **Folded amendment (A-025, v2.82)** — enacted by H9 against [SPEC C.5;
+  A-021(a-revised elbow), (g)], node(s) P4; law text verbatim from
+  AMENDMENTS.md:
+  For elbow only, every frontier prompt price must be strictly positive. If
+  any frontier prompt price is zero, the elbow table is degenerate under
+  A-021(g), and resolution fails open to the static `chat_model` and static
+  context tokens. Other policies continue to evaluate non-negative prices
+  under their existing rules.
+
+  **Folded amendment (A-026, v2.82)** — enacted by H9 against [SPEC C.5;
+  A-020(d); A-021(a-revised), (g)], node(s) P4; law text verbatim from
+  AMENDMENTS.md:
+  A non-pinned policy first selects its benchmark row unchanged, then joins
+  that row's `model_permaslug` to model-list rows by exact
+  `canonical_slug`. A row whose `id` has no `:<variant>` suffix is a
+  standard route. If exactly one standard route exists, the daemon resolves
+  the request model to that row's `id` and the context window to that same
+  row's positive `context_length`; explicit variant rows do not participate.
+  If no standard route exists and exactly one joined row exists, that sole
+  route and its context are used. No joined row, multiple standard routes,
+  or multiple variant-only routes is a missing/ambiguous context under
+  A-021(g) and fails open to the static model and context pair.
+
 ## C.6 MemoryCapability (harness) — exact flow
 
 First prompt in thread:
@@ -2734,13 +4108,44 @@ First prompt in thread:
     are atomic ≤128 tokens by design; no summaries, no expand step) + score;
     one-tap ✕ = not_relevant; long-press/alt-✕ menu: wrong / never; grayed
     near-misses (tap = add back); Enter/"Continue". Hard pause, no timeout
-    (per ADR-005). ACCEPTED in review 2026-07-07.
+    (per ADR-005). ACCEPTED in review 2026-07-07. Near-miss rows also carry a
+    mutually exclusive NEVER control (A-022, folded at C.4 commit, v2.82).
  3. On continue → inject/commit → spine returns final_block.
  4. Capability prepends final_block system-adjacent; run starts.
+**Folded amendment (A-023, v2.82)** — enacted by H5 FIXER against [SPEC C.6
+step 3; A-019 gate.*], node(s) P1.2.1a; law text verbatim from AMENDMENTS.md:
+The memory gate has two typed stages under the same run and hard pause.
+The existing stage is `review` (the default when `stage` is omitted).
+After its successful inject/commit, if `wrong_removed` is nonempty, the
+daemon keeps the model stopped and, in event-rank order, replaces the
+open gate with a `gate.open` whose `stage` is `wrong_resolution`, whose
+existing injected and near_misses arrays are empty, and whose
+`wrong_removed` array contains exactly one current MemoryUnit returned by
+that commit. It may also carry a visible `resolution_error` from a prior
+failed attempt. The browser answers with `gate.commit` carrying empty
+removed and added_back arrays plus
+`wrong_resolution:{memory_id,expected_revision,action,body?}`, where
+action is `edit` or `expire`; edit requires a nonblank body and expire
+forbids one.
+
+The daemon validates the run, thread, injection, stage, exact memory ID,
+displayed revision, and one-submit boundary before accepting the
+resolution. Edit PATCHes that unit's body; expire PATCHes its status to
+tombstoned. Both use the returned current revision, editor `user`, the
+trusted run machine_id, and reason `gate/wrong:edit` or
+`gate/wrong:expire`. A CAS conflict replaces the stage with the conflict's
+current MemoryUnit and a visible error; any other Spine client failure
+keeps the same stage open with a visible error, so neither silently loses
+the requested correction nor invokes the model. Cancellation retains
+A-016 ordering. Once every wrong unit is resolved, the daemon emits the
+single final gate.dismiss and invokes the model with the already-committed
+final_block. A review with no wrong removals remains the one-stage flow.
+
 Subsequent prompts: no prepare/no gate in M1 (one injection per thread;
 per-prompt re-scoring is an M2 decision — OQ-15). Memory panel stays live:
 ✕ on a memory → /v1/feedback mid_thread_removed → block re-rendered without it
-from the next model call.
+from the next model call. Panel wire contract: A-024 (folded at C.7, v2.82);
+re-add after autonomous re-scoring: A-030 (folded at C.4, v2.82).
 
 Rendered block format (final_block):
 ```
@@ -2960,6 +4365,52 @@ unchanged; nothing in the UI may assume localhost.
   thread snapshot, and replaces local thread state before consuming later
   live events; it does not poll or replay buffered deltas.
   [folded from A-017]
+
+  **Folded amendment (A-024, v2.82)** — enacted by H6 against [SPEC C.7
+  memory.panel.update; C.6 live panel], node(s) P1.2.1d, P1.3; law text
+  verbatim from AMENDMENTS.md:
+  `memory.panel.update` is bidirectional and requires outer `thread_id`.
+  Its C→D payload is a discriminated union with exactly these required
+  members:
+    `{action:"refresh"}`;
+    `{action:"remove", memory_id}`;
+    `{action:"edit", memory_id, expected_revision, body}`;
+    `{action:"pin", memory_id, expected_revision, pin}`.
+  Memory IDs are UUIDs, `expected_revision >= 1`, body is a string, and pin
+  is boolean. The D→C payload is one of:
+    `{action:"state", request_id,
+      result:"refreshed"|"removed"|"edited"|"pin_changed",
+      items:[{memory:MemoryUnit,in_context:bool}], total}`;
+    `{action:"conflict", request_id, operation:"edit"|"pin",
+      memory:MemoryUnit, message}`;
+    `{action:"error", request_id,
+      operation:"refresh"|"remove"|"edit"|"pin", code, message}`.
+  `request_id` echoes the triggering C→D envelope id. `code` and `message`
+  are safe display strings and never carry credentials, response bodies, or
+  raw exception text.
+
+  The daemon derives principal, machine, editor, PATCH reason, and current
+  injection ID from trusted configuration and thread state; the browser
+  supplies none of them. State contains every ACTIVE C.4 list unit for that
+  configured principal, in C.4 stable order, and `total` is that filtered
+  count. `in_context` is true only for a member still retained in the
+  thread's successfully committed injection.
+
+  Remove is valid only for an `in_context` unit. It submits C.4
+  `mid_thread_removed` using the server-held injection ID. Only after
+  `{ok:true}` does the daemon remove that unit from the thread's current
+  rendered block and add its ID to the thread's memory-tool exclusions;
+  every later model call receives exactly that updated block, with stale
+  dynamic memory blocks removed from provider history. Failure changes
+  neither context nor exclusions.
+
+  Edit and pin call C.4 PATCH with the displayed expected revision,
+  daemon-owned `editor="user"` and machine ID, and reason `panel/edit` or
+  `panel/pin`. The daemon never retries a human CAS conflict: it returns the
+  conflict's current MemoryUnit so the UI replaces the stale row, visibly
+  explains the conflict, and requires a fresh action. A successful mutation
+  returns a refreshed state. Pin affects future injection candidacy; neither
+  edit nor pin rewrites the already-frozen current-thread injection.
 
 ## C.8 M1 acceptance criteria
 
@@ -3234,9 +4685,9 @@ into its owning ADR above)
 | 112 | 2026-08-11 | v2.68 THE AUDITION LOOP + THE TWO FACES (owner, same session; protocol verbatim: 'Maybe you generate 4 things, and physically look at them, and then I tell you which of the samples I like and we do that for several iteration loops'): the loop ran five rounds same-day on candidates generated from the REAL harness stylesheets (literal maps + override blocks, real-class markup, local render, gate inspects and repairs before the owner sees). RULINGS extracted from picks: (1) round 1 → BLEND (keep the current skin's electric-ink energy, hues re-sourced from the plate); (2) round 2 → BOTH METALS + mid-round voice 'less red' (red is danger-only) and 'more that golden or silver'; (3) round 3 rebuked ('I was hoping for more differences') → THE VARIANCE LAW: mutation radius stays WIDE until the owner narrows; (4) round 4 → NIGHT FACE = SERAPH DRESSED + owner names Day Sky as light-mode base; (5) round 5 → DAY FACE = GOLD LINES. THE TWO FACES: the plate's upper panel is night, lower panel is day — one image, both modes; frozen exact maps/CSS in notes/cobalt-seraph-audition.md + notes/audition/ kit; both are M2UX4's starting candidates, switchable beside NEO-NOIR, real-rack audition final (D.2 111). SEAM-LEAK SWEEP is packet duty: the loop discovered the :root seam does not govern the app — 268 hard-coded literals, the #dad8d2/#c9dce4 user-text pair, the rgba(7,18,27,α) glass family; every color literal migrates into the token seam and computed-style checks (user text, composer glass, module borders resolve to tokens at every breakpoint) join the standing suite | ACCEPTED |
 | 113 | 2026-08-11 | v2.69 THE THREE-THEME RULING (owner, session close; verbatim: 'let's leave the current color scheme in place and add these two as alternatives please in the packet'): NEO-NOIR remains the WORN DEFAULT — the D.2 111 pending worn-skin audition is RESOLVED in place, no replacement decision remains open; M2UX4 ships THREE themes through the tightened token seam: NEO-NOIR (default, byte-identical to today after the seam sweep — the sweep must not shift the worn skin), SERAPH DRESSED (night alternate), GOLD LINES (day alternate), selectable via an ordinary persistent control on the real rack; per-theme law still applies to the alternates (dataviz six checks, one danger color, D.2 108-110 mechanisms where each face wears them); exit: three themes live-switchable + seam sweep green + NEO-NOIR pixel-stable | ACCEPTED |
 | 114 | 2026-08-11 | v2.70 THE PLATE PRESS (owner, same session; verbatim: 'It would be a really cool feature if we could automate this process — a feature where we could feed in a picture and then the color palette is extracted and makes a new colorway for the harness. we don't need to have all these intermediate steps of iteration but we can apply them to the rules'): the five-round audition was the RESEARCH; its laws are the RECIPE; the recipe becomes a FEATURE. Any image the owner presses becomes a named colorway via the ratified pipeline, fully deterministic, no LLM in the loop: (1) plate intake (file picker on the theme control; sha256 pins identity; same plate → same colorway); (2) derivation per D.2 107–109 — OKLab k-means with pinned seed, chroma-outlier + specular accent passes, luminance-percentile chrome ramps (never means), area shares; (3) ROLE ASSIGNMENT by the ratio law's algorithm (darkest large cluster → ground; lightest high-share → ink; highest-chroma → accent; nearest warm-red → the one danger color; rarest high-chroma → the earned) with minimal-lightness contrast repair recorded raw→worn; (4) VALIDATION fail-closed with plain remedy — dataviz six checks, contrast floors, one danger color; a plate that cannot yield a lawful colorway is refused with the failing pair named; (5) the colorway lands as DATA in the theme switcher beside NEO-NOIR and the two faces — tokens only, never code with surface access (ADR-018 cl.7), persisted locally, removable. The two faces remain curated law; pressed colorways are the owner's own. M2UX5 minted deps M2UX4 | ACCEPTED |
-| 112 | 2026-08-11 | v2.71 THE LIFECYCLE MATRIX + ONE MIND (owner, gate day, after the prompt/guard dead-end: 'this CI/CD pipeline needs to be uber robust — it seems like any time we are working on it something breaks'): the root pattern across F016/F018/F019/F031, M2V, M2CI, and today's dead-end is UNENUMERATED STATE COMBINATIONS — each incident was a lifecycle state (app released/dev-drifted x palace current/behind/ahead/legacy x guard pass/block x journal writable/not x port free/held x assets present/absent x clean-room/host) whose voice and action nobody had defined. Permanent law: (1) THE MATRIX — the lifecycle decision table is ENUMERATED and TABLE-TESTED in the standing suite and in clean-room CI; a state combination without a defined, tested voice+action is a defect even before a user hits it; (2) THE INCIDENT RITUAL — every future lifecycle incident adds its exact state as a matrix row BEFORE its fix may close (regression discipline at the design-table level, not the bug level); (3) ONE MIND — a prompt may never offer an action a downstream guard would refuse: `up` pre-runs the deploy preflight and speaks the DEV-GROUND VOICE on unreleased source ('your app includes unreleased changes; your Palace is compatible; Nocturne will start normally'). M2LC minted (fire-now, parallel-OPEN); M2REL rescoped to the 0.1.3 release alone | ACCEPTED |
-| 113 | 2026-08-12 | v2.72 F037 RESOLVED + EVIDENCE CAPTURE LAW + VISIBILITY DOCTRINE (owner ruling: 'I'm fine with hiding garden as it's just a build environment, but I want Nocturne in general to be available to people'): (1) VISIBILITY — nocturne-garden is PRIVATE (flipped 2026-08-12; the garden never shows, now literally); nocturne-harness and nocturne-spine remain PUBLIC by design — the product is for people, the quick-setup path is the point. (2) THE FOUR HISTORICAL SCREENSHOTS are OWNER-ACCEPTED as benign (gate inspected them: the exposed memory text is the owner's motivation-philosophy note — no PII, no credentials, no business content; precedent: the dev-key acceptance). No history purge; the option remains open to the owner. (3) THE EVIDENCE CAPTURE LAW (permanent; the real fix): committed verification evidence comes ONLY from fixture/verification identities — screenshots or transcripts of the OWNER'S rack are NEVER committed to any repo; the M2ST4 canon enforces mechanically (fixture banners/verification identity detectable in evidence). Motivation: today's exposure was benign; the same workflow against the owner's real Long Build palace would not be — the law fixes the trajectory, not the instance. (4) M2UX4 unblocked: reset for a fresh closeout recording tip 4854aee with fixture-only evidence verified; M2UX5 unblocks behind it | ACCEPTED |
-| 114 | 2026-08-16 | v2.74 THE SYMPHONY ENACTMENT (owner: 'you have my blessing to fire away' — gate recommendations stand as rulings, owner may veto any): (1) ENACTED AS LAW: planning rulings R1-R23, acceptance bar S1-S4, the primitive alignment charter (14 alignments, 3 blocked misalignments, 3 vision adapters, independent replaceability), the four-wave Symphony plan (notes/symphony-plan.md), the tree-rooted component registry (RECIPE surfaces name registry components), and gap resolutions G1-G7, G9-G10, G12-G18, G20 as drafted in the trace. (2) OWNER-DELEGATED RULINGS NOW FIXED: R22 budgets (3 attempts, $10 wall, 3 rounds, depth 2, 4 children, 30 min); G11 — the winner's memory batch routes to the PALACE QUEUE (judged context attached; consent surface intact, no fast lane) and LOSERS' memories TOMBSTONE as attempt lineage (never injectable, never discarded — provenance doctrine); G19 — owner interventions classify as (a) clarification/logged follow-up, (b) attempt cancellation within T2, (c) charter/scope change, and class (c) FORKS the symphony (charters are immutable per deliberation; changing one IS a new deliberation; the old run's lineage stands append-only); R21 spatial linking blessed (frames within layers, global as the one escape, layers are rooms, portals on the YAGNI clock — supersedes GLOBAL/CURRENT at the module family's build). (3) ORPHANS PLACED: the device chain -> Wave 2 module family; memories-as-indexes/fetch_episode -> the long-thread/curator lane; ADR-016 rollback bar = a REQUIREMENT ON the 3D module wave (generators take as_of from day one; the scrubber UI may phase). (4) OWED GATE WORK: the editor pass folding A-020..A-048 and textually reconciling ADR-017/018 with this enactment. (5) SYM1-SYM6 minted; Card 6: SYM1 parallel SYM4 | ACCEPTED |
+| 112b | 2026-08-11 | v2.71 THE LIFECYCLE MATRIX + ONE MIND (owner, gate day, after the prompt/guard dead-end: 'this CI/CD pipeline needs to be uber robust — it seems like any time we are working on it something breaks'): the root pattern across F016/F018/F019/F031, M2V, M2CI, and today's dead-end is UNENUMERATED STATE COMBINATIONS — each incident was a lifecycle state (app released/dev-drifted x palace current/behind/ahead/legacy x guard pass/block x journal writable/not x port free/held x assets present/absent x clean-room/host) whose voice and action nobody had defined. Permanent law: (1) THE MATRIX — the lifecycle decision table is ENUMERATED and TABLE-TESTED in the standing suite and in clean-room CI; a state combination without a defined, tested voice+action is a defect even before a user hits it; (2) THE INCIDENT RITUAL — every future lifecycle incident adds its exact state as a matrix row BEFORE its fix may close (regression discipline at the design-table level, not the bug level); (3) ONE MIND — a prompt may never offer an action a downstream guard would refuse: `up` pre-runs the deploy preflight and speaks the DEV-GROUND VOICE on unreleased source ('your app includes unreleased changes; your Palace is compatible; Nocturne will start normally'). M2LC minted (fire-now, parallel-OPEN); M2REL rescoped to the 0.1.3 release alone | ACCEPTED |
+| 113b | 2026-08-12 | v2.72 F037 RESOLVED + EVIDENCE CAPTURE LAW + VISIBILITY DOCTRINE (owner ruling: 'I'm fine with hiding garden as it's just a build environment, but I want Nocturne in general to be available to people'): (1) VISIBILITY — nocturne-garden is PRIVATE (flipped 2026-08-12; the garden never shows, now literally); nocturne-harness and nocturne-spine remain PUBLIC by design — the product is for people, the quick-setup path is the point. (2) THE FOUR HISTORICAL SCREENSHOTS are OWNER-ACCEPTED as benign (gate inspected them: the exposed memory text is the owner's motivation-philosophy note — no PII, no credentials, no business content; precedent: the dev-key acceptance). No history purge; the option remains open to the owner. (3) THE EVIDENCE CAPTURE LAW (permanent; the real fix): committed verification evidence comes ONLY from fixture/verification identities — screenshots or transcripts of the OWNER'S rack are NEVER committed to any repo; the M2ST4 canon enforces mechanically (fixture banners/verification identity detectable in evidence). Motivation: today's exposure was benign; the same workflow against the owner's real Long Build palace would not be — the law fixes the trajectory, not the instance. (4) M2UX4 unblocked: reset for a fresh closeout recording tip 4854aee with fixture-only evidence verified; M2UX5 unblocks behind it | ACCEPTED |
+| 114b | 2026-08-16 | v2.74 THE SYMPHONY ENACTMENT (owner: 'you have my blessing to fire away' — gate recommendations stand as rulings, owner may veto any): (1) ENACTED AS LAW: planning rulings R1-R23, acceptance bar S1-S4, the primitive alignment charter (14 alignments, 3 blocked misalignments, 3 vision adapters, independent replaceability), the four-wave Symphony plan (notes/symphony-plan.md), the tree-rooted component registry (RECIPE surfaces name registry components), and gap resolutions G1-G7, G9-G10, G12-G18, G20 as drafted in the trace. (2) OWNER-DELEGATED RULINGS NOW FIXED: R22 budgets (3 attempts, $10 wall, 3 rounds, depth 2, 4 children, 30 min); G11 — the winner's memory batch routes to the PALACE QUEUE (judged context attached; consent surface intact, no fast lane) and LOSERS' memories TOMBSTONE as attempt lineage (never injectable, never discarded — provenance doctrine); G19 — owner interventions classify as (a) clarification/logged follow-up, (b) attempt cancellation within T2, (c) charter/scope change, and class (c) FORKS the symphony (charters are immutable per deliberation; changing one IS a new deliberation; the old run's lineage stands append-only); R21 spatial linking blessed (frames within layers, global as the one escape, layers are rooms, portals on the YAGNI clock — supersedes GLOBAL/CURRENT at the module family's build). (3) ORPHANS PLACED: the device chain -> Wave 2 module family; memories-as-indexes/fetch_episode -> the long-thread/curator lane; ADR-016 rollback bar = a REQUIREMENT ON the 3D module wave (generators take as_of from day one; the scrubber UI may phase). (4) OWED GATE WORK: the editor pass folding A-020..A-048 and textually reconciling ADR-017/018 with this enactment. (5) SYM1-SYM6 minted; Card 6: SYM1 parallel SYM4 | ACCEPTED |
 | 115 | 2026-08-17 | v2.75 THE GRIMOIRE THEMES + THE CONJURATION LAW (owner; verbatim: 'wizard mode should have runes and scripts and appearing and disappearing. Technomancer should be similar but more neon and cyber punk'): two AUTHORED built-ins join the lore family (Nocturne, the ouroboros, Chrysopoeia, the Athanor, the Cauldron) — no reference plate, so the press law is untriggered; per-theme validation (dataviz six checks, one danger color, vision §8 invariants) is universal. (1) THE CONJURATION LAW — new theme law for animated motifs, binding on every theme: motion is DECORATIVE ONLY, never on data channels or reading surfaces (a rune may frame a module; it may never carry or obscure a value); conjurations fire on STATE CHANGES (mount, hover, focus, peak moments) and settle to rest; ambient loops live only in empty states and backgrounds at whisper opacity; prefers-reduced-motion collapses every conjuration to its static rest state — suite-asserted, not best-effort; glyph layers are Unicode/typographic content in motif stylesheets (tokens/materials/keyframes; never code with surface access, ADR-018 cl.7). (2) WIZARD MODE (the scriptorium): candlelit manuscript world — ink-black/umber grounds, candleflame-amber accent, verdigris secondary, silver-leaf linework, and RUBRIC RED as the one danger color (rubrication is the manuscript's own red-mark practice); motifs: the RUNE RING (module mount inscribes an alchemical-glyph ring that fades), MARGINALIA (staggered hover glyphs in module margins), the BREATHING SCRIPT (empty states: faint drifting script lines); glyph set: the Unicode alchemical block (U+1F700) + planetary/metal sigils — Cleopatra's manuscript made visible (D.2 090); the earned stays distinct from the amber body as bright gold-leaf. (3) TECHNOMANCER (the sigil circuit): the same magic on neon — near-black violet grounds, phosphor-green accent, ultraviolet secondary (deliberately distinct from NEO-NOIR's cyan/pink), one neon-red danger; rune rings render as circuit-sigils; conjuration is GLITCH-IN/DEREZ-OUT (steps/clip reveals); scanline shimmer; empty-state glyph rain at whisper opacity. (4) Palettes are STARTING VALUES — the owner may run the audition loop (D.2 112 of 2026-08-11) on the real rack at claim. (5) NUMBERING ERRATUM: rows 112–114 each appear twice (the 2026-08-11 gate-day sequence and later sessions); the log is append-only so renumbering is illegal — disambiguate by date; textual repair joins the owed editor pass. M2UX6 minted deps M2UX4 (DONE — dependency-ready) | ACCEPTED |
 | 116 | 2026-08-17 | v2.76 THE RUNE CRANK: GRIMOIRE SAMPLES BLESSED (owner, after viewing live conjuring samples; verbatim: 'I like it crank up the runes and symbols a bit more in different locations maybe 50% more. then finalize it.'): the samples were generated from the CURRENT production stylesheets through the real --seam-* token layer (per-family hue transform of the neo-noir seam block) with CSS-only conjurations, viewed live in motion. RULINGS: (1) density +50% and MORE LOCATIONS — wizard: rune ring on every module head (16 glyphs), marginalia in module right margins, the breathing script on TWO axes of empty space (horizontal baseline + vertical column), a margin rune beside each message label, the composer-edge rune row, topbar sigil trio; technomancer: 13-sigil circuit rings on module heads, module-bottom braille hexlines, TWO glyph-rain columns (phosphor + ultraviolet), composer circuit row, topbar sigil cluster, scanline shimmer; (2) the kit at notes/audition-grimoire/ (generator + both theme CSS + samples) is the REFERENCE IMPLEMENTATION — the builder implements from it: its generated :root blocks are the starting token sets and its motif CSS is the motif spec; (3) M2UX6 briefs are FINAL; audition rounds waived (owner may reopen); (4) unchanged: the conjuration law — the demo's continuous loops become state-change conjurations in product, reduced-motion collapses to static rest, motion never touches data channels or reading surfaces. One repair recorded for the builder's benefit: CSS unicode escapes must survive the toolchain intact (\\1F701 class glyphs render as raw hex text when mangled — the demo caught and fixed exactly this) | ACCEPTED |
 | 117 | 2026-08-17 | v2.77 THE ELDER SCRIPTS (owner, viewing the cranked samples; verbatim: 'can we use the transformer script the ones that are appearing here are a bit normal'): familiar symbols (planetary marks, geometric shapes, braille) read as keyboard characters, not magic — the glyph sets swap to genuinely alien scripts. WIZARD MODE speaks ELDER FUTHARK (ᚠ ᚱ ᚦ ᛟ …, the literal runes) + OGHAM (᚛ᚁᚂᚃ᚜ feather-marked) + GLAGOLITIC (ⰰ ⱚ, the occult curves), with the alchemical sigils retained only as rare accents (🜍 ☿ — the Chrysopoeia's own signs stay closest to the work); TECHNOMANCER speaks an angular MACHINE-SCRIPT mix of CARIAN (𐊐 𐊚 𐊇) + OLD TURKIC (𐰇 𐰔 𐰦) + TIFINAGH (ⵣ ⵥ ⴲ) — the transformer-alphabet feel achieved entirely from ancient human scripts; no franchise alphabet is copied, ever. Implementation law: motif glyphs are LITERAL UTF-8 characters in the stylesheets, never CSS unicode escapes — this kills the D.2 116 mangling class outright. Verified rendering live on the owner's platform before blessing. Kit re-frozen at notes/audition-grimoire/ as the reference implementation; M2UX6 briefs remain FINAL | ACCEPTED |
@@ -3244,6 +4695,8 @@ into its owning ADR above)
 | 119 | 2026-08-17 | v2.79 GRAMMAR, NOT GLYPHS (owner, sixth look; verbatim: 'Can we not copy them and just change them enough to not impinge on and create our own scripts? That way we have something cool on our own?' + 'Technomancer honestly already looks cool. but the wizard is a bit lacking'): the gate's counsel, recorded as doctrine — there is NO percent-different safe harbor in derivative work; a script that BEGINS from reference letterforms and mutates remains derivative in the record, exactly the fact pattern a publicly-distributed product must avoid; the lawful path that also yields 'something cool on our own' copies the GRAMMAR — featural anatomy, pen logic, construction rules are unprotectable ideas — and constructs original letterforms from it. ENACTED: (1) THE ELVISH HAND v2.1 — a STABLE 24-glyph constructed alphabet (versioned seed nocturne-elvish-v2; the same 24 glyphs forever), each glyph assembled featurally: stem kind (tall/short/descender/full, always S-curved — signature) × gapped lobes (attach with a visible gap — signature) × optional doubled stem/crossbar/terminal flick × tehta family above (dot/double/triangle/tilde/arc); CALLIGRAPHIC PEN PRESSURE via two stroke weights (2.6 downstrokes, 1.3 curves); strips sequence glyphs frequency-weighted with repeats so the script reads as writing, not noise. (2) THE MACHINE HAND: the owner-blessed v1 chamfered-walk algorithm is FROZEN VERBATIM ('technomancer honestly already looks cool'). (3) THE COLLISION RULE (conjuration-law corollary, caught live): decorative strips must clear every reading surface — head rings cap at 7-7.5rem and offset clear of module meta text. Kit re-frozen at notes/audition-grimoire/; M2UX6 briefs FINAL | ACCEPTED |
 | 120 | 2026-08-18 | v2.80 THE FIXTURE CURTAIN (owner sighting, verbatim: 'I just saw another "regression" fixture which wasn't the real app opening I thought that we'd aligned to not make those'): the D.2 111 real-render alignment becomes statute for all machine verification — (1) no fixture ever opens on the owner's screen: verification browser runs are headless, always; scenario/fixture servers bind only for the check's lifetime and never auto-open; (2) every fixture-served page wears an unmistakable in-page FIXTURE banner (fixture name + packet id) so a stray render can never pass as the product; (3) the only window that opens unbidden on the owner's machine is the real app on real data via its own startup — verification invocations of the product always pass --no-open; (4) suite-asserted where testable. Provoked by F052 (SYM13's scenario app, port 8873, presenting the SPA shell on a canned graph) and F053 (the M3R release agent's out-of-surface repair of verification/sym13/browser_check.mjs — competent content retained, the scope breach named). M3FX minted for remediation; the M3S pre-review scout is rechained behind it and its checklist inherits the curtain | ACCEPTED |
 | 121 | 2026-08-18 | v2.81 THE SCOUT'S WORD (owner, verbatim: 'I think that the findings are that a single scouts report should not be taken as gospel out of context unless it is operating a specific test we've aligned on'): B.6 rule 13 — scout reports are EVIDENCE, not verdict. ALIGNED items (a test the owner and gate aligned on: ratified checklist item, golden proof, suite) yield findings; DERIVED items (scout-designed under rule 9) yield CLAIMS that become findings only after the gate's mechanism check against the code path or owner alignment; claims are presented in neutral words without severity; any claim naming a core-law violation (memory fence, isolation, injection, spend, consent) is never presented before its mechanism check. Scouts label every item's class. Rule 12 (test motivation) gains its body stub. Provocations: F054 (Recipe proven only against its fixture; the released endpoint 503s) and F056 (the rescout's derived 'isolation leak' — the spine's candidate fence `project_key IS NULL OR = thread project_key` makes cross-project injection impossible and the scorer has no thread feature; the real defect is the Rack's project control not persisting its binding; gate's overreach in relaying it acknowledged). Owner directive seeded alongside: THE THREAD INDEX for relevance (owner: 'a continuous conversation, thread, that isn't ended has a unique id and that can be stored with the memory giving a new index') — memories record their origin thread id; `_thread_feature` mirrors `_project_feature` one level finer (same thread 1.0 / thread-less 0.5 / other 0.0); locality ladder project → location → thread; never a fence; notes/m3-planning-seeds.md | ACCEPTED |
+| 122 | 2026-08-18 | v2.82 editor note — D.2 NUMBERING COLLISION RESOLVED BY SUFFIX (the erratum row 115(5) flagged to the owed editor pass): rows 112–114 were written twice by two concurrent gate sessions — the 2026-08-11 theme sequence (112 THE AUDITION LOOP + THE TWO FACES v2.68, 113 THE THREE-THEME RULING v2.69, 114 THE PLATE PRESS v2.70) and the later-written set (v2.71 THE LIFECYCLE MATRIX + ONE MIND of 2026-08-11, v2.72 F037 RESOLVED + EVIDENCE CAPTURE LAW + VISIBILITY DOCTRINE of 2026-08-12, v2.74 THE SYMPHONY ENACTMENT of 2026-08-16). The log is append-only and other documents cite these numbers, so NO ROW IS RENUMBERED: the first-written set keeps 112/113/114 and the later-written set now carries the suffixed ids 112b/113b/114b; both sets stand verbatim. Citation key for readers: theme law (the audition loop, the two faces, the plate press; GLOSSARY; the M2UX packets) → 112/113/114; the lifecycle matrix and its incident ritual (M2LC, matrix-row tests, the plan archive's 'D.2 112') → 112b; F037, the evidence capture law and repo visibility → 113b; the Symphony enactment (R1-R23, R22, G11, G19, R21; A-059's 'D.2 114 G6/G11') → 114b. D.3's header lineage is suffixed to match; nothing else is touched | ACCEPTED |
+| 123 | 2026-08-18 | v2.82 EDITOR PASS IV (content-preserving, mirroring 041/055/066 — the M3 planning enactment's owed gate work per 114b(4)): (1) enacted amendments A-020..A-048 folded verbatim into the sections they amend, each site marked '(A-0NN, v2.82)' — token-cost policy A-020/A-021/A-025/A-026 → C.5 (A-020 clauses (a)/(c) marked superseded by A-021); near-miss veto A-022 and autonomous re-scoring A-030 → C.4; the two-stage gate A-023 → C.6; memory.panel.update A-024 → C.7; the ledger seam A-027 and broker reconciliation A-037 → ADR-024; Vitals A-028/A-029/A-044, Context Bars A-039, graph/console/simulation A-035/A-047/A-048 → ADR-009; the learner A-031 and citation v1 A-036 → ADR-005; queue mechanics A-032 → ADR-021; seeds A-033 and the M2N owner-lifecycle contracts A-041..A-046 → ADR-019; registry controls A-034 → ADR-023; fixture identity + receipt queue A-038 and test motivation A-040 → B.6 (rule 12's body moved from the end of D.4 to its rule per A-040; the v2.81 stub retired); C.2 gains a schema-extension pointer list; every AMENDMENTS.md entry stamped with its fold site; (2) the 112–114 collision resolved by suffix (row 122); (3) ADR-017 and ADR-018 gain 'Reconciliation (editor pass IV, 2026-08-18)' subsections stating which clauses the Symphony enactment (114b; D.2 102/103; A-059), R10 (the Cube dissolves into six independent liquid 3D modules with hardware tiers; the Athanor and the Cauldron join the family) and R21 (spatial linking: proximity frames within layers, GLOBAL as the one escape, layers are rooms, portals on the YAGNI clock) supersede — original clauses retained; ADR-023 clause 5 and §1.0's Escher-view entry gain pointers; one tension flagged for the owner (ADR-018's rejected 'literal always-3D rendering' vs R10's 'literally-3D asset'); (4) §2's P-nodes gain brief '(components: …)' pointers from notes/component-registry.md (114b(1)); (5) the v2.81 header paragraph moves to D.3's header lineage. No law deleted; no meaning changed | ACCEPTED |
 
 ## D.3 Resolved-question index (where each folded)
 
@@ -3260,7 +4713,7 @@ vernacular (v1.10) · OQ-17 roots alpha → selection focus, not EV
 
 ### Header lineage moved here 2026-08-18 (boot-diet law; content verbatim)
 
-Prior v2.80 (2026-08-18) — THE FIXTURE CURTAIN (owner, at an unexpected window: 'I just saw another "regression" fixture which wasn't the real app opening I thought that we'd aligned to not make those'): the D.2 111 real-render alignment becomes statute for ALL machine verification, not just design pitches — (1) NO FIXTURE EVER OPENS ON THE OWNER'S SCREEN: verification browser runs are headless, always; scenario/fixture servers bind only for the check's own lifetime and never auto-open a window; (2) any fixture-served page MUST wear an unmistakable in-page FIXTURE banner (name + packet id) so a stray render can never be mistaken for the product; (3) the only window that ever opens unbidden on the owner's machine is the real app on real data via its own startup; verification invocations of the product always pass --no-open; (4) suite-asserted where testable. Flags F052 (the sighting) + F053 (M3R's out-of-surface fixture repair, content retained, class named). M3FX minted; M3S scout checklist inherits the curtain (D.2 120). Prior v2.79 (2026-08-17) — GRAMMAR, NOT GLYPHS (owner: 'can we not copy them and just change them enough… create our own scripts? That way we have something cool on our own'): counsel recorded — there is no percent-different safe harbor; a script derived from reference letterforms stays derivative; the lawful and better path COPIES THE GRAMMAR (featural anatomy, pen logic, construction rules — free ideas) and constructs original alphabets. THE ELVISH HAND v2.1: a STABLE 24-glyph featural alphabet (stem kinds × gapped lobes × crossbars × tehtar) with calligraphic PEN PRESSURE (thick downstrokes / thin curves) and frequency-weighted sequencing so strips read as real writing; THE MACHINE HAND stays the owner-blessed v1 unchanged; collision rule enforced — rings clear all reading surfaces; kit re-frozen; M2UX6 FINAL (D.2 119). Prior v2.78 (2026-08-17) — THE SIGIL FORGE (owner named the hands: 'This tolkein should be the wizard… The transformer should be the technomancer', supplying Tengwar and Cybertronian charts): verbatim franchise letterforms refused (Tolkien-estate and Hasbro-associated designs; Nocturne distributes publicly; D.2 117's no-franchise law holds) — instead the scripts are FORGED: original glyphs generated procedurally, the procedural law extended to script itself; THE ELVISH HAND (curved stems, bows, loops, descender hooks, floating tehta-style marks, fine round stroke) writes for WIZARD MODE and THE MACHINE HAND (heavy uniform strokes, 45° chamfers, notched stubs, square caps on a 3×4 grid) writes for TECHNOMANCER; seeded deterministic, emitted as SVG data-URI strips in motif CSS (materials, never code); verified live on the owner's platform; kit re-frozen with sigil_forge.py; M2UX6 briefs FINAL (D.2 118). Prior v2.77 (2026-08-17) — THE ELDER SCRIPTS (owner, at the cranked samples: 'the ones that are appearing here are a bit normal'): the grimoire glyph sets swap from familiar symbols to genuinely alien scripts — WIZARD MODE speaks Elder Futhark + Ogham + Glagolitic with rare alchemical accents; TECHNOMANCER speaks an angular machine-script of Carian + Old Turkic + Tifinagh (the transformer-alphabet feel evoked from ancient scripts — no franchise alphabet is ever copied); motif glyphs are literal UTF-8 in the stylesheets, never CSS escapes (kills the mangling class); kit re-frozen at notes/audition-grimoire/; briefs remain FINAL (D.2 117). Prior v2.76 (2026-08-17) — THE RUNE CRANK: GRIMOIRE SAMPLES BLESSED (owner, live samples viewed: 'I like it — crank up the runes and symbols a bit more in different locations maybe 50% more. then finalize it'): rune/sigil density +50% with enumerated locations (module heads, module margins, two empty-state script axes, message margins, composer edge, topbar sigils; technomancer adds a second rain column, module hexlines, composer circuit row); the demo kit — generated from the PRODUCTION stylesheets through the real seam — is frozen at notes/audition-grimoire/ as the reference implementation; M2UX6 briefs are FINAL, audition rounds waived (owner may reopen); demo loops become state-change conjurations in product per the conjuration law (D.2 116). Prior v2.75 (2026-08-17) — THE GRIMOIRE THEMES + THE CONJURATION LAW (owner: wizard mode 'runes and scripts and appearing and disappearing', technomancer 'similar but more neon and cyber punk'): two authored built-in themes join the switcher (no reference plate — the press law is untriggered; per-theme validation is universal); THE CONJURATION LAW governs animated motifs in any theme: motion is decorative only — NEVER on data channels or reading surfaces; conjurations fire on state changes and settle; ambient loops only in empty states/backgrounds at whisper opacity; prefers-reduced-motion yields static runes (suite-asserted); glyph layers are Unicode content in motif CSS — tokens/materials/keyframes, never code (ADR-018 cl.7); M2UX6 minted deps M2UX4; D.2 numbering collision 112–114 flagged to the owed editor pass (D.2 115). Prior v2.74 (2026-08-16) — THE SYMPHONY ENACTMENT (owner blessing: 'fire away'): planning rulings R1-R23, the acceptance bar, the primitive alignment charter, the four-wave plan, and the gap rulings become law (D.2 next row); the full ADR-017/018 textual reconciliation is owed gate editor work. Prior v2.73 (2026-08-13) — THE BOOT DIET (owner: consolidate the total reading): the version-lineage paragraph moves to Appendix D.3 (it duplicated D.2); PLAN charges of completed packets move to notes/plan-archive-completed.md (content preserved; PLAN 1497→403 lines). Motivation: every session's boot cost is round-trips over dead text; the law a runner must read is the law that still binds. Full version lineage: D.2 (rows) and D.3 (narrative).
+Prior v2.81 (2026-08-18) — THE SCOUT'S WORD (owner, after the F056 mechanism review: 'a single scouts report should not be taken as gospel out of context unless it is operating a specific test we've aligned on'): B.6 rule 13 — a scout's report is evidence, not verdict; items are ALIGNED (an owner/gate-aligned test — verdict is a finding) or DERIVED (scout-designed under rule 9 — verdict is a CLAIM until the gate mechanism-checks it against code or the owner aligns the test; claims reach the owner in neutral words with no severity; core-law claims never reach the owner before their mechanism check). B.6 rule 12 (test motivation, D.2 088) gains its missing body stub. F056 corrected on the record: a Rack project-control binding defect, not a memory-law defect — the injection fence makes cross-project injection impossible and the scorer has no thread feature (D.2 121). Prior v2.80 (2026-08-18) — THE FIXTURE CURTAIN (owner, at an unexpected window: 'I just saw another "regression" fixture which wasn't the real app opening I thought that we'd aligned to not make those'): the D.2 111 real-render alignment becomes statute for ALL machine verification, not just design pitches — (1) NO FIXTURE EVER OPENS ON THE OWNER'S SCREEN: verification browser runs are headless, always; scenario/fixture servers bind only for the check's own lifetime and never auto-open a window; (2) any fixture-served page MUST wear an unmistakable in-page FIXTURE banner (name + packet id) so a stray render can never be mistaken for the product; (3) the only window that ever opens unbidden on the owner's machine is the real app on real data via its own startup; verification invocations of the product always pass --no-open; (4) suite-asserted where testable. Flags F052 (the sighting) + F053 (M3R's out-of-surface fixture repair, content retained, class named). M3FX minted; M3S scout checklist inherits the curtain (D.2 120). Prior v2.79 (2026-08-17) — GRAMMAR, NOT GLYPHS (owner: 'can we not copy them and just change them enough… create our own scripts? That way we have something cool on our own'): counsel recorded — there is no percent-different safe harbor; a script derived from reference letterforms stays derivative; the lawful and better path COPIES THE GRAMMAR (featural anatomy, pen logic, construction rules — free ideas) and constructs original alphabets. THE ELVISH HAND v2.1: a STABLE 24-glyph featural alphabet (stem kinds × gapped lobes × crossbars × tehtar) with calligraphic PEN PRESSURE (thick downstrokes / thin curves) and frequency-weighted sequencing so strips read as real writing; THE MACHINE HAND stays the owner-blessed v1 unchanged; collision rule enforced — rings clear all reading surfaces; kit re-frozen; M2UX6 FINAL (D.2 119). Prior v2.78 (2026-08-17) — THE SIGIL FORGE (owner named the hands: 'This tolkein should be the wizard… The transformer should be the technomancer', supplying Tengwar and Cybertronian charts): verbatim franchise letterforms refused (Tolkien-estate and Hasbro-associated designs; Nocturne distributes publicly; D.2 117's no-franchise law holds) — instead the scripts are FORGED: original glyphs generated procedurally, the procedural law extended to script itself; THE ELVISH HAND (curved stems, bows, loops, descender hooks, floating tehta-style marks, fine round stroke) writes for WIZARD MODE and THE MACHINE HAND (heavy uniform strokes, 45° chamfers, notched stubs, square caps on a 3×4 grid) writes for TECHNOMANCER; seeded deterministic, emitted as SVG data-URI strips in motif CSS (materials, never code); verified live on the owner's platform; kit re-frozen with sigil_forge.py; M2UX6 briefs FINAL (D.2 118). Prior v2.77 (2026-08-17) — THE ELDER SCRIPTS (owner, at the cranked samples: 'the ones that are appearing here are a bit normal'): the grimoire glyph sets swap from familiar symbols to genuinely alien scripts — WIZARD MODE speaks Elder Futhark + Ogham + Glagolitic with rare alchemical accents; TECHNOMANCER speaks an angular machine-script of Carian + Old Turkic + Tifinagh (the transformer-alphabet feel evoked from ancient scripts — no franchise alphabet is ever copied); motif glyphs are literal UTF-8 in the stylesheets, never CSS escapes (kills the mangling class); kit re-frozen at notes/audition-grimoire/; briefs remain FINAL (D.2 117). Prior v2.76 (2026-08-17) — THE RUNE CRANK: GRIMOIRE SAMPLES BLESSED (owner, live samples viewed: 'I like it — crank up the runes and symbols a bit more in different locations maybe 50% more. then finalize it'): rune/sigil density +50% with enumerated locations (module heads, module margins, two empty-state script axes, message margins, composer edge, topbar sigils; technomancer adds a second rain column, module hexlines, composer circuit row); the demo kit — generated from the PRODUCTION stylesheets through the real seam — is frozen at notes/audition-grimoire/ as the reference implementation; M2UX6 briefs are FINAL, audition rounds waived (owner may reopen); demo loops become state-change conjurations in product per the conjuration law (D.2 116). Prior v2.75 (2026-08-17) — THE GRIMOIRE THEMES + THE CONJURATION LAW (owner: wizard mode 'runes and scripts and appearing and disappearing', technomancer 'similar but more neon and cyber punk'): two authored built-in themes join the switcher (no reference plate — the press law is untriggered; per-theme validation is universal); THE CONJURATION LAW governs animated motifs in any theme: motion is decorative only — NEVER on data channels or reading surfaces; conjurations fire on state changes and settle; ambient loops only in empty states/backgrounds at whisper opacity; prefers-reduced-motion yields static runes (suite-asserted); glyph layers are Unicode content in motif CSS — tokens/materials/keyframes, never code (ADR-018 cl.7); M2UX6 minted deps M2UX4; D.2 numbering collision 112–114 flagged to the owed editor pass (D.2 115). Prior v2.74 (2026-08-16) — THE SYMPHONY ENACTMENT (owner blessing: 'fire away'): planning rulings R1-R23, the acceptance bar, the primitive alignment charter, the four-wave plan, and the gap rulings become law (D.2 114b — written as 'D.2 next row' at the time, suffixed v2.82); the full ADR-017/018 textual reconciliation is owed gate editor work. Prior v2.73 (2026-08-13) — THE BOOT DIET (owner: consolidate the total reading): the version-lineage paragraph moves to Appendix D.3 (it duplicated D.2); PLAN charges of completed packets move to notes/plan-archive-completed.md (content preserved; PLAN 1497→403 lines). Motivation: every session's boot cost is round-trips over dead text; the law a runner must read is the law that still binds. Full version lineage: D.2 (rows) and D.3 (narrative).
 
 ## D.4 Parked ideas (not scope; preserved thinking)
 
@@ -3277,25 +4730,14 @@ Prior v2.80 (2026-08-18) — THE FIXTURE CURTAIN (owner, at an unexpected window
   list; excised 2026-07-07 as a conscious divergence (near-always zero at the
   only moment scoring occurs). `thread_origin` metadata is preserved on every
   unit. Resurrection condition: M2 logs show resumed-thread patterns where
-  session affinity would have changed rankings.12. **Test motivation (owner, v2.45).** A test is LAW MADE EXECUTABLE,
-   and it cites its statute: every test function carries a motivation
-   docstring — one or two sentences naming what law or problem it
-   defends and what failure it prevents — containing at least one
-   citation token (SPEC section, ADR, amendment, Invariant, Problem
-   Tree node, or regression flag). Enforced MECHANICALLY: a
-   deterministic pre-commit checker in both repos fails unmotivated
-   tests; the existing suite is grandfathered by a baseline file that
-   the M2Q sweep retires (ratchet: new or modified tests comply now).
-   A test that cannot be motivated is a discovery, not an exemption:
-   it defends unwritten law (propose the completion) or defends
-   nothing (delete it, journaled). THE INVERSE INDEX: the citations
-   generate the LAW-COVERAGE REPORT — every section with its defending
-   tests, zero-defender sections highlighted; untested law becomes as
-   visible as unpriced spend.
+  session affinity would have changed rankings.
+  *(B.6 rule 12's body, which v2.48 had appended to this bullet, was moved
+  to its rule in editor pass IV — A-040, v2.82. No normative test law lives
+  in D.4.)*
 
 
 
 
 ## D.3 — Version lineage narrative (moved from the header, 2026-08-13)
 
-F037 RESOLVED + THE EVIDENCE CAPTURE LAW + REPO VISIBILITY DOCTRINE: the garden is private (build environment); the product repos are public by design (NOCTURNE is for people); committed evidence comes ONLY from fixture/verification identities — owner-rack captures are never committed; the four historical screenshots are owner-accepted as benign (D.2 117-era ruling). Prior v2.71 (2026-08-11) — THE LIFECYCLE MATRIX (owner: 'this CI/CD pipeline needs to be uber robust — any time we are working on it something breaks'): the update/deploy/launch decision table is enumerated and table-tested — every state combination has a defined voice and action; every lifecycle incident becomes a matrix row before its fix closes; ONE MIND law: the prompt never offers what the guard refuses (D.2 112). Prior v2.70 (2026-08-11) — THE PLATE PRESS (owner: 'a feature where we could feed in a picture and the color palette is extracted and makes a new colorway for the harness… we can apply the iteration to the rules'): the manual audition loop's learnings become an automated product feature — any image pressed through the ratified derivation pipeline (D.2 107–110 as executable code: extraction, accent passes, percentile chrome, role assignment by the ratio law, contrast repair, per-theme validation) yields a named COLORWAY that joins the theme switcher; colorways are DATA (tokens), never code (ADR-018 cl.7 sandbox law) — user-authorable theming realized; validation fail-closed with plain remedy; M2UX5 minted deps M2UX4 (D.2 114). Prior v2.69 (2026-08-11) — THE THREE-THEME RULING (owner close: 'leave the current color scheme in place and add these two as alternatives'): NEO-NOIR remains the worn default — no pending worn-skin audition; the two faces ship as named ALTERNATES in an ordinary theme switcher (SERAPH DRESSED night, GOLD LINES day), selectable on the real rack, choice persistent; M2UX4's exit is three selectable themes + the seam sweep, not a replacement ruling (D.2 113). Prior v2.68 (2026-08-11) — THE AUDITION LOOP + THE TWO FACES (owner protocol: 'generate 4 things, physically look at them, then I tell you which I like — several iteration loops'): five rounds run same-day on real-stylesheet candidates; rulings extracted from picks — red is danger-only, both metals (gold chips + silver rims), VARIANCE LAW (mutation radius stays wide until the owner narrows; round-3 convergence rebuked); winners frozen as M2UX4's starting candidates: NIGHT = SERAPH DRESSED (blend palette, gold+silver, two-sky wash, amber horizon, chrome rims) and DAY = GOLD LINES (cobalt-on-cloud, gilded linework) — the plate's own two panels are the two faces; the seam-leak sweep becomes packet duty (268 literals + #dad8d2/#c9dce4 + rgba glass discovered; every color literal migrates into the token seam, computed-style checks at every breakpoint); real-rack audition still final per D.2 111 (D.2 112). Prior v2.67 (2026-08-11) — THE AUDITION CLAUSE (owner taste signal: 'i like the current one better than what you are pitching'): gate sketches are NOT judging grounds — B.6 r7 extended to taste: theme rulings happen on the REAL rack only; D.2 107(4) softened — M2UX4 builds cobalt-seraph as a complete SWITCHABLE token set beside NEO-NOIR, which REMAINS WORN until the owner rules; exit gains a side-by-side audition (same views, both themes, live switch + screenshots); the blend path is legal — the derivation may keep the current skin's electric-ink strategy with the electricity re-sourced from the plate (iris #2b58ba, specular white) (D.2 111). Prior v2.66 (2026-08-11) — THE RIM LAW (owner: 'that kind of chrome for the borders not buttons — that isn't aesthetic'): chrome is an EDGE material — module borders, frames, focus rings, resize edges, separators — the D.2 109 banded ramp runs ALONG the stroke (1-2px rim; the blaze widens slightly on hover/focus; the viewport-fixed reflection slides on the rim when a module moves); chrome NEVER fills a button, header, chip, or slab; fills stay dark cel with silver/white linework text; TEXT NEVER SITS ON CHROME; the seraph wears chrome as rim light on a dark body — the bright fill was always the sky behind it; part→material map corrected in place (D.2 110). Prior v2.65 (2026-08-11) — THE SHINE FLOOR (owner: 'the chrome needs to be liquid and shiny and white — all of this feels muted and matte'): mean-sampling is BANNED for chrome — chrome never looks like its mean (the seraph is 73% near-black yet reads white); chrome tokens are luminance-PERCENTILE ramps with banded stops (measured: #090807/#100f15 dark mass → thin #302529 transition → #888d9b/#bfcbd5/#dbe5ee/#eff8fa blaze); THE MISSING MIDDLE is the shine — a chrome part's rendered luminance histogram must be bimodal (dark seams + white blaze, thin midtones; mid-centered variance = matte = defect, asserted in the emulation check); the white end reaches L≥0.97 icy-cool and sits adjacent to near-black seams (adjacency makes the blaze); the worn chrome base flips from steel #7f879a to the bright-silver class (D.2 109). Prior v2.64 (2026-08-11) — THE SERAPH DIRECTIVE (owner second look: 'making the UI look most like the figure in the bottom of the image — liquid and sharp and different'; 'the same sense of humanity, alienness, surrealness, beauty, technology, majesty, scale, sky'): the extractor gains the CHROMA-OUTLIER and SPECULAR passes (gold #ad8659→#db9969 at 0.061%, iris #2b58ba, coral peak #cd352b, shine as a base→peak PAIR #7f879a→#fffffd; glint census 119); LIQUID CHROME — all chrome parts share one viewport-fixed two-sky gradient so reflections slide when modules move; SHARP — cel edges, no blur/drop-shadow on interactive surfaces, controls silent until approached; THE TWO SKIES light model (night above, day cobalt below, amber horizon at the Vitals strip); ONTOLOGY MAPPING (warm=human, chrome=machine, cobalt=world, white=meaning, gold=the earned ≤0.1%; chrome-on-warm marks machine-touches-human); THE WING RULE (one hero gesture per view; dark share is the majesty); THE GLINT BUDGET (specular ≤ plate's 1.2%); ATMOSPHERIC DEPTH (recede by haze, never shadow); part→material→token map generated by the extractor and asserted by M2UX3's conformance test; M2UX4 retrofitted (D.2 108). Prior v2.63 (2026-08-11) — THE REFERENCE PLATE (owner: 'emulate this picture as absolutely as possible… pulling exact color samples out and using those in the same ratios'): COBALT-SERAPH gains a committed canonical reference plate; theme tokens with AREA SHARES are DERIVED by a deterministic extractor, never authored (procedural law extended to aesthetics: same plate → same tokens, regeneration is a byte-identical no-op); the RATIO LAW maps token shares to UI area budget; the EMULATION CHECK bounds screenshot-vs-plate palette-area distance; the owner rack wears the plate-derived theme, NEO-NOIR preserved as a named token set; M2UX4 minted serial after the UX lane (D.2 107). Prior v2.62 (2026-08-10) — THE PACKET TEMPLATE (owner: 'I never want to be afraid to fire off a volley of parallelizable agents'): every packet minted from now carries MOTIVATION (problem-tree node + the why), RECIPE (deps, touched surfaces at file/subsystem level, exclusions, parallel verdict), and AUTHORITY (embedded grants) at mint time — recipe cards are generated from packets (D.2 106). Prior v2.61 (2026-08-10) — M2ZA COMPLETION GRANT: single-use 0.1.2 rollout (ships migration 0012 + annotation API + canonical deploy identity), then the data-plane annotation and honest-scoreboard verification close the packet (D.2 105). Prior v2.60 (2026-08-09) — THE LOCATION FENCE + RECIPE-CARD PRACTICE (owner): deterministic tool-layer write enforcement — an agent WRITES only within its current location's subtree; movement is an explicit logged act; the fence is the exclusion-set law made PHYSICAL (disjoint locations = provably conflict-free parallelism) and the Ant Farm is the fence made visible; 'ratatouille criteria' named; manual approximation effective now: the gate authors a recipe card per wave, the owner fires parallel sessions into open cells under the D.2 065 exclusion machinery (D.2 103). Prior v2.59: SYMPHONY'S PLANNING ARCHITECTURE PINNED (owner): the THREE-JUDGE MINIMUM (motivation, implementation, PERFORMANCE — the third judging against PRECALCULATED METRICS agreed at plan time, persisted in a cross-symphony ledger so they improve over time) + THE RECIPE CARD: the plan artifact is a staged dependency table (rows=work items, prep stages parallel per-row, MERGE CELLS as join barriers, per-stage DONENESS criteria — observable states, never timers), judges evaluate at merge points, the conductor view renders the card live (D.2 102). Prior v2.58: THE MEMORY SHARE + COMPACTION MEMORY DUTY (owner design session): the injection token budget becomes n% of the active model's context window (visible, editable, Console-governed), auto-tuned INSIDE the Chrysopoeia loop via the budget-cut band counterfactual — never a standalone tuner; at compaction the summarizing agent carries three-way triage memory duty through the ordinary C.6 channel (D.2 101). Prior v2.57: THE PRE-GATE RULINGS (owner working session over report 077): BACKGROUND RETRAIN law (retrain is a background act on work-based triggers; one manual 'Force retrain' lever; the Console's FORCE-values stays a distinct instrument — no duplicate buttons); THE LONG PROBLEM measured in COMPACTIONS ('compaction is the context-window entropy the memory palace is fighting'); PACKET-EMBEDDED AUTHORITY practice; provisional-taste grant (expires at M2X clear); release grant for 0.1.1 with shipped-source-only provenance; M2Z1-M2Z5 minted (D.2 100). Prior v2.56: THE RELEASE-LIFECYCLE REVIEW (owner directive: every future release must be one or two commands and menus): NO-DOWNGRADES law (reverse skew names the app as the stale side and never offers a downgrade); DOCTOR-PARITY law (doctor probes every dependency `up` needs — 'doctor healthy, up refuses' is itself a defect); VERSION-BUMP GUARD (deploy refuses tag-exists-but-source-differs with the bump remedy); M2W minted; D3 charge gains the release ritual + `nocturne update` (D.2 099). Prior v2.55: F018/F019 closed out: THE INFRASTRUCTURE/DATA-PLANE SCOPE LAW (grants govern infrastructure mutations only; application-data-plane operations are ordinary product operation, never grant-gated) + MUTATION-LAST ORDERING (locally-fallible stages precede the first service-affecting mutation); F018's direct owner grant recorded; M2 palace deploy gate-verified live (D.2 098). Prior v2.54: F017 resolved: fresh grant for the proven `nocturne up → y` path + RECEIPT MARKS CONSUMPTION recalibration: pre-receipt failures leave grants intact for in-session retry (D.2 097). Prior v2.53: F016 resolved: fresh grant, corrected reset, one-receipt-per-attempt bright line (D.2 096). Prior v2.52: plain language calibrated by audience: standard ops vocabulary stays, invented jargon and remedy-free refusals banned (D.2 095). Prior v2.51: credential alignment grant (reset, single-use) + plain plan language (D.2 094). Prior v2.50: the update prompt + plain secret names (D.2 093). Prior v2.49: F015 resolved: informed restore — side-by-side + the rollback manifest (D.2 092). Prior v2.48: the garden never shows; Codex-extension browser default; adopt-an-OSS-toolset doctrine (D.2 091). Prior v2.47: identity ratified: NOCTURNE stays; the mark is the ouroboros around the moon (D.2 090). Prior v2.46: core-first check: M2R Context Bars minted (dropped-ball recovery), movement coupling pinned, board reordered core-first (D.2 089). Prior v2.45: TEST MOTIVATION LAW (B.6 r12): every test cites its statute; M2Q sweep + law-coverage report minted (D.2 088). Prior v2.44: informed force: simulate-before-force, score bound to exact values (D.2 087). Prior v2.43: Injection Console completed: score graph, SIMULATE (instant+deep), FORCE as exploration lever, default-compact, the Landscape colocated with curators at M3 (D.2 086). Prior v2.42: THE INJECTION CONSOLE: four-layer scoring module (read/control/what-if/audition); M2P minted (D.2 085). Prior v2.41: THE ACCURACY SCORE: memory performance as a per-generation Vitals time series (D.2 084). Prior v2.40: module scope law: GLOBAL|CURRENT toggles on every rack module, selection-bus coherence (D.2 083). Prior v2.39: THE JOURNAL LAW: history mandatory, fail-closed ratified, disk-threshold Deck card; reconcilable-vs-unrecoverable doctrine sealed (D.2 082). Prior v2.38: fixture isolation, accounting fails open (B.6 r11), image input committed; M2O minted (D.2 081). Prior v2.37: real-calls doctrine (B.6 r10); multimodality named future surface; owner rack review captured (D.2 080). Prior v2.36: THE CAPABILITY LADDER: one product, rungs never forks; the mirror principle; blue-water's first customer named (D.2 079). Prior v2.35: packaging review: ADR-019 v0.1 positioning (local = public path, deploy = owner-only), D3 evidence erratum, M2N lifecycle hardening minted (D.2 078). Prior v2.34: wave-2 clarity pass + mint: learner authority, extraction trigger, reconciliation scope, the missing re-scoring packet (D.2 077). Prior v2.33: live thread parameters: dispositions are binary locks both directions; f_sess resurrected into the replay pipeline (D.2 076). Prior v2.32: THE SCOREBOARD: binary override-rate replay acceptance; agenda item 1 closed (D.2 075). Prior v2.31: first-principles level-set: selection law = τ+budget (k is config), OQ-15 RESOLVED (first-gate once, then autonomous per-message re-scoring) (D.2 074). Prior v2.30: install name: PyPI `nocturne-ai`, command `nocturne` (D.2 073). Prior v2.29: M2 WAVE 1 opened pre-planning: M2A-M2E + M1C minted; scoreboard-dependent work waits for planning proper (D.2 072). Prior v2.28: M1 JUDGED PASS; ADR statuses normalized per the superseding verdict (D.2 071). Prior v2.27: motivation-in-place for /model resolution points (D.2 070). Prior v2.26: F012 RESOLVED: model RESOLUTION POINTS (never drift), /model command, J1 rewritten lawful; J re-opens for a Claude Code judge (D.2 069). Prior v2.25: UNIFIED QUEUE LAW: birthplace routing, deck flashcards with passive approval on visibility, Palace queue module for corpus-born proposals (D.2 068). Prior v2.24: THE GLOSSARY: garden/GLOSSARY.md, read at boot STEP 1; coinage duty on the human gate, proposal duty on agents (D.2 067). Prior v2.23: EDITOR PASS III: ADR-023 Plugin System extracted, ADR-024 Cost Domain consolidated, P2.5 + P4.1/P4.2 (D.2 066). Prior v2.22: PACKET EXCLUSION LAW: symmetric conflict sets on the board; concurrent relay sessions become legal + safe, dormant until used (D.2 065). Prior v2.21: RELAY UNBLOCK: F011 deploy grant (single-use, d41b286); hold rescoped to gate J only; sprint H5→I1 queued (D.2 064). Prior v2.20: contributor skill sharpened: self-contained + motivation-first + data-catalog heart, both plugin classes equal (D.2 063). Prior v2.19: plugin refinements: local freedom/documented edges (general project rule), resize law (grid units), contributor skill (D.2 062). Prior v2.18: PLUGINS ALL THE WAY DOWN: ADR-018 cl.8-10 — ground-up composition, control plugins + parameter registry, authoring ease + reference plugins (D.2 061). Prior v2.17: SPEND DASHBOARD: Vitals as Ableton-style bottom strip, dollar-true lanes (D.2 060). Prior v2.16: H5 scout consult: near-miss "never" veto (resolves F007 deadlock); no silent scope broadening (F008) (D.2 059). Prior v2.15: B.6 rule 9 SCOUT-BEFORE-OWNER (relay self-routes to scout at human gates) + ADR-022 split law (semantic, lineaged, never summarized) (D.2 058). Prior v2.14: flow-walkthrough closures: reinforcement in every mode, candidate invisibility, rejection-as-signal, anti-nag law, pin overflow (D.2 057). Prior v2.13: OQ-4 RESOLVED (curator autonomy earned per verdict class); injection-pressure trigger defined (was "80%-budget"); status normalization → J's charge (D.2 056). Prior v2.12: EDITOR PASS II (content-preserving): ADR-022 THE CURATORS extracted from ADR-004 accretions; problem tree gains P1.5/P1.6/P2.4; memory lifecycle map (D.2 055). Prior v2.11: PALACE VITALS gauges (lifecycle rates/hr, token spend by category/hr, counters) + ADR-021 lifecycle closures C1-C6 (D.2 054). Prior v2.10: ADR-021 MEMORY WRITE LAW: admit-then-curate, fire-and-forget saves, reinforcement coalescing, 10% attention budget (principle), Symphony staging + judge promotion, origin_agent lineage id (D.2 053). Prior v2.9: CURATOR ARCHITECTURE: deterministic diagnostics → Palace Health Report → LLM verdicts → deterministic write tools (D.2 052). Prior v2.8: CURATOR DOCTRINE: write-count trigger, palace-anchored, surgeons (root-cause, minimal intervention), slop removal, versioned curation SOPs (D.2 051). Prior v2.7: gate-day data + v0.2 proposal adoptions: hybrid candidate retrieval, keywords mandate, training-data hygiene, curator consolidation taxonomy + typed edges, promotion blend, candidate status (D.2 050). Prior v2.6: OQ-17 resolved (roots alpha = selection focus); ADR-019 seed ingestion; nocturne-* remotes + splash repo (D.2 049). Prior v2.5: B.6 rule 8 agent walkthroughs (D.2 048). Prior v2.4: NOCTURNE christened; ADR-019 onboarding; ADR-020 shared Palaces (D.2 046–047). Prior v2.3: broker-routed embeddings (D.2 044). Prior v2.2: themes (D.2 043). Prior v2.1: procedural law (D.2 042). Prior v2.0: EDITOR PASS: content-preserving consolidation of the v1.5–v1.15 organic growth. New/amended law: ADR-012 mode scale, ADR-015 walls, ADR-016 tree, ADR-017 Symphony, ADR-018 Cube+plugins+stack, ADR-007→index, ADR-008 stack resolved; enacted amendments A-001–A-017 folded into Part C (AMENDMENTS.md remains the historical record); D.1 refreshed. Full version lineage: Appendix D.2. Prior v1.4 (2026-07-07) was reorganized from the v0.x iteration transcript;
+F037 RESOLVED + THE EVIDENCE CAPTURE LAW + REPO VISIBILITY DOCTRINE: the garden is private (build environment); the product repos are public by design (NOCTURNE is for people); committed evidence comes ONLY from fixture/verification identities — owner-rack captures are never committed; the four historical screenshots are owner-accepted as benign (D.2 117-era ruling; the row itself is D.2 113b after the v2.82 suffix). Prior v2.71 (2026-08-11) — THE LIFECYCLE MATRIX (owner: 'this CI/CD pipeline needs to be uber robust — any time we are working on it something breaks'): the update/deploy/launch decision table is enumerated and table-tested — every state combination has a defined voice and action; every lifecycle incident becomes a matrix row before its fix closes; ONE MIND law: the prompt never offers what the guard refuses (D.2 112b — suffixed v2.82). Prior v2.70 (2026-08-11) — THE PLATE PRESS (owner: 'a feature where we could feed in a picture and the color palette is extracted and makes a new colorway for the harness… we can apply the iteration to the rules'): the manual audition loop's learnings become an automated product feature — any image pressed through the ratified derivation pipeline (D.2 107–110 as executable code: extraction, accent passes, percentile chrome, role assignment by the ratio law, contrast repair, per-theme validation) yields a named COLORWAY that joins the theme switcher; colorways are DATA (tokens), never code (ADR-018 cl.7 sandbox law) — user-authorable theming realized; validation fail-closed with plain remedy; M2UX5 minted deps M2UX4 (D.2 114). Prior v2.69 (2026-08-11) — THE THREE-THEME RULING (owner close: 'leave the current color scheme in place and add these two as alternatives'): NEO-NOIR remains the worn default — no pending worn-skin audition; the two faces ship as named ALTERNATES in an ordinary theme switcher (SERAPH DRESSED night, GOLD LINES day), selectable on the real rack, choice persistent; M2UX4's exit is three selectable themes + the seam sweep, not a replacement ruling (D.2 113). Prior v2.68 (2026-08-11) — THE AUDITION LOOP + THE TWO FACES (owner protocol: 'generate 4 things, physically look at them, then I tell you which I like — several iteration loops'): five rounds run same-day on real-stylesheet candidates; rulings extracted from picks — red is danger-only, both metals (gold chips + silver rims), VARIANCE LAW (mutation radius stays wide until the owner narrows; round-3 convergence rebuked); winners frozen as M2UX4's starting candidates: NIGHT = SERAPH DRESSED (blend palette, gold+silver, two-sky wash, amber horizon, chrome rims) and DAY = GOLD LINES (cobalt-on-cloud, gilded linework) — the plate's own two panels are the two faces; the seam-leak sweep becomes packet duty (268 literals + #dad8d2/#c9dce4 + rgba glass discovered; every color literal migrates into the token seam, computed-style checks at every breakpoint); real-rack audition still final per D.2 111 (D.2 112). Prior v2.67 (2026-08-11) — THE AUDITION CLAUSE (owner taste signal: 'i like the current one better than what you are pitching'): gate sketches are NOT judging grounds — B.6 r7 extended to taste: theme rulings happen on the REAL rack only; D.2 107(4) softened — M2UX4 builds cobalt-seraph as a complete SWITCHABLE token set beside NEO-NOIR, which REMAINS WORN until the owner rules; exit gains a side-by-side audition (same views, both themes, live switch + screenshots); the blend path is legal — the derivation may keep the current skin's electric-ink strategy with the electricity re-sourced from the plate (iris #2b58ba, specular white) (D.2 111). Prior v2.66 (2026-08-11) — THE RIM LAW (owner: 'that kind of chrome for the borders not buttons — that isn't aesthetic'): chrome is an EDGE material — module borders, frames, focus rings, resize edges, separators — the D.2 109 banded ramp runs ALONG the stroke (1-2px rim; the blaze widens slightly on hover/focus; the viewport-fixed reflection slides on the rim when a module moves); chrome NEVER fills a button, header, chip, or slab; fills stay dark cel with silver/white linework text; TEXT NEVER SITS ON CHROME; the seraph wears chrome as rim light on a dark body — the bright fill was always the sky behind it; part→material map corrected in place (D.2 110). Prior v2.65 (2026-08-11) — THE SHINE FLOOR (owner: 'the chrome needs to be liquid and shiny and white — all of this feels muted and matte'): mean-sampling is BANNED for chrome — chrome never looks like its mean (the seraph is 73% near-black yet reads white); chrome tokens are luminance-PERCENTILE ramps with banded stops (measured: #090807/#100f15 dark mass → thin #302529 transition → #888d9b/#bfcbd5/#dbe5ee/#eff8fa blaze); THE MISSING MIDDLE is the shine — a chrome part's rendered luminance histogram must be bimodal (dark seams + white blaze, thin midtones; mid-centered variance = matte = defect, asserted in the emulation check); the white end reaches L≥0.97 icy-cool and sits adjacent to near-black seams (adjacency makes the blaze); the worn chrome base flips from steel #7f879a to the bright-silver class (D.2 109). Prior v2.64 (2026-08-11) — THE SERAPH DIRECTIVE (owner second look: 'making the UI look most like the figure in the bottom of the image — liquid and sharp and different'; 'the same sense of humanity, alienness, surrealness, beauty, technology, majesty, scale, sky'): the extractor gains the CHROMA-OUTLIER and SPECULAR passes (gold #ad8659→#db9969 at 0.061%, iris #2b58ba, coral peak #cd352b, shine as a base→peak PAIR #7f879a→#fffffd; glint census 119); LIQUID CHROME — all chrome parts share one viewport-fixed two-sky gradient so reflections slide when modules move; SHARP — cel edges, no blur/drop-shadow on interactive surfaces, controls silent until approached; THE TWO SKIES light model (night above, day cobalt below, amber horizon at the Vitals strip); ONTOLOGY MAPPING (warm=human, chrome=machine, cobalt=world, white=meaning, gold=the earned ≤0.1%; chrome-on-warm marks machine-touches-human); THE WING RULE (one hero gesture per view; dark share is the majesty); THE GLINT BUDGET (specular ≤ plate's 1.2%); ATMOSPHERIC DEPTH (recede by haze, never shadow); part→material→token map generated by the extractor and asserted by M2UX3's conformance test; M2UX4 retrofitted (D.2 108). Prior v2.63 (2026-08-11) — THE REFERENCE PLATE (owner: 'emulate this picture as absolutely as possible… pulling exact color samples out and using those in the same ratios'): COBALT-SERAPH gains a committed canonical reference plate; theme tokens with AREA SHARES are DERIVED by a deterministic extractor, never authored (procedural law extended to aesthetics: same plate → same tokens, regeneration is a byte-identical no-op); the RATIO LAW maps token shares to UI area budget; the EMULATION CHECK bounds screenshot-vs-plate palette-area distance; the owner rack wears the plate-derived theme, NEO-NOIR preserved as a named token set; M2UX4 minted serial after the UX lane (D.2 107). Prior v2.62 (2026-08-10) — THE PACKET TEMPLATE (owner: 'I never want to be afraid to fire off a volley of parallelizable agents'): every packet minted from now carries MOTIVATION (problem-tree node + the why), RECIPE (deps, touched surfaces at file/subsystem level, exclusions, parallel verdict), and AUTHORITY (embedded grants) at mint time — recipe cards are generated from packets (D.2 106). Prior v2.61 (2026-08-10) — M2ZA COMPLETION GRANT: single-use 0.1.2 rollout (ships migration 0012 + annotation API + canonical deploy identity), then the data-plane annotation and honest-scoreboard verification close the packet (D.2 105). Prior v2.60 (2026-08-09) — THE LOCATION FENCE + RECIPE-CARD PRACTICE (owner): deterministic tool-layer write enforcement — an agent WRITES only within its current location's subtree; movement is an explicit logged act; the fence is the exclusion-set law made PHYSICAL (disjoint locations = provably conflict-free parallelism) and the Ant Farm is the fence made visible; 'ratatouille criteria' named; manual approximation effective now: the gate authors a recipe card per wave, the owner fires parallel sessions into open cells under the D.2 065 exclusion machinery (D.2 103). Prior v2.59: SYMPHONY'S PLANNING ARCHITECTURE PINNED (owner): the THREE-JUDGE MINIMUM (motivation, implementation, PERFORMANCE — the third judging against PRECALCULATED METRICS agreed at plan time, persisted in a cross-symphony ledger so they improve over time) + THE RECIPE CARD: the plan artifact is a staged dependency table (rows=work items, prep stages parallel per-row, MERGE CELLS as join barriers, per-stage DONENESS criteria — observable states, never timers), judges evaluate at merge points, the conductor view renders the card live (D.2 102). Prior v2.58: THE MEMORY SHARE + COMPACTION MEMORY DUTY (owner design session): the injection token budget becomes n% of the active model's context window (visible, editable, Console-governed), auto-tuned INSIDE the Chrysopoeia loop via the budget-cut band counterfactual — never a standalone tuner; at compaction the summarizing agent carries three-way triage memory duty through the ordinary C.6 channel (D.2 101). Prior v2.57: THE PRE-GATE RULINGS (owner working session over report 077): BACKGROUND RETRAIN law (retrain is a background act on work-based triggers; one manual 'Force retrain' lever; the Console's FORCE-values stays a distinct instrument — no duplicate buttons); THE LONG PROBLEM measured in COMPACTIONS ('compaction is the context-window entropy the memory palace is fighting'); PACKET-EMBEDDED AUTHORITY practice; provisional-taste grant (expires at M2X clear); release grant for 0.1.1 with shipped-source-only provenance; M2Z1-M2Z5 minted (D.2 100). Prior v2.56: THE RELEASE-LIFECYCLE REVIEW (owner directive: every future release must be one or two commands and menus): NO-DOWNGRADES law (reverse skew names the app as the stale side and never offers a downgrade); DOCTOR-PARITY law (doctor probes every dependency `up` needs — 'doctor healthy, up refuses' is itself a defect); VERSION-BUMP GUARD (deploy refuses tag-exists-but-source-differs with the bump remedy); M2W minted; D3 charge gains the release ritual + `nocturne update` (D.2 099). Prior v2.55: F018/F019 closed out: THE INFRASTRUCTURE/DATA-PLANE SCOPE LAW (grants govern infrastructure mutations only; application-data-plane operations are ordinary product operation, never grant-gated) + MUTATION-LAST ORDERING (locally-fallible stages precede the first service-affecting mutation); F018's direct owner grant recorded; M2 palace deploy gate-verified live (D.2 098). Prior v2.54: F017 resolved: fresh grant for the proven `nocturne up → y` path + RECEIPT MARKS CONSUMPTION recalibration: pre-receipt failures leave grants intact for in-session retry (D.2 097). Prior v2.53: F016 resolved: fresh grant, corrected reset, one-receipt-per-attempt bright line (D.2 096). Prior v2.52: plain language calibrated by audience: standard ops vocabulary stays, invented jargon and remedy-free refusals banned (D.2 095). Prior v2.51: credential alignment grant (reset, single-use) + plain plan language (D.2 094). Prior v2.50: the update prompt + plain secret names (D.2 093). Prior v2.49: F015 resolved: informed restore — side-by-side + the rollback manifest (D.2 092). Prior v2.48: the garden never shows; Codex-extension browser default; adopt-an-OSS-toolset doctrine (D.2 091). Prior v2.47: identity ratified: NOCTURNE stays; the mark is the ouroboros around the moon (D.2 090). Prior v2.46: core-first check: M2R Context Bars minted (dropped-ball recovery), movement coupling pinned, board reordered core-first (D.2 089). Prior v2.45: TEST MOTIVATION LAW (B.6 r12): every test cites its statute; M2Q sweep + law-coverage report minted (D.2 088). Prior v2.44: informed force: simulate-before-force, score bound to exact values (D.2 087). Prior v2.43: Injection Console completed: score graph, SIMULATE (instant+deep), FORCE as exploration lever, default-compact, the Landscape colocated with curators at M3 (D.2 086). Prior v2.42: THE INJECTION CONSOLE: four-layer scoring module (read/control/what-if/audition); M2P minted (D.2 085). Prior v2.41: THE ACCURACY SCORE: memory performance as a per-generation Vitals time series (D.2 084). Prior v2.40: module scope law: GLOBAL|CURRENT toggles on every rack module, selection-bus coherence (D.2 083). Prior v2.39: THE JOURNAL LAW: history mandatory, fail-closed ratified, disk-threshold Deck card; reconcilable-vs-unrecoverable doctrine sealed (D.2 082). Prior v2.38: fixture isolation, accounting fails open (B.6 r11), image input committed; M2O minted (D.2 081). Prior v2.37: real-calls doctrine (B.6 r10); multimodality named future surface; owner rack review captured (D.2 080). Prior v2.36: THE CAPABILITY LADDER: one product, rungs never forks; the mirror principle; blue-water's first customer named (D.2 079). Prior v2.35: packaging review: ADR-019 v0.1 positioning (local = public path, deploy = owner-only), D3 evidence erratum, M2N lifecycle hardening minted (D.2 078). Prior v2.34: wave-2 clarity pass + mint: learner authority, extraction trigger, reconciliation scope, the missing re-scoring packet (D.2 077). Prior v2.33: live thread parameters: dispositions are binary locks both directions; f_sess resurrected into the replay pipeline (D.2 076). Prior v2.32: THE SCOREBOARD: binary override-rate replay acceptance; agenda item 1 closed (D.2 075). Prior v2.31: first-principles level-set: selection law = τ+budget (k is config), OQ-15 RESOLVED (first-gate once, then autonomous per-message re-scoring) (D.2 074). Prior v2.30: install name: PyPI `nocturne-ai`, command `nocturne` (D.2 073). Prior v2.29: M2 WAVE 1 opened pre-planning: M2A-M2E + M1C minted; scoreboard-dependent work waits for planning proper (D.2 072). Prior v2.28: M1 JUDGED PASS; ADR statuses normalized per the superseding verdict (D.2 071). Prior v2.27: motivation-in-place for /model resolution points (D.2 070). Prior v2.26: F012 RESOLVED: model RESOLUTION POINTS (never drift), /model command, J1 rewritten lawful; J re-opens for a Claude Code judge (D.2 069). Prior v2.25: UNIFIED QUEUE LAW: birthplace routing, deck flashcards with passive approval on visibility, Palace queue module for corpus-born proposals (D.2 068). Prior v2.24: THE GLOSSARY: garden/GLOSSARY.md, read at boot STEP 1; coinage duty on the human gate, proposal duty on agents (D.2 067). Prior v2.23: EDITOR PASS III: ADR-023 Plugin System extracted, ADR-024 Cost Domain consolidated, P2.5 + P4.1/P4.2 (D.2 066). Prior v2.22: PACKET EXCLUSION LAW: symmetric conflict sets on the board; concurrent relay sessions become legal + safe, dormant until used (D.2 065). Prior v2.21: RELAY UNBLOCK: F011 deploy grant (single-use, d41b286); hold rescoped to gate J only; sprint H5→I1 queued (D.2 064). Prior v2.20: contributor skill sharpened: self-contained + motivation-first + data-catalog heart, both plugin classes equal (D.2 063). Prior v2.19: plugin refinements: local freedom/documented edges (general project rule), resize law (grid units), contributor skill (D.2 062). Prior v2.18: PLUGINS ALL THE WAY DOWN: ADR-018 cl.8-10 — ground-up composition, control plugins + parameter registry, authoring ease + reference plugins (D.2 061). Prior v2.17: SPEND DASHBOARD: Vitals as Ableton-style bottom strip, dollar-true lanes (D.2 060). Prior v2.16: H5 scout consult: near-miss "never" veto (resolves F007 deadlock); no silent scope broadening (F008) (D.2 059). Prior v2.15: B.6 rule 9 SCOUT-BEFORE-OWNER (relay self-routes to scout at human gates) + ADR-022 split law (semantic, lineaged, never summarized) (D.2 058). Prior v2.14: flow-walkthrough closures: reinforcement in every mode, candidate invisibility, rejection-as-signal, anti-nag law, pin overflow (D.2 057). Prior v2.13: OQ-4 RESOLVED (curator autonomy earned per verdict class); injection-pressure trigger defined (was "80%-budget"); status normalization → J's charge (D.2 056). Prior v2.12: EDITOR PASS II (content-preserving): ADR-022 THE CURATORS extracted from ADR-004 accretions; problem tree gains P1.5/P1.6/P2.4; memory lifecycle map (D.2 055). Prior v2.11: PALACE VITALS gauges (lifecycle rates/hr, token spend by category/hr, counters) + ADR-021 lifecycle closures C1-C6 (D.2 054). Prior v2.10: ADR-021 MEMORY WRITE LAW: admit-then-curate, fire-and-forget saves, reinforcement coalescing, 10% attention budget (principle), Symphony staging + judge promotion, origin_agent lineage id (D.2 053). Prior v2.9: CURATOR ARCHITECTURE: deterministic diagnostics → Palace Health Report → LLM verdicts → deterministic write tools (D.2 052). Prior v2.8: CURATOR DOCTRINE: write-count trigger, palace-anchored, surgeons (root-cause, minimal intervention), slop removal, versioned curation SOPs (D.2 051). Prior v2.7: gate-day data + v0.2 proposal adoptions: hybrid candidate retrieval, keywords mandate, training-data hygiene, curator consolidation taxonomy + typed edges, promotion blend, candidate status (D.2 050). Prior v2.6: OQ-17 resolved (roots alpha = selection focus); ADR-019 seed ingestion; nocturne-* remotes + splash repo (D.2 049). Prior v2.5: B.6 rule 8 agent walkthroughs (D.2 048). Prior v2.4: NOCTURNE christened; ADR-019 onboarding; ADR-020 shared Palaces (D.2 046–047). Prior v2.3: broker-routed embeddings (D.2 044). Prior v2.2: themes (D.2 043). Prior v2.1: procedural law (D.2 042). Prior v2.0: EDITOR PASS: content-preserving consolidation of the v1.5–v1.15 organic growth. New/amended law: ADR-012 mode scale, ADR-015 walls, ADR-016 tree, ADR-017 Symphony, ADR-018 Cube+plugins+stack, ADR-007→index, ADR-008 stack resolved; enacted amendments A-001–A-017 folded into Part C (AMENDMENTS.md remains the historical record); D.1 refreshed. Full version lineage: Appendix D.2. Prior v1.4 (2026-07-07) was reorganized from the v0.x iteration transcript;
