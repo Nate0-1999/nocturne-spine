@@ -86,8 +86,8 @@ async def test_health_endpoints_and_auth_are_live(app: FastAPI) -> None:
     assert healthy_healthz.json() == {
         "ok": True,
         "version": __version__,
-            "api_contract_version": "0.1.4",
-            "schema_version": "0015",
+        "api_contract_version": "0.1.5",
+        "schema_version": "0016",
     }
     assert healthy_healthz.json()["api_contract_version"] == API_CONTRACT_VERSION
     assert re.fullmatch(r"(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)", API_CONTRACT_VERSION)
@@ -129,7 +129,7 @@ def test_contract_fingerprint_rejects_unversioned_openapi_drift(app: FastAPI) ->
         require_known_contract_fingerprint(contract_drift, fingerprints)
 
     with pytest.raises(ApiContractDriftError, match="has no recorded OpenAPI fingerprint"):
-        require_known_contract_fingerprint(openapi, fingerprints, version="0.1.5")
+        require_known_contract_fingerprint(openapi, fingerprints, version="0.1.6")
 
 
 async def test_retrain_is_bearer_protected_before_any_training_work(app: FastAPI) -> None:
@@ -399,6 +399,7 @@ def test_committed_openapi_is_current(app: FastAPI) -> None:
         "keywords",
         "project_key",
         "thread_origin",
+        "origin_thread_id",
         "origin_path",
         "pin",
         "status",
@@ -420,6 +421,7 @@ def test_committed_openapi_is_current(app: FastAPI) -> None:
         "null",
     }
     assert "origin_path" not in committed["components"]["schemas"]["MemoryFeatures"]["properties"]
+    assert "thread" in committed["components"]["schemas"]["MemoryFeatures"]["properties"]
     assert set(committed["components"]["schemas"]["ScoredMemoryCard"]["required"]) == {
         "memory_id",
         "label",

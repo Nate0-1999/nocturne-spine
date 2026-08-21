@@ -36,6 +36,7 @@ class StageMemoryRequest(_RunAttempt):
     kind: MemoryKind
     keywords: list[str] = Field(default_factory=list)
     project_key: str | None = None
+    origin_thread_id: UUID
     origin_path: str | None = None
     machine_id: NonBlankString
 
@@ -52,6 +53,7 @@ class SymphonyMemoryRecord(ContractModel):
     kind: MemoryKind
     keywords: list[str]
     project_key: str | None
+    origin_thread_id: UUID | None
     origin_path: str | None
     pin: bool
     status: Literal["active", "candidate", "staged", "quarantined", "tombstoned"]
@@ -111,6 +113,7 @@ def record_from_row(row: Mapping[str, Any]) -> SymphonyMemoryRecord:
         kind=row["kind"],
         keywords=list(row["keywords"]),
         project_key=row["project_key"],
+        origin_thread_id=row["origin_thread_id"],
         origin_path=row["origin_path"],
         pin=row["pin"],
         status=row["status"],

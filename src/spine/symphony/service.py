@@ -51,6 +51,7 @@ class SymphonyService:
                 kind=request.kind,
                 keywords=request.keywords,
                 project_key=request.project_key,
+                origin_thread_id=request.origin_thread_id,
                 origin_path=request.origin_path,
                 editor=f"agent:{request.origin_agent}",
                 machine_id=request.machine_id,
@@ -88,9 +89,7 @@ class SymphonyService:
             )
         return VisibilityResponse(memories=[record_from_row(row) for row in rows])
 
-    async def resolve(
-        self, run_id: str, request: ResolveRunRequest
-    ) -> ResolveRunResponse:
+    async def resolve(self, run_id: str, request: ResolveRunRequest) -> ResolveRunResponse:
         if not _origin_is_in_run(run_id, request.winner_origin_agent):
             raise SymphonyConflictError("winner_origin_agent does not belong to the run")
         context = request.judged_context.model_dump(mode="json")
@@ -172,9 +171,7 @@ class SymphonyService:
     async def _resolution_response(
         self, run_id: str, request: ResolveRunRequest
     ) -> ResolveRunResponse:
-        cards = await self._queue_service.list_batch(
-            request.batch_uid, birthplace="symphony"
-        )
+        cards = await self._queue_service.list_batch(request.batch_uid, birthplace="symphony")
         unit = MemoryUnit.__table__
         async with self._session_factory() as session:
             losers = (

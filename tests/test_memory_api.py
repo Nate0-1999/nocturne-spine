@@ -100,13 +100,15 @@ async def test_memory_split_preserves_exact_source_and_writes_one_linked_active_
     embedding_provider.set(source_body, basis_vector(0))
     # Identical sibling vectors prove that family members are not deduped against each other.
     embedding_provider.set(first_body, basis_vector(1)).set(second_body, basis_vector(1))
-    thread_id = str(uuid4())
+    origin_thread_id = uuid4()
+    thread_id = str(origin_thread_id)
 
     response = await memory_client.post(
         "/v1/memory-splits",
         json=_split_body(
             source_body=source_body,
             thread_origin=thread_id,
+            origin_thread_id=str(origin_thread_id),
             origin_path="notes/durable",
             children=[
                 {
@@ -133,6 +135,7 @@ async def test_memory_split_preserves_exact_source_and_writes_one_linked_active_
     assert source["keywords"] == ["split", "source"]
     assert source["status"] == "tombstoned"
     assert source["thread_origin"] == thread_id
+    assert source["origin_thread_id"] == thread_id
     assert source["origin_path"] == "notes/durable"
     assert [child["label"] for child in children] == ["Alpha claim", "Beta claim"]
     assert [child["body"] for child in children] == [first_body, second_body]
@@ -140,6 +143,7 @@ async def test_memory_split_preserves_exact_source_and_writes_one_linked_active_
     assert {child["kind"] for child in children} == {"fact"}
     assert {child["project_key"] for child in children} == {None}
     assert {child["thread_origin"] for child in children} == {thread_id}
+    assert {child["origin_thread_id"] for child in children} == {thread_id}
     assert {child["origin_path"] for child in children} == {"notes/durable"}
     assert {child["revision"] for child in children} == {1}
     assert {tuple(child["stats"].values()) for child in children} == {(0, 0, 0, 0, None)}
@@ -438,6 +442,7 @@ async def test_create_writes_root_attribution_and_checks_label_before_embedding(
             keywords=["editor", "style"],
             project_key="alpha",
             thread_origin="thread-1",
+            origin_thread_id="00000000-0000-4000-8000-000000000111",
             origin_path="src/spine/memory",
         ),
     )
@@ -452,6 +457,7 @@ async def test_create_writes_root_attribution_and_checks_label_before_embedding(
         "keywords",
         "project_key",
         "thread_origin",
+        "origin_thread_id",
         "origin_path",
         "pin",
         "status",
@@ -467,6 +473,7 @@ async def test_create_writes_root_attribution_and_checks_label_before_embedding(
     assert created["keywords"] == ["editor", "style"]
     assert created["project_key"] == "alpha"
     assert created["thread_origin"] == "thread-1"
+    assert created["origin_thread_id"] == "00000000-0000-4000-8000-000000000111"
     assert created["origin_path"] == "src/spine/memory"
     assert created["status"] == "active"
     assert created["pin"] is False

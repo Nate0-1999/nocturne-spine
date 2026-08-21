@@ -572,6 +572,7 @@ class M2KService:
                 _rescale_examples(holdout, rows, config_map, incumbent_values),
                 weights=_weight_tuple(incumbent_values),
                 bias_offsets=base_runtime.bias_offsets,
+                thread_weight=base_runtime.params.thread_weight,
                 tau=incumbent_values.tau,
             )
             if holdout
@@ -582,6 +583,7 @@ class M2KService:
                 holdout,
                 weights=_weight_tuple(values),
                 bias_offsets=base_runtime.bias_offsets,
+                thread_weight=base_runtime.params.thread_weight,
                 tau=values.tau,
             )
             if holdout
@@ -740,6 +742,7 @@ def _memory_unit(row: MemoryUnitRow) -> MemoryUnit:
         keywords=list(row.keywords),
         project_key=row.project_key,
         thread_origin=row.thread_origin,
+        origin_thread_id=row.origin_thread_id,
         origin_path=row.origin_path,
         pin=row.pin,
         status=row.status,  # type: ignore[arg-type]
@@ -1017,11 +1020,17 @@ def _candidate_histories(
             event.memory_kind,
         )
         raw_location = event.features.get("loc")
+        raw_thread = event.features.get("thread")
         features = MemoryFeatures(
             **{name: float(event.features[name]) for name in FEATURE_NAMES},
             loc=(
                 float(raw_location)
                 if isinstance(raw_location, (int, float)) and not isinstance(raw_location, bool)
+                else None
+            ),
+            thread=(
+                float(raw_thread)
+                if isinstance(raw_thread, (int, float)) and not isinstance(raw_thread, bool)
                 else None
             ),
         )
@@ -1042,10 +1051,20 @@ def _candidate_histories(
             else Decimal(str(features.loc))
             * Decimal(str(config.params.get("location_weight", 0.0)))
         )
+        thread_contribution = None
+        if features.thread is not None:
+            thread_weight = Decimal(str(config.params.get("thread_weight", 0.0)))
+            thread_scale = Decimal(1) - thread_weight
+            contributions = {name: value * thread_scale for name, value in contributions.items()}
+            if location_contribution is not None:
+                location_contribution *= thread_scale
+            thread_contribution = Decimal(str(features.thread)) * thread_weight
         stored_score = Decimal(str(event.score))
         bias = stored_score - sum(contributions.values(), start=Decimal(0))
         if location_contribution is not None:
             bias -= location_contribution
+        if thread_contribution is not None:
+            bias -= thread_contribution
         grouped[event.memory_id].append(
             CandidateScorePoint(
                 event_uid=event.event_uid,
@@ -1064,6 +1083,11 @@ def _candidate_histories(
                             None
                             if location_contribution is None
                             else _decimal_string(location_contribution)
+                        ),
+                        "thread": (
+                            None
+                            if thread_contribution is None
+                            else _decimal_string(thread_contribution)
                         ),
                         "bias": _decimal_string(bias),
                     }
@@ -1144,11 +1168,18 @@ def _example(
         original[5], source.params.half_life_hist_days, values.half_life_hist_days
     )
     raw_location = row.features.get("loc")
-    if isinstance(raw_location, (int, float)) and not isinstance(raw_location, bool):
-        scale = 1.0 - source.params.location_weight
-        original = tuple(value * scale for value in original)
-        adjusted = [value * scale for value in adjusted]
-    baseline_bias = float(row.score) - math.fsum(
+    location = (
+        float(raw_location)
+        if isinstance(raw_location, (int, float)) and not isinstance(raw_location, bool)
+        else None
+    )
+    raw_thread = row.features.get("thread")
+    thread = (
+        float(raw_thread)
+        if isinstance(raw_thread, (int, float)) and not isinstance(raw_thread, bool)
+        else None
+    )
+    source_score = math.fsum(
         weight * feature
         for weight, feature in zip(
             (
@@ -1163,6 +1194,15 @@ def _example(
             strict=True,
         )
     )
+    if location is not None:
+        source_score = (
+            1.0 - source.params.location_weight
+        ) * source_score + source.params.location_weight * location
+    if thread is not None:
+        source_score = (
+            1.0 - source.params.thread_weight
+        ) * source_score + source.params.thread_weight * thread
+    baseline_bias = float(row.score) - source_score
     baseline_bias -= source.bias_offset(row.memory_id)
     frozen = row.features.get("_memory")
     body = frozen.get("body") if isinstance(frozen, Mapping) else None
@@ -1180,6 +1220,9 @@ def _example(
         actor_weight=actor_weight,
         shown_as=row.shown_as,  # type: ignore[arg-type]
         body_tokens=cl100k_token_count(body),
+        location_feature=location,
+        location_weight=source.params.location_weight,
+        thread_feature=thread,
     )
 
 

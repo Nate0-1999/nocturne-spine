@@ -53,7 +53,7 @@ def test_every_supported_revision_upgrades_to_head(
     try:
         command.downgrade(config, revision)
         command.upgrade(config, "head")
-        assert asyncio.run(_database_revision(migrated_database_url)) == "0015"
+        assert asyncio.run(_database_revision(migrated_database_url)) == "0016"
     finally:
         command.upgrade(config, "head")
 

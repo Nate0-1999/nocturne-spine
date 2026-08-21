@@ -75,6 +75,12 @@ class MemoryUnit(Base):
             "status",
         ),
         Index(
+            "memory_unit_principal_origin_thread_idx",
+            "principal_id",
+            "origin_thread_id",
+            postgresql_where=text("origin_thread_id IS NOT NULL"),
+        ),
+        Index(
             "memory_unit_active_label",
             "principal_id",
             "label",
@@ -106,6 +112,7 @@ class MemoryUnit(Base):
     embedding_model: Mapped[str] = mapped_column(Text, nullable=False)
     project_key: Mapped[str | None] = mapped_column(Text)
     thread_origin: Mapped[str | None] = mapped_column(Text)
+    origin_thread_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
     origin_path: Mapped[str | None] = mapped_column(Text)
     run_id: Mapped[str | None] = mapped_column(Text)
     origin_agent: Mapped[str | None] = mapped_column(Text)

@@ -71,6 +71,7 @@ class CreateMemoryCommand:
     keywords: Sequence[str] = ()
     project_key: str | None = None
     thread_origin: str | None = None
+    origin_thread_id: UUID | None = None
     origin_path: str | None = None
     force: bool = False
     parent_uid: str | None = None
@@ -92,6 +93,7 @@ class SplitMemoryCommand:
     editor: str
     machine_id: str
     thread_origin: str | None = None
+    origin_thread_id: UUID | None = None
     origin_path: str | None = None
 
 
@@ -412,6 +414,7 @@ class MemoryService:
                     keywords=("split", "source"),
                     project_key=None,
                     thread_origin=command.thread_origin,
+                    origin_thread_id=command.origin_thread_id,
                     origin_path=command.origin_path,
                     editor=command.editor,
                     machine_id=command.machine_id,
@@ -451,6 +454,7 @@ class MemoryService:
                                         keywords=child.keywords,
                                         project_key=None,
                                         thread_origin=command.thread_origin,
+                                        origin_thread_id=command.origin_thread_id,
                                         origin_path=command.origin_path,
                                         editor=command.editor,
                                         machine_id=command.machine_id,
@@ -953,6 +957,7 @@ class MemoryService:
                         embedding_model=self._embedding_provider.model,
                         project_key=command.project_key,
                         thread_origin=command.thread_origin,
+                        origin_thread_id=command.origin_thread_id,
                         origin_path=command.origin_path,
                         run_id=run_id,
                         origin_agent=origin_agent,
@@ -1017,6 +1022,7 @@ class MemoryService:
             "kind": command.kind,
             "keywords": list(command.keywords),
             "project_key": command.project_key,
+            "origin_thread_id": command.origin_thread_id,
             "origin_path": command.origin_path,
             "status": "staged",
         }
@@ -1028,9 +1034,7 @@ class MemoryService:
             "reason": command.revision_reason,
         }
         if any(revision[key] != value for key, value in revision_expected.items()):
-            raise StagedMemoryConflictError(
-                "memory_id already names different staging provenance"
-            )
+            raise StagedMemoryConflictError("memory_id already names different staging provenance")
         return row
 
 
@@ -1094,6 +1098,7 @@ def contract_memory_from_snapshot(snapshot: MemoryUnitSnapshot) -> ContractMemor
         keywords=list(snapshot.keywords),
         project_key=snapshot.project_key,
         thread_origin=snapshot.thread_origin,
+        origin_thread_id=snapshot.origin_thread_id,
         origin_path=snapshot.origin_path,
         pin=snapshot.pin,
         status=snapshot.status,
@@ -1127,9 +1132,7 @@ def _provided(value: object) -> bool:
     return value is not UNSET and value is not None
 
 
-def _require_staged_identity(
-    row: Mapping[str, Any], *, run_id: str, origin_agent: str
-) -> None:
+def _require_staged_identity(row: Mapping[str, Any], *, run_id: str, origin_agent: str) -> None:
     if row["run_id"] != run_id or row["origin_agent"] != origin_agent:
         raise StagedMemoryConflictError("memory_id already names a different run attempt")
 

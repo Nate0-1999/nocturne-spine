@@ -50,6 +50,7 @@ class MemoryFeatures(ContractModel):
     freq: float
     hist: float
     loc: float | None = None
+    thread: float | None = None
 
 
 class MemoryCard(ContractModel):
@@ -86,6 +87,7 @@ class MemoryUnit(ContractModel):
     keywords: list[str]
     project_key: str | None
     thread_origin: str | None
+    origin_thread_id: UUID | None
     origin_path: str | None
     pin: bool
     status: MemoryStatus

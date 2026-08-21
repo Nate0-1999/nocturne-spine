@@ -33,6 +33,7 @@ def _example(
     target: bool,
     shown_as: str,
     actor_weight: Decimal = Decimal(1),
+    thread_feature: float | None = None,
 ) -> LearningExample:
     return LearningExample(
         event_uid=f"event-{event:02d}",
@@ -45,6 +46,7 @@ def _example(
         actor_weight=actor_weight,
         shown_as=shown_as,  # type: ignore[arg-type]
         body_tokens=event,
+        thread_feature=thread_feature,
     )
 
 
@@ -167,6 +169,41 @@ def test_whole_log_fit_is_deterministic_simplex_constrained_and_shrunk() -> None
     assert first.bias_offsets[NEGATIVE_ID] < 0.0
     assert abs(first.bias_offsets[POSITIVE_ID]) < settings.pair_margin
     assert first.pair_count == 1
+
+
+def test_fit_learns_thread_locality_from_human_pairwise_evidence() -> None:
+    """A-060 lets Chrysopoeia learn the hidden thread coefficient from dispositions."""
+
+    examples = (
+        _example(
+            event=1,
+            gate=1,
+            memory_id=POSITIVE_ID,
+            sem=0.5,
+            target=True,
+            shown_as="near_miss",
+            thread_feature=1.0,
+        ),
+        _example(
+            event=2,
+            gate=1,
+            memory_id=NEGATIVE_ID,
+            sem=0.5,
+            target=False,
+            shown_as="injected",
+            thread_feature=0.0,
+        ),
+    )
+
+    fit = fit_pairwise(
+        examples,
+        incumbent_weights=(1 / 6,) * 6,
+        incumbent_thread_weight=0.08,
+        settings=FitSettings(pair_margin=0.4, bias_l2=100.0),
+    )
+
+    assert fit.thread_weight > 0.08
+    assert fit.thread_weight < 1.0
 
 
 def test_binary_replay_counts_each_override_and_applies_passive_discount() -> None:

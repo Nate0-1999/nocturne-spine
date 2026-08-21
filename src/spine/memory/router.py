@@ -72,6 +72,7 @@ class CreateMemoryRequest(ContractRequest):
     keywords: list[str] | None = None
     project_key: str | None = None
     thread_origin: str | None = None
+    origin_thread_id: UUID | None = None
     origin_path: str | None = None
     editor: str
     machine_id: str
@@ -89,6 +90,7 @@ class SplitMemoryRequest(ContractRequest):
     source_body: str
     children: Annotated[list[SplitMemoryChildRequest], Field(min_length=2, max_length=64)]
     thread_origin: str | None = None
+    origin_thread_id: UUID | None = None
     origin_path: str | None = None
     editor: str
     machine_id: str
@@ -146,6 +148,7 @@ async def create_memory(
                 keywords=body.keywords or (),
                 project_key=body.project_key,
                 thread_origin=body.thread_origin,
+                origin_thread_id=body.origin_thread_id,
                 origin_path=body.origin_path,
                 editor=body.editor,
                 machine_id=body.machine_id,
@@ -204,6 +207,7 @@ async def split_memory(
                     for child in body.children
                 ),
                 thread_origin=body.thread_origin,
+                origin_thread_id=body.origin_thread_id,
                 origin_path=body.origin_path,
                 editor=body.editor,
                 machine_id=body.machine_id,

@@ -252,6 +252,7 @@ class ContributionBreakdown(M2KContract):
     freq: SignedDecimalString
     hist: SignedDecimalString
     loc: SignedDecimalString | None = None
+    thread: SignedDecimalString | None = None
     bias: SignedDecimalString
 
 

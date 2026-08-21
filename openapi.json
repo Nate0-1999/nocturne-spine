@@ -401,6 +401,16 @@
           "sem": {
             "$ref": "#/components/schemas/SignedDecimalString"
           },
+          "thread": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SignedDecimalString"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "time": {
             "$ref": "#/components/schemas/SignedDecimalString"
           }
@@ -489,6 +499,18 @@
               }
             ],
             "title": "Origin Path"
+          },
+          "origin_thread_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin Thread Id"
           },
           "principal_id": {
             "title": "Principal Id",
@@ -1420,6 +1442,17 @@
             "title": "Sem",
             "type": "number"
           },
+          "thread": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thread"
+          },
           "time": {
             "title": "Time",
             "type": "number"
@@ -1716,6 +1749,18 @@
             ],
             "title": "Origin Path"
           },
+          "origin_thread_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin Thread Id"
+          },
           "pin": {
             "title": "Pin",
             "type": "boolean"
@@ -1780,6 +1825,7 @@
           "keywords",
           "project_key",
           "thread_origin",
+          "origin_thread_id",
           "origin_path",
           "pin",
           "status",
@@ -4251,6 +4297,18 @@
             ],
             "title": "Origin Path"
           },
+          "origin_thread_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin Thread Id"
+          },
           "principal_id": {
             "title": "Principal Id",
             "type": "string"
@@ -4331,6 +4389,11 @@
             ],
             "title": "Origin Path"
           },
+          "origin_thread_id": {
+            "format": "uuid",
+            "title": "Origin Thread Id",
+            "type": "string"
+          },
           "principal_id": {
             "$ref": "#/components/schemas/NonBlankString"
           },
@@ -4357,6 +4420,7 @@
           "label",
           "body",
           "kind",
+          "origin_thread_id",
           "machine_id"
         ],
         "title": "StageMemoryRequest",
@@ -4437,6 +4501,18 @@
             ],
             "title": "Origin Path"
           },
+          "origin_thread_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin Thread Id"
+          },
           "pin": {
             "title": "Pin",
             "type": "boolean"
@@ -4500,6 +4576,7 @@
           "kind",
           "keywords",
           "project_key",
+          "origin_thread_id",
           "origin_path",
           "pin",
           "status",

@@ -44,6 +44,7 @@ def _candidate(
     keywords: tuple[str, ...] = (),
     embedding: tuple[float, ...] = (1.0, 0.0),
     project_key: str | None = None,
+    origin_thread_id: UUID | None = None,
     origin_path: str | None = None,
     pin: bool = False,
     updated_at: datetime = SNAPSHOT,
@@ -59,6 +60,7 @@ def _candidate(
         keywords=keywords,
         embedding=embedding,
         project_key=project_key,
+        origin_thread_id=origin_thread_id,
         origin_path=origin_path,
         pin=pin,
         updated_at=updated_at,
@@ -109,6 +111,55 @@ def test_golden_six_feature_score_uses_enacted_tokenizer_and_snapshot_clock() ->
     assert scored.score == pytest.approx(0.732)
     assert scored.rank == 1
     assert scored.token_cost == 2
+
+
+def test_thread_feature_rewards_only_a_known_matching_birthplace() -> None:
+    """A-060 makes conversation locality exact and excludes missing birthplaces."""
+
+    current_thread = UUID(int=501)
+    candidates = (
+        _candidate(1, origin_thread_id=current_thread),
+        _candidate(2, origin_thread_id=UUID(int=502)),
+        _candidate(3),
+    )
+    result = score_and_select(
+        prompt="the and",
+        query_embedding=(1.0, 0.0),
+        snapshot_ts=SNAPSHOT,
+        thread_project_key="atlas",
+        thread_id=current_thread,
+        pinned_candidates=(),
+        regular_candidates=candidates,
+        model_context_tokens=10_000,
+        config=_config(tau=0.0, thread_weight=0.08),
+    )
+
+    by_id = {item.candidate.memory_id.int: item for item in result.injected}
+    assert by_id[1].features.thread == 1.0
+    assert by_id[2].features.thread == 0.0
+    assert by_id[3].features.thread is None
+    assert by_id[1].score == pytest.approx((1.0 - 0.08) * 0.61 + 0.08)
+    assert by_id[2].score == pytest.approx((1.0 - 0.08) * 0.61)
+    assert by_id[3].score == pytest.approx(0.61)
+
+
+def test_zero_thread_weight_preserves_the_previous_score_exactly() -> None:
+    """A-060 leaves the v0 golden score bit-for-bit unchanged at coefficient zero."""
+
+    candidate = _candidate(1, origin_thread_id=UUID(int=601))
+    result = score_and_select(
+        prompt="the and",
+        query_embedding=(1.0, 0.0),
+        snapshot_ts=SNAPSHOT,
+        thread_project_key="atlas",
+        thread_id=UUID(int=601),
+        pinned_candidates=(),
+        regular_candidates=(candidate,),
+        model_context_tokens=10_000,
+        config=_config(tau=0.0, thread_weight=0.0),
+    )
+
+    assert result.injected[0].score == pytest.approx(0.61)
 
 
 def test_golden_tau_is_inclusive_and_negative_cosine_clamps_to_zero() -> None:

@@ -177,6 +177,7 @@ async def test_models_match_authoritative_c2_schema(
             "embedding_model",
             "project_key",
             "thread_origin",
+            "origin_thread_id",
             "origin_path",
             "run_id",
             "origin_agent",
@@ -371,6 +372,7 @@ async def test_models_match_authoritative_c2_schema(
         "memory_unit": {
             "project_key",
             "thread_origin",
+            "origin_thread_id",
             "origin_path",
             "run_id",
             "origin_agent",
@@ -459,6 +461,7 @@ async def test_models_match_authoritative_c2_schema(
         "memory_unit.embedding_model": "TEXT",
         "memory_unit.project_key": "TEXT",
         "memory_unit.thread_origin": "TEXT",
+        "memory_unit.origin_thread_id": "UUID",
         "memory_unit.origin_path": "TEXT",
         "memory_unit.run_id": "TEXT",
         "memory_unit.origin_agent": "TEXT",
@@ -682,9 +685,7 @@ async def test_models_match_authoritative_c2_schema(
             "memory_unit_status_check": (
                 "status IN ('active','candidate','staged','quarantined','tombstoned')"
             ),
-            "memory_unit_run_lineage_pair_check": (
-                "(run_id IS NULL) = (origin_agent IS NULL)"
-            ),
+            "memory_unit_run_lineage_pair_check": ("(run_id IS NULL) = (origin_agent IS NULL)"),
             "memory_unit_staged_lineage_check": "status <> 'staged' OR run_id IS NOT NULL",
         },
         "memory_revision": {},
@@ -694,9 +695,7 @@ async def test_models_match_authoritative_c2_schema(
             )
         },
         "approval_queue_item": {
-            "approval_queue_item_birthplace_check": (
-                "birthplace IN ('thread','seed','symphony')"
-            ),
+            "approval_queue_item_birthplace_check": ("birthplace IN ('thread','seed','symphony')"),
             "approval_queue_item_birthplace_shape_check": (
                 "(birthplace = 'thread' AND birthplace_thread_id IS NOT NULL "
                 "AND batch_uid IS NULL AND source_name IS NULL AND source_sha256 IS NULL "
@@ -824,6 +823,7 @@ async def test_models_match_authoritative_c2_schema(
         "memory_unit_search_tsv_idx",
         "memory_unit_principal_id_status_project_key_idx",
         "memory_unit_principal_run_origin_status_idx",
+        "memory_unit_principal_origin_thread_idx",
         "memory_unit_active_label",
     }
     assert indexes["memory_unit_embedding_idx"].dialect_options["postgresql"]["using"] == "hnsw"
@@ -831,6 +831,14 @@ async def test_models_match_authoritative_c2_schema(
         "embedding": "vector_cosine_ops"
     }
     assert indexes["memory_unit_search_tsv_idx"].dialect_options["postgresql"]["using"] == "gin"
+    assert (
+        str(
+            indexes["memory_unit_principal_origin_thread_idx"].dialect_options["postgresql"][
+                "where"
+            ]
+        )
+        == "origin_thread_id IS NOT NULL"
+    )
     assert indexes["memory_unit_active_label"].unique is True
     assert (
         str(indexes["memory_unit_active_label"].dialect_options["postgresql"]["where"])

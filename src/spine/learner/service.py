@@ -33,7 +33,7 @@ from spine.learner.model import (
     split_gates,
 )
 
-_ALGORITHM_ID = "m2f-pairwise-squared-hinge-v1"
+_ALGORITHM_ID = "m3ti-pairwise-thread-squared-hinge-v2"
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -221,6 +221,7 @@ class LearnerService:
             fit = fit_pairwise(
                 training,
                 incumbent_weights=_weight_tuple(incumbent.weights),
+                incumbent_thread_weight=incumbent.params.thread_weight,
                 settings=FitSettings(
                     pair_margin=self._settings.pair_margin,
                     bias_l2=self._settings.bias_l2,
@@ -239,6 +240,7 @@ class LearnerService:
             holdout,
             weights=fit.weights,
             bias_offsets=fit.bias_offsets,
+            thread_weight=fit.thread_weight,
             tau=incumbent.params.tau,
         )
         wins = challenger_wins(
@@ -297,6 +299,7 @@ class LearnerService:
                 "iterations": fit.iterations,
                 "objective": fit.objective,
                 "training_pairs": fit.pair_count,
+                "thread_weight": fit.thread_weight,
             },
             "replay": {
                 "incumbent": _score_manifest(incumbent_score),
@@ -310,6 +313,8 @@ class LearnerService:
             },
         }
         proposal_weights = dict(zip(FEATURE_NAMES, fit.weights, strict=True))
+        if "thread_weight" in proposal_params or fit.thread_weight != 0.0:
+            proposal_params["thread_weight"] = fit.thread_weight
         existing = await session.get(ScorerConfigRow, version)
         if existing is None:
             session.add(

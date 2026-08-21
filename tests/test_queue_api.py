@@ -56,6 +56,7 @@ async def test_candidate_is_queue_only_and_denial_is_revisioned_signal(
     assert born.status_code == 200
     card = born.json()["cards"][0]
     assert card["candidate"]["status"] == "candidate"
+    assert card["candidate"]["origin_thread_id"] == str(thread_id)
 
     listed = await memory_client.get("/v1/memories")
     searched = await memory_client.post(
@@ -81,6 +82,7 @@ async def test_candidate_is_queue_only_and_denial_is_revisioned_signal(
         )
         decision_count = await session.scalar(select(func.count()).select_from(ApprovalDecision))
     assert row is not None and row.revision == 2 and row.status == "tombstoned"
+    assert row.origin_thread_id == thread_id
     assert decision_count == 1
 
 

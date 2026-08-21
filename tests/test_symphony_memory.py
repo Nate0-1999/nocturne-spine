@@ -23,6 +23,7 @@ def _stage(*, run_id: str, origin_agent: str, memory_id: UUID, body: str) -> dic
         "kind": "fact",
         "keywords": ["symphony", "lineage"],
         "project_key": "nocturne",
+        "origin_thread_id": "00000000-0000-4000-8000-000000000701",
         "origin_path": "spine",
         "machine_id": "worker-host",
     }
@@ -129,6 +130,9 @@ async def test_two_attempt_run_queues_only_winner_and_tombstones_loser_lineage(
         "winner lesson"
     ]
     assert resolved.json()["queue_cards"][0]["birthplace"] == "symphony"
+    assert resolved.json()["queue_cards"][0]["candidate"]["origin_thread_id"] == (
+        "00000000-0000-4000-8000-000000000701"
+    )
     assert resolved.json()["queue_cards"][0]["judged_context"] == judged
     assert [item["body"] for item in resolved.json()["losers"]] == ["loser lesson"]
     assert resolved.json()["losers"][0]["status"] == "tombstoned"
@@ -138,9 +142,7 @@ async def test_two_attempt_run_queues_only_winner_and_tombstones_loser_lineage(
         params={"principal_id": "owner", "birthplace": "symphony"},
     )
     assert pending.status_code == 200
-    assert [card["candidate"]["memory_id"] for card in pending.json()["cards"]] == [
-        str(winner_id)
-    ]
+    assert [card["candidate"]["memory_id"] for card in pending.json()["cards"]] == [str(winner_id)]
 
     approved = await memory_client.post(
         f"/v1/approval-queue/batches/{batch_uid}/decisions",
@@ -179,6 +181,7 @@ async def test_two_attempt_run_queues_only_winner_and_tombstones_loser_lineage(
             )
         )
     assert winner_row is not None and winner_row.status == "active"
+    assert winner_row.origin_thread_id == UUID("00000000-0000-4000-8000-000000000701")
     assert loser_row is not None and loser_row.status == "tombstoned"
     assert loser_row.run_id == run_id and loser_row.origin_agent == loser
     assert staged_count == 0

@@ -77,11 +77,26 @@ def project_learning_evidence(
             raise LearnerDataError(
                 f"event {row.event_uid} references missing scorer {row.scorer_version!r}"
             )
-        features = _features(row, source)
-        baseline_bias = float(row.score) - math.fsum(
+        features = _features(row)
+        location = _optional_feature(row, "loc")
+        thread = _optional_feature(row, "thread")
+        pre_location = math.fsum(
             weight * feature
             for weight, feature in zip(_weight_tuple(source), features, strict=True)
         )
+        localized = (
+            pre_location
+            if location is None
+            else (1.0 - source.params.location_weight) * pre_location
+            + source.params.location_weight * location
+        )
+        localized = (
+            localized
+            if thread is None
+            else (1.0 - source.params.thread_weight) * localized
+            + source.params.thread_weight * thread
+        )
+        baseline_bias = float(row.score) - localized
         baseline_bias -= source.bias_offset(row.memory_id)
         body = _frozen_body(row)
         target_injected, actor_weight = labeled
@@ -97,6 +112,9 @@ def project_learning_evidence(
                 actor_weight=actor_weight,
                 shown_as=row.shown_as,  # type: ignore[arg-type]
                 body_tokens=cl100k_token_count(body),
+                location_feature=location,
+                location_weight=source.params.location_weight,
+                thread_feature=thread,
             )
         )
     return LearningEvidence(
@@ -107,7 +125,6 @@ def project_learning_evidence(
 
 def _features(
     row: InjectionEvent,
-    source: RuntimeScorerConfig,
 ) -> tuple[float, float, float, float, float, float]:
     values: list[float] = []
     for name in FEATURE_NAMES:
@@ -118,10 +135,21 @@ def _features(
         if not math.isfinite(normalized) or not 0.0 <= normalized <= 1.0:
             raise LearnerDataError(f"event {row.event_uid} feature {name} is outside [0,1]")
         values.append(normalized)
-    location = row.features.get("loc")
-    if isinstance(location, (int, float)) and not isinstance(location, bool):
-        values = [value * (1.0 - source.params.location_weight) for value in values]
     return tuple(values)  # type: ignore[return-value]
+
+
+def _optional_feature(row: InjectionEvent, name: str) -> float | None:
+    if name not in row.features:
+        return None
+    value = row.features[name]
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise LearnerDataError(f"event {row.event_uid} feature {name} is not numeric")
+    normalized = float(value)
+    if not math.isfinite(normalized) or not 0.0 <= normalized <= 1.0:
+        raise LearnerDataError(f"event {row.event_uid} feature {name} is outside [0,1]")
+    return normalized
 
 
 def _frozen_body(row: InjectionEvent) -> str:
