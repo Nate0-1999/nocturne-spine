@@ -25,6 +25,11 @@ from spine.db.models import MemoryRevision as MemoryRevisionRow
 from spine.db.models import MemoryUnit as MemoryUnitRow
 from spine.db.models import ScorerActivation as ScorerActivationRow
 from spine.db.models import ScorerConfig as ScorerConfigRow
+from spine.inject.scorer import (
+    DEFAULT_MEMORY_CONTEXT_SHARE,
+    MAX_MEMORY_CONTEXT_SHARE,
+    MIN_MEMORY_CONTEXT_SHARE,
+)
 from spine.inject.scorer import ScorerConfig as RuntimeScorerConfig
 from spine.learner.evidence import LearnerDataError, project_learning_evidence
 from spine.learner.model import (
@@ -71,7 +76,7 @@ _CONTROL_ADVISORY_LOCK_KEY = 0x4D324B
 _CONTROLLED_PARAM_KEYS = (
     "tau",
     "top_k",
-    "budget_tokens",
+    "memory_context_share",
     "half_life_time_days",
     "half_life_hist_days",
 )
@@ -92,11 +97,15 @@ SCORER_DESCRIPTORS = (
         default=8,
     ),
     ScorerDescriptor(
-        id="scorer.budget_tokens",
-        label="Memory token budget",
-        type="integer",
-        range=ParameterRange(minimum=1, maximum=None, step=128),
-        default=3000,
+        id="scorer.memory_context_share",
+        label="Memory context share",
+        type="number",
+        range=ParameterRange(
+            minimum=MIN_MEMORY_CONTEXT_SHARE,
+            maximum=MAX_MEMORY_CONTEXT_SHARE,
+            step=0.01,
+        ),
+        default=DEFAULT_MEMORY_CONTEXT_SHARE,
     ),
     ScorerDescriptor(
         id="scorer.half_life_time_days",
@@ -153,6 +162,7 @@ class M2KService:
         self._holdout_fraction = holdout_fraction
         self._passive_discount = passive_discount
         self._learner_min_dispositions = learner_min_dispositions
+        self._share_tuning_minimum = 100
         self._retrain_signal_stride = retrain_signal_stride
 
     async def memory_graph(self, query: MemoryGraphQuery) -> MemoryGraphSnapshot:
@@ -376,6 +386,7 @@ class M2KService:
                 runs=retrain_runs,
                 activations=activations,
                 minimum_dispositions=self._learner_min_dispositions,
+                share_tuning_minimum=self._share_tuning_minimum,
                 retrain_signal_stride=self._retrain_signal_stride,
             ),
             candidates=candidates,
@@ -421,7 +432,7 @@ class M2KService:
             {
                 "tau": body.values.tau,
                 "top_k": body.values.top_k,
-                "budget_tokens": body.values.budget_tokens,
+                "memory_context_share": body.values.memory_context_share,
                 "half_life_time_days": body.values.half_life_time_days,
                 "half_life_hist_days": body.values.half_life_hist_days,
             }
@@ -565,6 +576,12 @@ class M2KService:
                 )
             except ValueError:
                 holdout = ()
+        holdout_ids = {item.injection_id for item in holdout}
+        holdout_boundaries = tuple(
+            boundary
+            for boundary in evidence.share_boundaries
+            if boundary.injection_id in holdout_ids
+        )
         base_runtime = _runtime(base)
         incumbent_values = _values(base)
         incumbent_score = (
@@ -574,6 +591,8 @@ class M2KService:
                 bias_offsets=base_runtime.bias_offsets,
                 thread_weight=base_runtime.params.thread_weight,
                 tau=incumbent_values.tau,
+                share_boundaries=holdout_boundaries,
+                memory_context_share=incumbent_values.memory_context_share,
             )
             if holdout
             else None
@@ -585,6 +604,8 @@ class M2KService:
                 bias_offsets=base_runtime.bias_offsets,
                 thread_weight=base_runtime.params.thread_weight,
                 tau=values.tau,
+                share_boundaries=holdout_boundaries,
+                memory_context_share=values.memory_context_share,
             )
             if holdout
             else None
@@ -757,10 +778,11 @@ def _memory_unit(row: MemoryUnitRow) -> MemoryUnit:
 
 def _values(row: ScorerConfigRow) -> ScorerValues:
     try:
+        raw_share = row.params.get("memory_context_share", row.params.get("budget_pct"))
         return ScorerValues(
             tau=float(row.params["tau"]),
             top_k=int(row.params["top_k"]),
-            budget_tokens=int(row.params["budget_tokens"]),
+            memory_context_share=float(raw_share),
             half_life_time_days=float(row.params["half_life_time_days"]),
             half_life_hist_days=float(row.params["half_life_hist_days"]),
             weights={name: float(row.weights[name]) for name in FEATURE_NAMES},
@@ -867,6 +889,7 @@ def _learning_view(
     runs: list[LearnerRun],
     activations: list[ScorerActivationRow],
     minimum_dispositions: int,
+    share_tuning_minimum: int,
     retrain_signal_stride: int,
 ) -> LearningView:
     eligible = len(evidence_examples)
@@ -882,6 +905,7 @@ def _learning_view(
     signals_since = max(0, eligible - (cursor or 0))
     remaining_to_floor = max(0, minimum_dispositions - eligible)
     floor_met = eligible >= minimum_dispositions
+    share_tuning_remaining = max(0, share_tuning_minimum - eligible)
     signals_until_next = (
         remaining_to_floor
         if not floor_met
@@ -951,6 +975,9 @@ def _learning_view(
         minimum_dispositions=minimum_dispositions,
         remaining_to_floor=remaining_to_floor,
         floor_met=floor_met,
+        share_tuning_minimum=share_tuning_minimum,
+        share_tuning_remaining=share_tuning_remaining,
+        share_tuning_active=eligible >= share_tuning_minimum,
         retrain_signal_stride=retrain_signal_stride,
         evaluated_through=cursor,
         signals_since_last_run=signals_since,
@@ -1119,7 +1146,7 @@ def _flat_values(values: ScorerValues) -> dict[str, float | int]:
     result: dict[str, float | int] = {
         "scorer.tau": values.tau,
         "scorer.top_k": values.top_k,
-        "scorer.budget_tokens": values.budget_tokens,
+        "scorer.memory_context_share": values.memory_context_share,
         "scorer.half_life_time_days": values.half_life_time_days,
         "scorer.half_life_hist_days": values.half_life_hist_days,
     }
@@ -1371,9 +1398,7 @@ async def _instant(
     )
     ordered = [*pins, *regular]
     preview_selected = {item["row"].memory_id for item in pins}
-    pin_cost = sum(item["token_cost"] for item in pins)
-    percentage_budget = int(preview_runtime.params.budget_pct * context_tokens)
-    remaining = max(0, min(preview_values.budget_tokens, percentage_budget) - pin_cost)
+    remaining = max(0, int(preview_values.memory_context_share * context_tokens))
     selected_regular = 0
     for item in regular:
         if (
@@ -1421,12 +1446,16 @@ def _event_selected(row: InjectionEvent) -> bool:
 def _slice_values(values: ScorerValues, parameter_id: str) -> tuple[float | int, ...]:
     if parameter_id == "scorer.top_k":
         return tuple(range(1, 9))
+    if parameter_id == "scorer.memory_context_share":
+        return tuple(
+            MIN_MEMORY_CONTEXT_SHARE
+            + index * (MAX_MEMORY_CONTEXT_SHARE - MIN_MEMORY_CONTEXT_SHARE) / 8
+            for index in range(9)
+        )
     if parameter_id == "scorer.tau" or parameter_id.startswith("scorer.weight."):
         return tuple(index / 8 for index in range(9))
     current = _flat_values(values)[parameter_id]
     raw = [float(current) * (0.25 + index * (1.75 / 8)) for index in range(9)]
-    if parameter_id == "scorer.budget_tokens":
-        return tuple(dict.fromkeys(max(1, round(item)) for item in raw))
     return tuple(raw)
 
 
@@ -1450,7 +1479,7 @@ def _with_parameter(values: ScorerValues, parameter_id: str, value: float | int)
         payload["weights"] = weights
     else:
         key = parameter_id.removeprefix("scorer.")
-        payload[key] = int(value) if key in {"top_k", "budget_tokens"} else float(value)
+        payload[key] = int(value) if key == "top_k" else float(value)
     return ScorerValues(**payload)
 
 

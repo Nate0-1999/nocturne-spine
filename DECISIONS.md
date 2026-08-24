@@ -1079,3 +1079,32 @@ visibility predicate and final resolution mechanically inspectable.
 authority. Keeping attempt memories only in worker files loses cross-machine
 durability. Directly activating the winner bypasses owner consent. Deleting
 losers destroys the evidence ADR-017 says makes search compound.
+
+## 041 — One replay learns memory room and line [P1.2, P2.2, A-061]
+
+**Decision.** Make `memory_context_share` the only active regular-memory
+ceiling, bounded to 0.01–0.50 and converted to tokens by flooring the active
+model context size. Pinned memories bypass that ceiling and produce an exact
+prepare allocation, including pinned overflow. Preserve legacy token budgets
+only when replaying historical generations; new generations never carry both
+controls.
+
+Derive share and threshold boundary evidence from immutable injection events
+and their owner dispositions, and fit both beside the existing feature weights
+in one deterministic replay. Keep the incumbent share and threshold byte-for-
+byte below 100 authentic, hygiene-filtered dispositions. At the floor, publish
+the winning values only as a proposed generation. A manual force uses the same
+versioned scorer-generation path after informed simulation and does not disable
+later learning.
+
+**Motivation.** Memory should occupy as much room as the owner's demonstrated
+work needs, not a fixed product-wide token count. One replay keeps the line,
+room, and feature weights accountable to the same owner evidence, while exact
+allocation provenance makes the pinned exception visible instead of silently
+stealing conversation space.
+
+**Rejected alternatives.** A standalone share tuner would create a second
+learning authority. Counting pins against regular room would let a budget cut
+override the owner's explicit hand. Treating the share as a quota would pad
+prompts with low-value memory. Full-auto activation would bypass the existing
+owner tap; a manual lock would create a second override contract.

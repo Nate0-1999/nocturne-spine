@@ -9,6 +9,8 @@ class ReplayScoreView(BaseModel):
     disagreements: int
     weighted_disagreements: str
     injected_tokens: int
+    share_disagreements: int = 0
+    weighted_share_disagreements: str = "0"
 
 
 class RetrainResponse(BaseModel):

@@ -12,8 +12,11 @@ from uuid import UUID
 from spine.db.models import InjectionEvent, InjectionEventAnnotation
 from spine.inject.scorer import ScorerConfig as RuntimeScorerConfig
 from spine.learner.model import (
+    EXPLICIT_POSITIVE_OUTCOMES,
     FEATURE_NAMES,
+    NEGATIVE_OUTCOMES,
     LearningExample,
+    ShareBoundary,
     disposition,
     identity_is_excluded,
 )
@@ -27,6 +30,7 @@ class LearnerDataError(RuntimeError):
 @dataclass(frozen=True, slots=True)
 class LearningEvidence:
     examples: tuple[LearningExample, ...]
+    share_boundaries: tuple[ShareBoundary, ...]
     hygiene_excluded_dispositions: int
 
 
@@ -119,8 +123,141 @@ def project_learning_evidence(
         )
     return LearningEvidence(
         examples=tuple(examples),
+        share_boundaries=_share_boundaries(
+            rows=[row for row in rows if row.injection_id not in excluded],
+            configs=configs,
+            passive_discount=passive_discount,
+        ),
         hygiene_excluded_dispositions=excluded_dispositions,
     )
+
+
+def _share_boundaries(
+    *,
+    rows: list[InjectionEvent],
+    configs: Mapping[str, RuntimeScorerConfig],
+    passive_discount: Decimal,
+) -> tuple[ShareBoundary, ...]:
+    """Project D.2 133-134 room-up/down evidence without minting feedback."""
+
+    explicit_positive_weights: dict[UUID, Decimal] = {}
+    for row in rows:
+        if row.outcome not in EXPLICIT_POSITIVE_OUTCOMES:
+            continue
+        labeled = disposition(row.outcome, row.actor_class, passive_discount=passive_discount)
+        if labeled is not None and labeled[0]:
+            explicit_positive_weights[row.memory_id] = max(
+                explicit_positive_weights.get(row.memory_id, Decimal(0)),
+                labeled[1],
+            )
+
+    grouped: dict[UUID, list[InjectionEvent]] = defaultdict(list)
+    for row in rows:
+        grouped[row.injection_id].append(row)
+    result: list[ShareBoundary] = []
+    for injection_id in sorted(grouped, key=lambda value: value.int):
+        members = grouped[injection_id]
+        context_tokens = _context_tokens(members)
+        if context_tokens is None:
+            continue
+        selected_regular = [row for row in members if row.shown_as == "injected"]
+        selected_pins = [row for row in members if row.shown_as == "pinned"]
+        regular_tokens = sum(cl100k_token_count(_frozen_body(row)) for row in selected_regular)
+        pinned_tokens = sum(cl100k_token_count(_frozen_body(row)) for row in selected_pins)
+
+        seen_cuts: set[UUID] = set()
+        for row in sorted(members, key=lambda item: (item.rank, item.event_uid)):
+            if (
+                row.shown_as != "budget_cut"
+                or row.memory_id in seen_cuts
+                or row.memory_id not in explicit_positive_weights
+            ):
+                continue
+            seen_cuts.add(row.memory_id)
+            required = (regular_tokens + cl100k_token_count(_frozen_body(row))) / context_tokens
+            result.append(
+                ShareBoundary(
+                    event_uid=row.event_uid,
+                    injection_id=injection_id,
+                    required_share=required,
+                    target_at_least=True,
+                    actor_weight=explicit_positive_weights[row.memory_id],
+                    kind="valuable_budget_cut",
+                )
+            )
+
+        if selected_regular:
+            marginal = max(selected_regular, key=lambda row: (row.rank, row.event_uid))
+            if marginal.outcome in NEGATIVE_OUTCOMES:
+                result.append(
+                    ShareBoundary(
+                        event_uid=marginal.event_uid,
+                        injection_id=injection_id,
+                        required_share=regular_tokens / context_tokens,
+                        target_at_least=False,
+                        actor_weight=Decimal(1),
+                        kind="marginal_removed",
+                    )
+                )
+            elif marginal.outcome == "kept":
+                result.append(
+                    ShareBoundary(
+                        event_uid=marginal.event_uid,
+                        injection_id=injection_id,
+                        required_share=regular_tokens / context_tokens,
+                        target_at_least=False,
+                        actor_weight=passive_discount,
+                        kind="marginal_uncited",
+                    )
+                )
+
+        if selected_pins:
+            total_tokens = regular_tokens + pinned_tokens
+            source = configs.get(members[0].scorer_version)
+            if source is None:
+                raise LearnerDataError(
+                    f"event {members[0].event_uid} references missing scorer "
+                    f"{members[0].scorer_version!r}"
+                )
+            share_tokens = _recorded_share_tokens(members, source, context_tokens)
+            if total_tokens > share_tokens:
+                first_pin = min(selected_pins, key=lambda row: (row.rank, row.event_uid))
+                result.append(
+                    ShareBoundary(
+                        event_uid=first_pin.event_uid,
+                        injection_id=injection_id,
+                        required_share=total_tokens / context_tokens,
+                        target_at_least=True,
+                        actor_weight=Decimal(1),
+                        kind="pin_overflow",
+                    )
+                )
+    return tuple(result)
+
+
+def _context_tokens(rows: list[InjectionEvent]) -> int | None:
+    for row in rows:
+        prepare = row.features.get("_prepare")
+        value = prepare.get("model_context_tokens") if isinstance(prepare, Mapping) else None
+        if isinstance(value, int) and not isinstance(value, bool) and value > 0:
+            return value
+    return None
+
+
+def _recorded_share_tokens(
+    rows: list[InjectionEvent],
+    source: RuntimeScorerConfig,
+    context_tokens: int,
+) -> int:
+    for row in rows:
+        prepare = row.features.get("_prepare")
+        value = prepare.get("share_tokens") if isinstance(prepare, Mapping) else None
+        if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+            return value
+    share_tokens = int(source.params.memory_context_share * context_tokens)
+    if source.params.legacy_budget_tokens is not None:
+        share_tokens = min(share_tokens, source.params.legacy_budget_tokens)
+    return share_tokens
 
 
 def _features(

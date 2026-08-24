@@ -230,11 +230,15 @@ async def test_prepare_commit_replays_gate_and_prepare_updates_only_injected(
         "injected",
         "near_misses",
         "final_block",
+        "memory_allocation",
     }
     assert payload["final_block"] is None
     UUID(payload["injection_id"])
     snapshot_ts = datetime.fromisoformat(payload["snapshot_ts"])
     assert payload["scorer_version"] == ACTIVE_SCORER_VERSION
+    assert payload["memory_allocation"]["memory_context_share"] == 0.10
+    assert payload["memory_allocation"]["regular_tokens"] > 0
+    assert payload["memory_allocation"]["pinned_tokens"] == 0
     assert [card["memory_id"] for card in payload["injected"]] == [str(injected_id)]
     assert [card["memory_id"] for card in payload["near_misses"]] == [str(near_id)]
 
@@ -635,15 +639,20 @@ async def test_pins_bypass_threshold_and_budget_and_regular_ties_use_memory_id(
         200,
     )
 
-    assert [UUID(card["memory_id"]) for card in response["injected"]] == pin_ids
-    assert [card["rank"] for card in response["injected"]] == [1, 2]
-    assert all(card["pin"] is True for card in response["injected"])
-    assert [UUID(card["memory_id"]) for card in response["near_misses"]] == regular_ids[:3]
-    assert [card["rank"] for card in response["near_misses"]] == [3, 4, 5]
-    assert response["near_misses"][0]["kind"] == "pinned"
-    assert response["near_misses"][0]["pin"] is False
+    assert [UUID(card["memory_id"]) for card in response["injected"]] == [
+        *pin_ids,
+        *regular_ids[:2],
+    ]
+    assert [card["rank"] for card in response["injected"]] == [1, 2, 3, 4]
+    assert [card["pin"] for card in response["injected"]] == [True, True, False, False]
+    assert [UUID(card["memory_id"]) for card in response["near_misses"]] == regular_ids[2:]
+    assert [card["rank"] for card in response["near_misses"]] == [5, 6]
+    assert response["memory_allocation"]["share_tokens"] == 2
+    assert response["memory_allocation"]["regular_tokens"] == 2
+    assert response["memory_allocation"]["pinned_tokens"] > 2
+    assert response["memory_allocation"]["pinned_overflow_tokens"] > 0
     assert [card["score"] for card in response["near_misses"]] == pytest.approx(
-        [response["near_misses"][0]["score"]] * 3, abs=2e-5
+        [response["near_misses"][0]["score"]] * len(response["near_misses"]), abs=2e-5
     )
 
     async with memory_session_factory() as session:
@@ -668,7 +677,8 @@ async def test_pins_bypass_threshold_and_budget_and_regular_ties_use_memory_id(
     assert [event.shown_as for event in presented] == [
         "pinned",
         "pinned",
-        "near_miss",
+        "injected",
+        "injected",
         "near_miss",
         "near_miss",
     ]
@@ -678,14 +688,16 @@ async def test_pins_bypass_threshold_and_budget_and_regular_ties_use_memory_id(
         {"sources": ["vector"]},
         {"sources": ["vector"]},
         {"sources": ["vector"]},
+        {"sources": ["vector"]},
     ]
-    assert [event.memory_id for event in budget_cuts] == regular_ids
+    assert [event.memory_id for event in budget_cuts] == regular_ids[2:]
     assert all(event.outcome == "budget_cut" for event in budget_cuts)
     assert all(heads[memory_id].revision == 2 for memory_id in pin_ids)
     assert all(heads[memory_id].stats["injections"] == 1 for memory_id in pin_ids)
-    assert all(heads[memory_id].revision == 1 for memory_id in regular_ids)
-    assert all(heads[memory_id].stats == DEFAULT_STATS for memory_id in regular_ids)
-    assert regular_ids[-1] not in {event.memory_id for event in presented}
+    assert all(heads[memory_id].revision == 2 for memory_id in regular_ids[:2])
+    assert all(heads[memory_id].stats["injections"] == 1 for memory_id in regular_ids[:2])
+    assert all(heads[memory_id].revision == 1 for memory_id in regular_ids[2:])
+    assert all(heads[memory_id].stats == DEFAULT_STATS for memory_id in regular_ids[2:])
 
 
 async def test_budget_skip_continues_to_lower_scoring_candidate(
@@ -722,7 +734,7 @@ async def test_budget_skip_continues_to_lower_scoring_candidate(
     response = _assert_json(
         await memory_client.post(
             "/v1/inject/prepare",
-            json=_prepare_body(prompt=prompt, model_context_tokens=40),
+            json=_prepare_body(prompt=prompt, model_context_tokens=20),
         ),
         200,
     )

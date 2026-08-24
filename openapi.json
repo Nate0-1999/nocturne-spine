@@ -1265,6 +1265,16 @@
           "right": {
             "$ref": "#/components/schemas/NonNegativeInt"
           },
+          "share_tuning_active": {
+            "title": "Share Tuning Active",
+            "type": "boolean"
+          },
+          "share_tuning_minimum": {
+            "$ref": "#/components/schemas/PositiveInt"
+          },
+          "share_tuning_remaining": {
+            "$ref": "#/components/schemas/NonNegativeInt"
+          },
           "signals_since_last_run": {
             "$ref": "#/components/schemas/NonNegativeInt"
           },
@@ -1297,6 +1307,9 @@
           "minimum_dispositions",
           "remaining_to_floor",
           "floor_met",
+          "share_tuning_minimum",
+          "share_tuning_remaining",
+          "share_tuning_active",
           "retrain_signal_stride",
           "evaluated_through",
           "signals_since_last_run",
@@ -1406,6 +1419,52 @@
           "weighted_agreement_percent"
         ],
         "title": "LiveAgreementPoint",
+        "type": "object"
+      },
+      "MemoryAllocation": {
+        "additionalProperties": false,
+        "properties": {
+          "memory_context_share": {
+            "maximum": 0.5,
+            "minimum": 0.01,
+            "title": "Memory Context Share",
+            "type": "number"
+          },
+          "pinned_overflow_tokens": {
+            "minimum": 0.0,
+            "title": "Pinned Overflow Tokens",
+            "type": "integer"
+          },
+          "pinned_tokens": {
+            "minimum": 0.0,
+            "title": "Pinned Tokens",
+            "type": "integer"
+          },
+          "regular_tokens": {
+            "minimum": 0.0,
+            "title": "Regular Tokens",
+            "type": "integer"
+          },
+          "share_tokens": {
+            "minimum": 0.0,
+            "title": "Share Tokens",
+            "type": "integer"
+          },
+          "total_tokens": {
+            "minimum": 0.0,
+            "title": "Total Tokens",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "memory_context_share",
+          "share_tokens",
+          "regular_tokens",
+          "pinned_tokens",
+          "total_tokens",
+          "pinned_overflow_tokens"
+        ],
+        "title": "MemoryAllocation",
         "type": "object"
       },
       "MemoryFeatures": {
@@ -2207,6 +2266,9 @@
             "title": "Injection Id",
             "type": "string"
           },
+          "memory_allocation": {
+            "$ref": "#/components/schemas/MemoryAllocation"
+          },
           "near_misses": {
             "items": {
               "$ref": "#/components/schemas/ScoredMemoryCard"
@@ -2230,7 +2292,8 @@
           "scorer_version",
           "injected",
           "near_misses",
-          "final_block"
+          "final_block",
+          "memory_allocation"
         ],
         "title": "PrepareResponse",
         "type": "object"
@@ -2666,8 +2729,18 @@
             "title": "Injected Tokens",
             "type": "integer"
           },
+          "share_disagreements": {
+            "default": 0,
+            "title": "Share Disagreements",
+            "type": "integer"
+          },
           "weighted_disagreements": {
             "title": "Weighted Disagreements",
+            "type": "string"
+          },
+          "weighted_share_disagreements": {
+            "default": "0",
+            "title": "Weighted Share Disagreements",
             "type": "string"
           }
         },
@@ -3449,7 +3522,7 @@
         "enum": [
           "scorer.tau",
           "scorer.top_k",
-          "scorer.budget_tokens",
+          "scorer.memory_context_share",
           "scorer.half_life_time_days",
           "scorer.half_life_hist_days",
           "scorer.weight.sem",
@@ -3581,9 +3654,6 @@
       "ScorerValues": {
         "additionalProperties": false,
         "properties": {
-          "budget_tokens": {
-            "$ref": "#/components/schemas/PositiveInt"
-          },
           "half_life_hist_days": {
             "exclusiveMinimum": 0.0,
             "title": "Half Life Hist Days",
@@ -3592,6 +3662,12 @@
           "half_life_time_days": {
             "exclusiveMinimum": 0.0,
             "title": "Half Life Time Days",
+            "type": "number"
+          },
+          "memory_context_share": {
+            "maximum": 0.5,
+            "minimum": 0.01,
+            "title": "Memory Context Share",
             "type": "number"
           },
           "tau": {
@@ -3622,7 +3698,7 @@
         "required": [
           "tau",
           "top_k",
-          "budget_tokens",
+          "memory_context_share",
           "half_life_time_days",
           "half_life_hist_days",
           "weights"
@@ -4835,7 +4911,7 @@
   },
   "info": {
     "title": "N8 Spine",
-    "version": "0.1.5"
+    "version": "0.1.6"
   },
   "openapi": "3.1.0",
   "paths": {

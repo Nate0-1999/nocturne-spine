@@ -52,7 +52,9 @@ async def _reset_proposals(session_factory: async_sessionmaker[AsyncSession]) ->
         await session.execute(text("TRUNCATE learner_run"))
         await session.execute(
             delete(ScorerConfigRow).where(
-                ScorerConfigRow.version.not_in(("v0", ACTIVE_SCORER_VERSION))
+                ScorerConfigRow.version.not_in(
+                    ("v0", "m3f-location-v1", "m3ti-thread-v1", ACTIVE_SCORER_VERSION)
+                )
             )
         )
 
@@ -265,7 +267,14 @@ async def test_retrain_proposes_inactive_content_addressed_winner_idempotently(
             (
                 await session.execute(
                     select(ScorerConfigRow).where(
-                        ScorerConfigRow.version.not_in(("v0", ACTIVE_SCORER_VERSION))
+                        ScorerConfigRow.version.not_in(
+                            (
+                                "v0",
+                                "m3f-location-v1",
+                                "m3ti-thread-v1",
+                                ACTIVE_SCORER_VERSION,
+                            )
+                        )
                     )
                 )
             )
@@ -693,7 +702,14 @@ async def test_manual_receipt_makes_waiting_background_fresh_noop(
             (
                 await session.execute(
                     select(ScorerConfigRow).where(
-                        ScorerConfigRow.version.not_in(("v0", ACTIVE_SCORER_VERSION))
+                        ScorerConfigRow.version.not_in(
+                            (
+                                "v0",
+                                "m3f-location-v1",
+                                "m3ti-thread-v1",
+                                ACTIVE_SCORER_VERSION,
+                            )
+                        )
                     )
                 )
             )
@@ -744,7 +760,14 @@ async def test_competing_backgrounds_at_one_boundary_fit_once(
             (
                 await session.execute(
                     select(ScorerConfigRow).where(
-                        ScorerConfigRow.version.not_in(("v0", ACTIVE_SCORER_VERSION))
+                        ScorerConfigRow.version.not_in(
+                            (
+                                "v0",
+                                "m3f-location-v1",
+                                "m3ti-thread-v1",
+                                ACTIVE_SCORER_VERSION,
+                            )
+                        )
                     )
                 )
             )

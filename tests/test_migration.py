@@ -23,7 +23,7 @@ def test_packaged_migration_tree_has_one_expected_head() -> None:
 
     assert config.attributes[DATABASE_URL_ATTRIBUTE] == database_url
     assert scripts.get_base() == "0001"
-    assert scripts.get_heads() == ["0016"]
+    assert scripts.get_heads() == ["0017"]
 
 
 def test_0004_backfills_legacy_rows_and_downgrades_cleanly(
@@ -159,7 +159,7 @@ async def test_c2_migration_and_v0_seed(migrated_database_url: str) -> None:
                 .one()
             )
 
-        assert revision == "0016"
+            assert revision == "0017"
         expected_tables = {
             "memory_unit",
             "memory_revision",
@@ -195,7 +195,7 @@ async def test_c2_migration_and_v0_seed(migrated_database_url: str) -> None:
             "tgenabled": "O",
             "proname": "memory_unit_refresh_search_tsv",
         }
-        assert scorer["version"] == "m3ti-thread-v1"
+        assert scorer["version"] == "m3ms-share-v1"
         assert scorer["active"] is True
         assert scorer["weights"] == {
             "sem": 0.42,
@@ -209,8 +209,7 @@ async def test_c2_migration_and_v0_seed(migrated_database_url: str) -> None:
             "tau": 0.55,
             "top_k": 8,
             "near_miss_k": 3,
-            "budget_tokens": 3000,
-            "budget_pct": 0.05,
+            "memory_context_share": 0.10,
             "half_life_time_days": 14,
             "half_life_hist_days": 7,
             "never_bias_step": -0.15,
@@ -228,6 +227,11 @@ async def test_c2_migration_and_v0_seed(migrated_database_url: str) -> None:
                 "migration": "0016",
                 "amendment": "A-060",
                 "previous_version": "m3f-location-v1",
+            },
+            "_m3ms_activation": {
+                "migration": "0017",
+                "amendment": "A-061",
+                "previous_version": "m3ti-thread-v1",
             },
         }
     finally:

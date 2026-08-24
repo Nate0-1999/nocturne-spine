@@ -42,7 +42,7 @@ type FeatureName = Literal["sem", "kw", "time", "proj", "freq", "hist"]
 type ScorerParameterId = Literal[
     "scorer.tau",
     "scorer.top_k",
-    "scorer.budget_tokens",
+    "scorer.memory_context_share",
     "scorer.half_life_time_days",
     "scorer.half_life_hist_days",
     "scorer.weight.sem",
@@ -142,7 +142,7 @@ class ScorerDescriptor(M2KContract):
 class ScorerValues(M2KContract):
     tau: Annotated[StrictFloat, Field(ge=0.0, le=1.0)]
     top_k: Annotated[StrictInt, Field(ge=1, le=8)]
-    budget_tokens: PositiveInt
+    memory_context_share: Annotated[StrictFloat, Field(ge=0.01, le=0.50)]
     half_life_time_days: Annotated[StrictFloat, Field(gt=0.0)]
     half_life_hist_days: Annotated[StrictFloat, Field(gt=0.0)]
     weights: dict[FeatureName, Annotated[StrictFloat, Field(ge=0.0, le=1.0)]]
@@ -229,6 +229,9 @@ class LearningView(M2KContract):
     minimum_dispositions: PositiveInt
     remaining_to_floor: NonNegativeInt
     floor_met: bool
+    share_tuning_minimum: PositiveInt
+    share_tuning_remaining: NonNegativeInt
+    share_tuning_active: bool
     retrain_signal_stride: PositiveInt
     evaluated_through: NonNegativeInt | None
     signals_since_last_run: NonNegativeInt

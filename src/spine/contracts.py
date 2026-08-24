@@ -99,6 +99,15 @@ class MemoryUnit(ContractModel):
     updated_at: datetime
 
 
+class MemoryAllocation(ContractModel):
+    memory_context_share: float = Field(ge=0.01, le=0.50)
+    share_tokens: int = Field(ge=0)
+    regular_tokens: int = Field(ge=0)
+    pinned_tokens: int = Field(ge=0)
+    total_tokens: int = Field(ge=0)
+    pinned_overflow_tokens: int = Field(ge=0)
+
+
 class PrepareResponse(ContractModel):
     injection_id: UUID
     snapshot_ts: datetime
@@ -106,6 +115,7 @@ class PrepareResponse(ContractModel):
     injected: list[ScoredMemoryCard]
     near_misses: list[ScoredMemoryCard]
     final_block: str | None
+    memory_allocation: MemoryAllocation
 
 
 class CommitResponse(ContractModel):

@@ -441,7 +441,14 @@ async def test_competing_force_values_take_a_fresh_snapshot_after_the_control_lo
             (
                 await session.execute(
                     select(ScorerConfigRow).where(
-                        ScorerConfigRow.version.not_in(("v0", ACTIVE_SCORER_VERSION))
+                        ScorerConfigRow.version.not_in(
+                            (
+                                "v0",
+                                "m3f-location-v1",
+                                "m3ti-thread-v1",
+                                ACTIVE_SCORER_VERSION,
+                            )
+                        )
                     )
                 )
             )

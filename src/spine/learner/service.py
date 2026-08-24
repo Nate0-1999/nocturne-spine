@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from dataclasses import asdict, dataclass
 from decimal import Decimal
@@ -18,13 +18,14 @@ from spine.ids import mint_ulid
 from spine.inject.scorer import ScorerConfig as RuntimeScorerConfig
 from spine.inject.scorer import ScorerWeights
 from spine.learner.contracts import ReplayScoreView, RetrainResponse
-from spine.learner.evidence import LearnerDataError, project_learning_evidence
+from spine.learner.evidence import LearnerDataError, LearningEvidence, project_learning_evidence
 from spine.learner.locking import LEARNER_ADVISORY_LOCK_KEY
 from spine.learner.model import (
     FEATURE_NAMES,
     FitSettings,
     LearningExample,
     ReplayScore,
+    ShareBoundary,
     canonical_digest,
     challenger_score,
     challenger_wins,
@@ -33,7 +34,8 @@ from spine.learner.model import (
     split_gates,
 )
 
-_ALGORITHM_ID = "m3ti-pairwise-thread-squared-hinge-v2"
+_ALGORITHM_ID = "m3ms-unified-share-tau-pairwise-v3"
+_SHARE_TUNING_MINIMUM = 100
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -128,7 +130,8 @@ class LearnerService:
             .all()
         )
         annotation_rows = (await session.execute(select(InjectionEventAnnotation))).scalars().all()
-        examples = self._examples(event_rows, annotation_rows, runtime_configs)
+        evidence = self._evidence(event_rows, annotation_rows, runtime_configs)
+        examples = evidence.examples
         if due_only and not await self._background_due(session, len(examples)):
             return None
         response = await self._fit(
@@ -137,6 +140,7 @@ class LearnerService:
             active_row=active_row,
             incumbent=incumbent,
             examples=examples,
+            share_boundaries=evidence.share_boundaries,
         )
         # The mappings intentionally expose no ORM relationship. Persist a
         # winning proposal before its same-transaction receipt satisfies the FK.
@@ -193,6 +197,7 @@ class LearnerService:
         active_row: ScorerConfigRow,
         incumbent: RuntimeScorerConfig,
         examples: tuple[LearningExample, ...],
+        share_boundaries: Sequence[ShareBoundary],
     ) -> RetrainResponse:
         prior_challenger_exists = any(
             isinstance(row.params.get("_learner"), Mapping) for row in configs
@@ -217,11 +222,24 @@ class LearnerService:
                 eligible=len(examples),
                 reason=str(error),
             )
+        training_ids = {example.injection_id for example in training}
+        holdout_ids = {example.injection_id for example in holdout}
+        training_boundaries = tuple(
+            boundary for boundary in share_boundaries if boundary.injection_id in training_ids
+        )
+        holdout_boundaries = tuple(
+            boundary for boundary in share_boundaries if boundary.injection_id in holdout_ids
+        )
+        tune_share_and_tau = len(examples) >= _SHARE_TUNING_MINIMUM
         try:
             fit = fit_pairwise(
                 training,
                 incumbent_weights=_weight_tuple(incumbent.weights),
                 incumbent_thread_weight=incumbent.params.thread_weight,
+                incumbent_tau=incumbent.params.tau,
+                incumbent_memory_context_share=incumbent.params.memory_context_share,
+                share_boundaries=training_boundaries,
+                tune_share_and_tau=tune_share_and_tau,
                 settings=FitSettings(
                     pair_margin=self._settings.pair_margin,
                     bias_l2=self._settings.bias_l2,
@@ -235,18 +253,28 @@ class LearnerService:
                 holdout=len(holdout),
                 reason=str(error),
             )
-        incumbent_score = recorded_score(holdout)
+        incumbent_score = recorded_score(
+            holdout,
+            share_boundaries=holdout_boundaries,
+            memory_context_share=incumbent.params.memory_context_share,
+        )
         fitted_score = challenger_score(
             holdout,
             weights=fit.weights,
             bias_offsets=fit.bias_offsets,
             thread_weight=fit.thread_weight,
-            tau=incumbent.params.tau,
+            tau=fit.tau,
+            share_boundaries=holdout_boundaries,
+            memory_context_share=fit.memory_context_share,
         )
         wins = challenger_wins(
             incumbent_score,
             fitted_score,
             margin=Decimal(str(self._settings.win_margin)),
+            incumbent_memory_context_share=incumbent.params.memory_context_share,
+            challenger_memory_context_share=fit.memory_context_share,
+            incumbent_tau=incumbent.params.tau,
+            challenger_tau=fit.tau,
         )
         if not wins:
             return RetrainResponse(
@@ -279,6 +307,7 @@ class LearnerService:
             incumbent_version=incumbent.version,
             training=training,
             holdout=holdout,
+            share_boundaries=training_boundaries,
             settings=digest_manifest,
         )
         version = f"m2f-{digest[:16]}"
@@ -300,6 +329,9 @@ class LearnerService:
                 "objective": fit.objective,
                 "training_pairs": fit.pair_count,
                 "thread_weight": fit.thread_weight,
+                "tau": fit.tau,
+                "memory_context_share": fit.memory_context_share,
+                "share_tau_active": fit.share_tau_active,
             },
             "replay": {
                 "incumbent": _score_manifest(incumbent_score),
@@ -315,6 +347,9 @@ class LearnerService:
         proposal_weights = dict(zip(FEATURE_NAMES, fit.weights, strict=True))
         if "thread_weight" in proposal_params or fit.thread_weight != 0.0:
             proposal_params["thread_weight"] = fit.thread_weight
+        if fit.share_tau_active:
+            proposal_params["tau"] = fit.tau
+            proposal_params["memory_context_share"] = fit.memory_context_share
         existing = await session.get(ScorerConfigRow, version)
         if existing is None:
             session.add(
@@ -352,18 +387,18 @@ class LearnerService:
             reason="challenger won replay and remains inactive pending owner activation",
         )
 
-    def _examples(
+    def _evidence(
         self,
         rows: list[InjectionEvent],
         annotations: list[InjectionEventAnnotation],
         configs: Mapping[str, RuntimeScorerConfig],
-    ) -> tuple[LearningExample, ...]:
+    ) -> LearningEvidence:
         return project_learning_evidence(
             rows,
             annotations,
             configs,
             passive_discount=Decimal(str(self._settings.passive_discount)),
-        ).examples
+        )
 
 
 def _runtime_config(row: ScorerConfigRow) -> RuntimeScorerConfig:
@@ -390,6 +425,8 @@ def _score_manifest(score: ReplayScore) -> dict[str, Any]:
         "disagreements": score.disagreements,
         "weighted_disagreements": str(score.weighted_disagreements),
         "injected_tokens": score.injected_tokens,
+        "share_disagreements": score.share_disagreements,
+        "weighted_share_disagreements": str(score.weighted_share_disagreements),
     }
 
 

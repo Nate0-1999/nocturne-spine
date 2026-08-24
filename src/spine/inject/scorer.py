@@ -15,6 +15,9 @@ from uuid import UUID
 from spine.tokens import cl100k_token_count
 
 _SECONDS_PER_DAY = 86_400
+MIN_MEMORY_CONTEXT_SHARE = 0.01
+MAX_MEMORY_CONTEXT_SHARE = 0.50
+DEFAULT_MEMORY_CONTEXT_SHARE = 0.10
 _STOPWORDS = frozenset(
     {
         "a",
@@ -65,14 +68,14 @@ class ScorerParams:
     tau: float
     top_k: int
     near_miss_k: int
-    budget_tokens: int
-    budget_pct: float
+    memory_context_share: float
     half_life_time_days: float
     half_life_hist_days: float
     candidate_pool: int
     location_weight: float = 0.0
     half_life_location_hops: float = 2.0
     thread_weight: float = 0.0
+    legacy_budget_tokens: int | None = None
 
     def __post_init__(self) -> None:
         if not 0.0 <= self.tau <= 1.0:
@@ -81,10 +84,10 @@ class ScorerParams:
             raise ValueError("top_k must be between one and eight")
         if self.near_miss_k < 0:
             raise ValueError("near_miss_k must not be negative")
-        if self.budget_tokens <= 0:
-            raise ValueError("budget_tokens must be positive")
-        if not 0.0 < self.budget_pct <= 1.0:
-            raise ValueError("budget_pct must be greater than zero and at most one")
+        if not MIN_MEMORY_CONTEXT_SHARE <= self.memory_context_share <= MAX_MEMORY_CONTEXT_SHARE:
+            raise ValueError("memory_context_share must be between 0.01 and 0.50")
+        if self.legacy_budget_tokens is not None and self.legacy_budget_tokens <= 0:
+            raise ValueError("legacy budget_tokens must be positive")
         if self.half_life_time_days <= 0.0 or self.half_life_hist_days <= 0.0:
             raise ValueError("scorer half lives must be positive")
         if self.candidate_pool <= 0:
@@ -160,14 +163,20 @@ class ScorerConfig:
                 tau=_number(params, "tau"),
                 top_k=_integer(params, "top_k"),
                 near_miss_k=_integer(params, "near_miss_k"),
-                budget_tokens=_integer(params, "budget_tokens"),
-                budget_pct=_number(params, "budget_pct"),
+                memory_context_share=(
+                    _number(params, "memory_context_share")
+                    if "memory_context_share" in params
+                    else _number(params, "budget_pct")
+                ),
                 half_life_time_days=_number(params, "half_life_time_days"),
                 half_life_hist_days=_number(params, "half_life_hist_days"),
                 candidate_pool=_integer(params, "candidate_pool"),
                 location_weight=_optional_number(params, "location_weight", 0.0),
                 half_life_location_hops=_optional_number(params, "half_life_location_hops", 2.0),
                 thread_weight=_optional_number(params, "thread_weight", 0.0),
+                legacy_budget_tokens=(
+                    None if "memory_context_share" in params else _integer(params, "budget_tokens")
+                ),
             ),
             bias_offsets=bias_offsets,
         )
@@ -254,6 +263,9 @@ class ScoringSelection:
     unselected: tuple[ScoredCandidate, ...]
     regular_budget: int
     pin_token_cost: int
+    regular_token_cost: int
+    total_token_cost: int
+    pinned_overflow_tokens: int
 
 
 def score_and_select(
@@ -340,12 +352,13 @@ def score_and_select(
         )
     )
 
-    pin_token_cost = sum(scored.token_cost for scored in (*ranked_pins, *ranked_locked))
-    budget_pct = Fraction(str(config.params.budget_pct))
-    percentage_budget = budget_pct.numerator * model_context_tokens // budget_pct.denominator
-    base_budget = min(config.params.budget_tokens, percentage_budget)
-    regular_budget = max(0, base_budget - pin_token_cost)
-    remaining_budget = regular_budget
+    pin_token_cost = sum(scored.token_cost for scored in ranked_pins)
+    locked_token_cost = sum(scored.token_cost for scored in ranked_locked)
+    share = Fraction(str(config.params.memory_context_share))
+    share_tokens = share.numerator * model_context_tokens // share.denominator
+    if config.params.legacy_budget_tokens is not None:
+        share_tokens = min(config.params.legacy_budget_tokens, share_tokens)
+    remaining_budget = max(0, share_tokens - locked_token_cost)
     selected_regular: list[ScoredCandidate] = []
     unselected_regular: list[ScoredCandidate] = []
     budget_cuts: list[ScoredCandidate] = []
@@ -369,13 +382,21 @@ def score_and_select(
             if cut_by_budget:
                 budget_cuts.append(scored)
 
+    regular_token_cost = locked_token_cost + sum(item.token_cost for item in selected_regular)
+    total_token_cost = pin_token_cost + regular_token_cost
     return ScoringSelection(
         injected=(*ranked_pins, *ranked_locked, *selected_regular),
         near_misses=tuple(unselected_regular[: config.params.near_miss_k]),
         budget_cuts=tuple(budget_cuts),
         unselected=tuple(unselected_regular),
-        regular_budget=regular_budget,
+        regular_budget=share_tokens,
         pin_token_cost=pin_token_cost,
+        regular_token_cost=regular_token_cost,
+        total_token_cost=total_token_cost,
+        pinned_overflow_tokens=min(
+            pin_token_cost,
+            max(0, total_token_cost - share_tokens),
+        ),
     )
 
 
@@ -663,6 +684,9 @@ def _optional_number(mapping: Mapping[str, Any], key: str, default: float) -> fl
 
 
 __all__ = [
+    "DEFAULT_MEMORY_CONTEXT_SHARE",
+    "MAX_MEMORY_CONTEXT_SHARE",
+    "MIN_MEMORY_CONTEXT_SHARE",
     "ScoreFeatures",
     "ScoredCandidate",
     "ScorerConfig",

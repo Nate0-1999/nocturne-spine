@@ -10,6 +10,7 @@ from spine.learner.model import (
     FitSettings,
     LearningExample,
     ReplayScore,
+    ShareBoundary,
     challenger_score,
     challenger_wins,
     disposition,
@@ -206,6 +207,84 @@ def test_fit_learns_thread_locality_from_human_pairwise_evidence() -> None:
     assert fit.thread_weight < 1.0
 
 
+def test_share_and_line_stay_fixed_until_the_authentic_feedback_floor() -> None:
+    """D.2 133 keeps the new controls fixed, then joins them to the one learner."""
+
+    examples = (
+        _example(
+            event=1,
+            gate=1,
+            memory_id=POSITIVE_ID,
+            sem=0.9,
+            target=True,
+            shown_as="near_miss",
+        ),
+        _example(
+            event=2,
+            gate=1,
+            memory_id=NEGATIVE_ID,
+            sem=0.1,
+            target=False,
+            shown_as="injected",
+        ),
+    )
+    boundary = ShareBoundary(
+        event_uid="share-up",
+        injection_id=UUID(int=1),
+        required_share=0.14,
+        target_at_least=True,
+        actor_weight=Decimal(1),
+        kind="valuable_budget_cut",
+    )
+    inputs = {
+        "examples": examples,
+        "incumbent_weights": (1 / 6,) * 6,
+        "incumbent_tau": 0.55,
+        "incumbent_memory_context_share": 0.10,
+        "share_boundaries": (boundary,),
+        "settings": FitSettings(pair_margin=0.4, bias_l2=10.0),
+    }
+
+    below_floor = fit_pairwise(**inputs, tune_share_and_tau=False)
+    at_floor = fit_pairwise(**inputs, tune_share_and_tau=True)
+
+    assert not below_floor.share_tau_active
+    assert below_floor.tau == 0.55
+    assert below_floor.memory_context_share == 0.10
+    assert at_floor.share_tau_active
+    assert at_floor.tau != 0.55
+    assert at_floor.memory_context_share == 0.14
+
+
+def test_share_replay_counts_room_up_and_room_down_triggers() -> None:
+    boundaries = (
+        ShareBoundary(
+            event_uid="up",
+            injection_id=UUID(int=1),
+            required_share=0.14,
+            target_at_least=True,
+            actor_weight=Decimal(1),
+            kind="pin_overflow",
+        ),
+        ShareBoundary(
+            event_uid="down",
+            injection_id=UUID(int=2),
+            required_share=0.18,
+            target_at_least=False,
+            actor_weight=Decimal("0.25"),
+            kind="marginal_uncited",
+        ),
+    )
+
+    tight = recorded_score((), share_boundaries=boundaries, memory_context_share=0.10)
+    roomy = recorded_score((), share_boundaries=boundaries, memory_context_share=0.20)
+
+    assert tight.share_disagreements == 1
+    assert tight.weighted_share_disagreements == Decimal(1)
+    assert roomy.share_disagreements == 1
+    assert roomy.weighted_share_disagreements == Decimal("0.25")
+
+
 def test_binary_replay_counts_each_override_and_applies_passive_discount() -> None:
     """A-031 is defended by verifying that binary replay counts each override and applies
     passive discount; this prevents drift in the deterministic learner and replay
@@ -283,4 +362,42 @@ def test_replay_winner_requires_margin_except_for_exact_cheaper_tie() -> None:
             injected_tokens=99,
         ),
         margin=Decimal("1"),
+    )
+
+
+def test_replay_tie_prefers_smaller_share_then_higher_tau() -> None:
+    """D.2 133 makes room and line part of the replay's cheaper-at-tie law."""
+
+    score = ReplayScore(
+        disagreements=1,
+        weighted_disagreements=Decimal("1.0"),
+        injected_tokens=100,
+    )
+
+    assert challenger_wins(
+        score,
+        score,
+        margin=Decimal("0.05"),
+        incumbent_memory_context_share=0.20,
+        challenger_memory_context_share=0.10,
+        incumbent_tau=0.55,
+        challenger_tau=0.55,
+    )
+    assert challenger_wins(
+        score,
+        score,
+        margin=Decimal("0.05"),
+        incumbent_memory_context_share=0.10,
+        challenger_memory_context_share=0.10,
+        incumbent_tau=0.55,
+        challenger_tau=0.60,
+    )
+    assert not challenger_wins(
+        score,
+        score,
+        margin=Decimal("0.05"),
+        incumbent_memory_context_share=0.10,
+        challenger_memory_context_share=0.20,
+        incumbent_tau=0.55,
+        challenger_tau=0.60,
     )

@@ -14,7 +14,7 @@ from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from spine.contracts import MemoryFeatures, PrepareResponse, ScoredMemoryCard
+from spine.contracts import MemoryAllocation, MemoryFeatures, PrepareResponse, ScoredMemoryCard
 from spine.db.memory import (
     CasUpdate,
     MemoryCasConflictError,
@@ -201,6 +201,14 @@ class PrepareService:
                     model_context_tokens=command.model_context_tokens,
                     config=config,
                 )
+                allocation = MemoryAllocation(
+                    memory_context_share=config.params.memory_context_share,
+                    share_tokens=selection.regular_budget,
+                    regular_tokens=selection.regular_token_cost,
+                    pinned_tokens=selection.pin_token_cost,
+                    total_tokens=selection.total_token_cost,
+                    pinned_overflow_tokens=selection.pinned_overflow_tokens,
+                )
                 injection_id = uuid4()
                 await _increment_injection_stats(
                     session,
@@ -215,6 +223,7 @@ class PrepareService:
                     injection_id=injection_id,
                     scorer_version=config.version,
                     selection=selection,
+                    allocation=allocation,
                 )
 
                 return PrepareResponse(
@@ -234,6 +243,7 @@ class PrepareService:
                         if command.mode == "autonomous"
                         else None
                     ),
+                    memory_allocation=allocation,
                 )
 
 
@@ -533,6 +543,7 @@ async def _insert_events(
     injection_id: UUID,
     scorer_version: str,
     selection: ScoringSelection,
+    allocation: MemoryAllocation,
 ) -> list[dict[str, Any]]:
     values: list[dict[str, Any]] = []
     current_ids = set(command.current_memory_ids)
@@ -551,6 +562,7 @@ async def _insert_events(
                 outcome=("kept" if item.candidate.memory_id in current_ids else "auto_entered")
                 if command.mode == "autonomous"
                 else None,
+                allocation=allocation,
             )
         )
     for item in selection.near_misses:
@@ -569,6 +581,7 @@ async def _insert_events(
                     if command.mode == "autonomous" and item.candidate.memory_id in current_ids
                     else None
                 ),
+                allocation=allocation,
             )
         )
     for item in selection.budget_cuts:
@@ -582,6 +595,7 @@ async def _insert_events(
                 shown_as="budget_cut",
                 actor_class="passive" if command.mode == "autonomous" else "human",
                 outcome="budget_cut",
+                allocation=allocation,
             )
         )
     if command.mode == "autonomous":
@@ -599,6 +613,7 @@ async def _insert_events(
                     shown_as="near_miss",
                     actor_class="passive",
                     outcome="auto_exited",
+                    allocation=allocation,
                 )
             )
     if values:
@@ -616,6 +631,7 @@ def _event_values(
     shown_as: str,
     actor_class: Literal["human", "passive"],
     outcome: str | None,
+    allocation: MemoryAllocation,
 ) -> dict[str, Any]:
     candidate = item.candidate
     features: dict[str, Any] = asdict(item.features)
@@ -625,7 +641,10 @@ def _event_values(
         "pin": candidate.pin,
         "updated_at": candidate.updated_at.isoformat(),
     }
-    features["_prepare"] = {"model_context_tokens": command.model_context_tokens}
+    features["_prepare"] = {
+        "model_context_tokens": command.model_context_tokens,
+        **allocation.model_dump(mode="python"),
+    }
     features["_location"] = {"cwd": command.location_path}
     features["_retrieval"] = {"sources": list(candidate.pool_sources)}
     return {

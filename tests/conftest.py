@@ -17,7 +17,7 @@ from spine.main import create_app
 
 TOKEN = "p0-test-token"
 EMBED_DIM = 1536
-ACTIVE_SCORER_VERSION = "m3f-location-v1"
+ACTIVE_SCORER_VERSION = "m3ms-share-v1"
 
 
 def basis_vector(index: int) -> list[float]:
@@ -126,13 +126,12 @@ async def memory_session_factory(
         await connection.execute(truncate)
         await connection.execute(
             text(
-                "DELETE FROM scorer_config WHERE version NOT IN ('v0', :active_version)"
+                "DELETE FROM scorer_config WHERE version NOT IN "
+                "('v0', 'm3f-location-v1', 'm3ti-thread-v1', :active_version)"
             ),
             {"active_version": ACTIVE_SCORER_VERSION},
         )
-        await connection.execute(
-            text("UPDATE scorer_config SET active = false WHERE active")
-        )
+        await connection.execute(text("UPDATE scorer_config SET active = false WHERE active"))
         await connection.execute(
             text("UPDATE scorer_config SET active = true WHERE version = :active_version"),
             {"active_version": ACTIVE_SCORER_VERSION},
@@ -144,13 +143,12 @@ async def memory_session_factory(
             await connection.execute(truncate)
             await connection.execute(
                 text(
-                    "DELETE FROM scorer_config WHERE version NOT IN ('v0', :active_version)"
+                    "DELETE FROM scorer_config WHERE version NOT IN "
+                    "('v0', 'm3f-location-v1', 'm3ti-thread-v1', :active_version)"
                 ),
                 {"active_version": ACTIVE_SCORER_VERSION},
             )
-            await connection.execute(
-                text("UPDATE scorer_config SET active = false WHERE active")
-            )
+            await connection.execute(text("UPDATE scorer_config SET active = false WHERE active"))
             await connection.execute(
                 text("UPDATE scorer_config SET active = true WHERE version = :active_version"),
                 {"active_version": ACTIVE_SCORER_VERSION},

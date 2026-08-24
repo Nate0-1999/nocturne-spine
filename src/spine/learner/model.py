@@ -17,6 +17,8 @@ FEATURE_NAMES = ("sem", "kw", "time", "proj", "freq", "hist")
 EXPLICIT_POSITIVE_OUTCOMES = frozenset({"added_back", "cited", "mid_thread_added"})
 NEGATIVE_OUTCOMES = frozenset({"removed:not_relevant", "removed:never", "mid_thread_removed"})
 PASSIVE_POSITIVE_OUTCOMES = frozenset({"kept", "auto_entered"})
+MIN_MEMORY_CONTEXT_SHARE = 0.01
+MAX_MEMORY_CONTEXT_SHARE = 0.50
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -43,6 +45,18 @@ class LearningExample:
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
+class ShareBoundary:
+    """One replay-visible reason for the memory room to grow or shrink."""
+
+    event_uid: str
+    injection_id: UUID
+    required_share: float
+    target_at_least: bool
+    actor_weight: Decimal
+    kind: Literal["valuable_budget_cut", "marginal_uncited", "marginal_removed", "pin_overflow"]
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
 class FitSettings:
     pair_margin: float
     bias_l2: float
@@ -52,6 +66,9 @@ class FitSettings:
 class FitResult:
     weights: tuple[float, float, float, float, float, float]
     thread_weight: float
+    tau: float
+    memory_context_share: float
+    share_tau_active: bool
     bias_offsets: Mapping[UUID, float]
     pair_count: int
     iterations: int
@@ -63,6 +80,8 @@ class ReplayScore:
     disagreements: int
     weighted_disagreements: Decimal
     injected_tokens: int
+    share_disagreements: int = 0
+    weighted_share_disagreements: Decimal = Decimal(0)
 
 
 def disposition(
@@ -130,6 +149,10 @@ def fit_pairwise(
     *,
     incumbent_weights: Sequence[float],
     incumbent_thread_weight: float = 0.0,
+    incumbent_tau: float = 0.55,
+    incumbent_memory_context_share: float = 0.10,
+    share_boundaries: Sequence[ShareBoundary] = (),
+    tune_share_and_tau: bool = False,
     settings: FitSettings,
 ) -> FitResult:
     """Solve the full convex squared-hinge objective by projected gradient."""
@@ -202,23 +225,48 @@ def fit_pairwise(
         initial=incumbent_thread_weight,
         settings=settings,
     )
+    tau = incumbent_tau
+    memory_context_share = incumbent_memory_context_share
+    boundary_iterations = 0
+    if tune_share_and_tau:
+        tau, tau_iterations = _fit_tau(
+            examples,
+            weights=weights,
+            biases=biases,
+            thread_weight=thread_weight,
+            incumbent=incumbent_tau,
+        )
+        memory_context_share, share_iterations = _fit_share(
+            share_boundaries,
+            incumbent=incumbent_memory_context_share,
+        )
+        boundary_iterations = tau_iterations + share_iterations
     return FitResult(
         weights=weights,
         thread_weight=thread_weight,
+        tau=tau,
+        memory_context_share=memory_context_share,
+        share_tau_active=tune_share_and_tau,
         bias_offsets=normalized_biases,
         pair_count=len(pairs),
-        iterations=iterations + thread_iterations,
+        iterations=iterations + thread_iterations + boundary_iterations,
         objective=objective,
     )
 
 
-def recorded_score(examples: Iterable[LearningExample]) -> ReplayScore:
+def recorded_score(
+    examples: Iterable[LearningExample],
+    *,
+    share_boundaries: Iterable[ShareBoundary] = (),
+    memory_context_share: float = 0.10,
+) -> ReplayScore:
     """Score the incumbent decisions that actually served the held-out gates."""
 
-    return _replay_score(
+    score = _replay_score(
         examples,
         predicted=lambda example: example.recorded_injected,
     )
+    return _with_share_score(score, share_boundaries, memory_context_share)
 
 
 def challenger_score(
@@ -228,6 +276,8 @@ def challenger_score(
     bias_offsets: Mapping[UUID, float],
     thread_weight: float = 0.0,
     tau: float,
+    share_boundaries: Iterable[ShareBoundary] = (),
+    memory_context_share: float = 0.10,
 ) -> ReplayScore:
     """Score one fitted challenger against the held-out binary dispositions."""
 
@@ -238,7 +288,8 @@ def challenger_score(
         score += bias_offsets.get(example.memory_id, 0.0)
         return score >= tau
 
-    return _replay_score(examples, predicted=predicted)
+    score = _replay_score(examples, predicted=predicted)
+    return _with_share_score(score, share_boundaries, memory_context_share)
 
 
 def challenger_wins(
@@ -246,13 +297,29 @@ def challenger_wins(
     challenger: ReplayScore,
     *,
     margin: Decimal,
+    incumbent_memory_context_share: float | None = None,
+    challenger_memory_context_share: float | None = None,
+    incumbent_tau: float | None = None,
+    challenger_tau: float | None = None,
 ) -> bool:
     """Apply the real-margin rule, then the exact cheaper-at-tie exception."""
 
     improvement = incumbent.weighted_disagreements - challenger.weighted_disagreements
     if improvement >= margin:
         return True
-    return improvement == 0 and challenger.injected_tokens < incumbent.injected_tokens
+    if improvement != 0:
+        return False
+    incumbent_cost = (
+        incumbent.injected_tokens,
+        incumbent_memory_context_share if incumbent_memory_context_share is not None else 1.0,
+        -(incumbent_tau if incumbent_tau is not None else 0.0),
+    )
+    challenger_cost = (
+        challenger.injected_tokens,
+        challenger_memory_context_share if challenger_memory_context_share is not None else 1.0,
+        -(challenger_tau if challenger_tau is not None else 0.0),
+    )
+    return challenger_cost < incumbent_cost
 
 
 def canonical_digest(
@@ -260,6 +327,7 @@ def canonical_digest(
     incumbent_version: str,
     training: Sequence[LearningExample],
     holdout: Sequence[LearningExample],
+    share_boundaries: Sequence[ShareBoundary] = (),
     settings: Mapping[str, object],
 ) -> str:
     """Hash every authority input used by a proposal in canonical order."""
@@ -268,6 +336,7 @@ def canonical_digest(
         "incumbent_version": incumbent_version,
         "training": [_canonical_example(item) for item in training],
         "holdout": [_canonical_example(item) for item in holdout],
+        "share_boundaries": [_canonical_boundary(item) for item in share_boundaries],
         "settings": settings,
     }
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
@@ -463,6 +532,97 @@ def _thread_derivative(example: LearningExample, weights: Sequence[float]) -> fl
     return example.thread_feature - pre_thread
 
 
+def _fit_tau(
+    examples: Sequence[LearningExample],
+    *,
+    weights: Sequence[float],
+    biases: Mapping[UUID, float],
+    thread_weight: float,
+    incumbent: float,
+) -> tuple[float, int]:
+    """Choose the cheapest binary threshold among exact hundredth controls."""
+
+    candidates = sorted({incumbent, *(index / 100 for index in range(101))})
+    best = incumbent
+    best_key: tuple[Decimal, int, float] | None = None
+    for candidate in candidates:
+        wrong = Decimal(0)
+        injected_tokens = 0
+        for example in examples:
+            selected = example.shown_as == "pinned" or (
+                _example_score(example, weights, thread_weight) + biases.get(example.memory_id, 0.0)
+                >= candidate
+            )
+            if selected:
+                injected_tokens += example.body_tokens
+            if selected != example.target_injected:
+                wrong += example.actor_weight
+        key = (wrong, injected_tokens, -candidate)
+        if best_key is None or key < best_key:
+            best_key = key
+            best = candidate
+    return best, len(candidates)
+
+
+def _fit_share(
+    boundaries: Sequence[ShareBoundary],
+    *,
+    incumbent: float,
+) -> tuple[float, int]:
+    """Fit room pressure on the same bounded hundredth-scale control."""
+
+    if not boundaries:
+        return incumbent, 0
+    candidates = sorted(
+        {
+            incumbent,
+            *(
+                index / 100
+                for index in range(
+                    round(MIN_MEMORY_CONTEXT_SHARE * 100),
+                    round(MAX_MEMORY_CONTEXT_SHARE * 100) + 1,
+                )
+            ),
+        }
+    )
+    best = incumbent
+    best_key: tuple[Decimal, int, float] | None = None
+    for candidate in candidates:
+        wrong = Decimal(0)
+        count = 0
+        for boundary in boundaries:
+            fits = candidate + 1e-12 >= boundary.required_share
+            if fits != boundary.target_at_least:
+                count += 1
+                wrong += boundary.actor_weight
+        key = (wrong, count, candidate)
+        if best_key is None or key < best_key:
+            best_key = key
+            best = candidate
+    return best, len(candidates)
+
+
+def _with_share_score(
+    score: ReplayScore,
+    boundaries: Iterable[ShareBoundary],
+    memory_context_share: float,
+) -> ReplayScore:
+    share_disagreements = 0
+    weighted_share_disagreements = Decimal(0)
+    for boundary in boundaries:
+        fits = memory_context_share + 1e-12 >= boundary.required_share
+        if fits != boundary.target_at_least:
+            share_disagreements += 1
+            weighted_share_disagreements += boundary.actor_weight
+    return ReplayScore(
+        disagreements=score.disagreements + share_disagreements,
+        weighted_disagreements=(score.weighted_disagreements + weighted_share_disagreements),
+        injected_tokens=score.injected_tokens,
+        share_disagreements=share_disagreements,
+        weighted_share_disagreements=weighted_share_disagreements,
+    )
+
+
 def _project_simplex(values: Sequence[float]) -> tuple[float, ...]:
     """Euclidean projection onto non-negative values summing exactly to one."""
 
@@ -532,4 +692,15 @@ def _canonical_example(example: LearningExample) -> dict[str, object]:
         "location_feature": example.location_feature,
         "location_weight": example.location_weight,
         "thread_feature": example.thread_feature,
+    }
+
+
+def _canonical_boundary(boundary: ShareBoundary) -> dict[str, object]:
+    return {
+        "event_uid": boundary.event_uid,
+        "injection_id": str(boundary.injection_id),
+        "required_share": boundary.required_share,
+        "target_at_least": boundary.target_at_least,
+        "actor_weight": str(boundary.actor_weight),
+        "kind": boundary.kind,
     }

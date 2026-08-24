@@ -25,12 +25,15 @@ def _config(**changes: Any) -> ScorerConfig:
         "tau": 0.55,
         "top_k": 8,
         "near_miss_k": 3,
-        "budget_tokens": 3000,
-        "budget_pct": 0.05,
+        "memory_context_share": 0.05,
+        "legacy_budget_tokens": 3000,
         "half_life_time_days": 14,
         "half_life_hist_days": 7,
         "candidate_pool": 50,
     }
+    if "budget_tokens" in changes:
+        changes["legacy_budget_tokens"] = changes.pop("budget_tokens")
+    changes.pop("budget_pct", None)
     values.update(changes)
     return ScorerConfig(version="v0", weights=WEIGHTS, params=ScorerParams(**values))
 
@@ -234,18 +237,18 @@ def test_golden_selection_preserves_pin_score_order_ranks_and_greedy_skips() -> 
         config=_config(top_k=2, budget_tokens=8, candidate_pool=5),
     )
 
-    # floor(.05*160)=8, then 3 pin tokens leave a five-token regular budget.
-    # Rank 3 costs three and is accepted; rank 4 costs three and is skipped;
-    # rank 5 costs two and is accepted. Ranks 6 and 7 fail top-k and threshold.
+    # floor(.05*160)=8 remains wholly available to regular memories. Pins are
+    # forced beside that ceiling, so ranks 3 and 4 both fit and consume top-k.
     assert result.pin_token_cost == 3
-    assert result.regular_budget == 5
-    assert [item.candidate.memory_id.int for item in result.injected] == [1, 2, 10, 12]
-    assert [item.rank for item in result.injected] == [1, 2, 3, 5]
-    assert [item.candidate.memory_id.int for item in result.near_misses] == [11, 13, 14]
-    assert [item.rank for item in result.near_misses] == [4, 6, 7]
-    assert [item.candidate.memory_id.int for item in result.budget_cuts] == [11]
-    assert [item.score for item in result.injected[2:]] == pytest.approx([0.90, 0.70])
-    assert [item.score for item in result.near_misses] == pytest.approx([0.80, 0.60, 0.50])
+    assert result.regular_budget == 8
+    assert result.regular_token_cost == 6
+    assert result.total_token_cost == 9
+    assert result.pinned_overflow_tokens == 1
+    assert [item.candidate.memory_id.int for item in result.injected] == [1, 2, 10, 11]
+    assert [item.rank for item in result.injected] == [1, 2, 3, 4]
+    assert [item.candidate.memory_id.int for item in result.near_misses] == [12, 13, 14]
+    assert [item.rank for item in result.near_misses] == [5, 6, 7]
+    assert result.budget_cuts == ()
 
 
 def test_golden_pins_can_exceed_budget_and_bypass_a_below_tau_score() -> None:
@@ -277,20 +280,19 @@ def test_golden_pins_can_exceed_budget_and_bypass_a_below_tau_score() -> None:
     )
 
     assert result.pin_token_cost == 3
-    assert result.regular_budget == 0
-    assert [item.candidate.memory_id.int for item in result.injected] == [1]
+    assert result.regular_budget == 2
+    assert result.regular_token_cost == 1
+    assert result.pinned_overflow_tokens == 2
+    assert [item.candidate.memory_id.int for item in result.injected] == [1, 2]
     assert result.injected[0].score == pytest.approx(0.34)
     assert result.injected[0].features.as_dict() == pytest.approx(
         {"sem": 0.0, "kw": 0.0, "time": 1.0, "proj": 0.5, "freq": 1.0, "hist": 1.0}
     )
-    assert [item.candidate.memory_id.int for item in result.near_misses] == [2]
-    assert result.near_misses[0].rank == 2
+    assert result.near_misses == ()
 
 
-def test_confirmed_lock_bypasses_threshold_top_k_and_reduces_regular_budget() -> None:
-    """A-007 is defended by verifying that confirmed lock bypasses threshold top k and reduces
-    regular budget; this prevents drift in the deterministic scorer contract.
-    """
+def test_confirmed_lock_bypasses_threshold_top_k_inside_regular_share() -> None:
+    """A confirmed thread lock is forced but remains regular memory accounting."""
     locked = _candidate(2, body="one two three", embedding=(-1.0, 0.0))
     ordinary = _candidate(1, body="one")
 
@@ -312,8 +314,9 @@ def test_confirmed_lock_bypasses_threshold_top_k_and_reduces_regular_budget() ->
     ]
     assert result.injected[0].score < 0.55
     assert result.injected[0].rank == 1
-    assert result.pin_token_cost == 3
-    assert result.regular_budget == 1
+    assert result.pin_token_cost == 0
+    assert result.regular_budget == 4
+    assert result.regular_token_cost == 4
     assert result.near_misses == ()
 
 
