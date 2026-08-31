@@ -14,6 +14,7 @@ from pydantic import (
     Field,
     JsonValue,
     StrictStr,
+    field_serializer,
     field_validator,
     model_validator,
 )
@@ -119,6 +120,20 @@ class SpendTableMetrics(SpendContract):
     )
     hourly_receipt_lines: int = Field(strict=True, ge=0)
     hourly_unpriced_lines: int = Field(strict=True, ge=0)
+
+    @field_serializer(
+        "input_tokens",
+        "kv_cache_tokens",
+        "reasoning_tokens",
+        "output_tokens",
+        "total_usd",
+        "spend_per_hour_usd",
+        when_used="json",
+    )
+    def serialize_exact_decimal(self, value: Decimal | None):
+        """Keep exact decimals plain on the wire, including sub-cent receipt totals."""
+
+        return None if value is None else format(value, "f")
 
     @model_validator(mode="after")
     def require_honest_costs(self) -> SpendTableMetrics:

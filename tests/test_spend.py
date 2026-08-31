@@ -135,7 +135,7 @@ async def test_spend_table_groups_threads_models_token_lanes_and_non_thread_purp
         _event(
             uid("A"),
             quantity="5",
-            cost_usd="0.0001",
+            cost_usd="0.0000007",
             ts=current,
             purpose="embedding",
             thread_id=None,
@@ -175,6 +175,8 @@ async def test_spend_table_groups_threads_models_token_lanes_and_non_thread_purp
     ]
     assert snapshot.purposes[0].total_usd is None
     assert snapshot.purposes[0].total_unpriced_lines == 1
+    assert response.json()["purposes"][1]["total_usd"] == "0.000000700000"
+    assert response.json()["purposes"][1]["spend_per_hour_usd"] == "0.000000700000"
 
     scoped_response = await memory_client.get(
         "/v1/spend/table",
