@@ -165,7 +165,9 @@ async def test_models_match_authoritative_c2_schema(
         "spend_reconciliation",
         "scorer_config",
         "learner_run",
+        "optimization_run",
         "scorer_activation",
+        "optimization_run_adoption",
         "transcript_record",
     )
 
@@ -401,6 +403,27 @@ async def test_models_match_authoritative_c2_schema(
             "reason",
             "ts",
         ),
+        "optimization_run": (
+            "run_uid",
+            "loop",
+            "trigger_kind",
+            "trigger_event_uid",
+            "trigger_thread_id",
+            "corpus_fingerprint",
+            "corpus_size",
+            "corpus_max_size",
+            "corpus_stratification",
+            "incumbent_version",
+            "challenger_version",
+            "incumbent_params",
+            "challenger_params",
+            "backtest_scores",
+            "verdict",
+            "tie_break_applied",
+            "cost_refs",
+            "started_at",
+            "completed_at",
+        ),
         "scorer_activation": (
             "event_uid",
             "version",
@@ -411,6 +434,7 @@ async def test_models_match_authoritative_c2_schema(
             "changes",
             "ts",
         ),
+        "optimization_run_adoption": ("run_uid", "tap_event_uid", "adopted_at"),
         "transcript_record": (
             "principal_id",
             "thread_id",
@@ -486,7 +510,9 @@ async def test_models_match_authoritative_c2_schema(
         },
         "scorer_config": set(),
         "learner_run": {"proposal_version", "source_boundary", "incumbent", "challenger"},
+        "optimization_run": {"trigger_thread_id", "challenger_version", "challenger_params"},
         "scorer_activation": set(),
+        "optimization_run_adoption": set(),
         "transcript_record": set(),
     }
 
@@ -513,7 +539,9 @@ async def test_models_match_authoritative_c2_schema(
         "spend_reconciliation": ("event_uid",),
         "scorer_config": ("version",),
         "learner_run": ("run_uid",),
+        "optimization_run": ("run_uid",),
         "scorer_activation": ("event_uid",),
+        "optimization_run_adoption": ("run_uid",),
         "transcript_record": ("principal_id", "thread_id", "sequence"),
     }
 
@@ -725,6 +753,25 @@ async def test_models_match_authoritative_c2_schema(
         "learner_run.challenger": "JSONB",
         "learner_run.reason": "TEXT",
         "learner_run.ts": "TIMESTAMP WITH TIME ZONE",
+        "optimization_run.run_uid": "TEXT",
+        "optimization_run.loop": "TEXT",
+        "optimization_run.trigger_kind": "TEXT",
+        "optimization_run.trigger_event_uid": "TEXT",
+        "optimization_run.trigger_thread_id": "UUID",
+        "optimization_run.corpus_fingerprint": "TEXT",
+        "optimization_run.corpus_size": "BIGINT",
+        "optimization_run.corpus_max_size": "BIGINT",
+        "optimization_run.corpus_stratification": "JSONB",
+        "optimization_run.incumbent_version": "TEXT",
+        "optimization_run.challenger_version": "TEXT",
+        "optimization_run.incumbent_params": "JSONB",
+        "optimization_run.challenger_params": "JSONB",
+        "optimization_run.backtest_scores": "JSONB",
+        "optimization_run.verdict": "TEXT",
+        "optimization_run.tie_break_applied": "JSONB",
+        "optimization_run.cost_refs": "JSONB",
+        "optimization_run.started_at": "TIMESTAMP WITH TIME ZONE",
+        "optimization_run.completed_at": "TIMESTAMP WITH TIME ZONE",
         "scorer_activation.event_uid": "TEXT",
         "scorer_activation.version": "TEXT",
         "scorer_activation.previous_version": "TEXT",
@@ -733,6 +780,9 @@ async def test_models_match_authoritative_c2_schema(
         "scorer_activation.reason": "TEXT",
         "scorer_activation.changes": "JSONB",
         "scorer_activation.ts": "TIMESTAMP WITH TIME ZONE",
+        "optimization_run_adoption.run_uid": "TEXT",
+        "optimization_run_adoption.tap_event_uid": "TEXT",
+        "optimization_run_adoption.adopted_at": "TIMESTAMP WITH TIME ZONE",
         "transcript_record.principal_id": "TEXT",
         "transcript_record.thread_id": "UUID",
         "transcript_record.sequence": "BIGINT",
@@ -788,7 +838,9 @@ async def test_models_match_authoritative_c2_schema(
         "scorer_config.created_at": "now()",
         "scorer_config.active": "false",
         "learner_run.ts": "now()",
+        "optimization_run.cost_refs": "'[]'::jsonb",
         "scorer_activation.ts": "now()",
+        "optimization_run_adoption.adopted_at": "now()",
         "transcript_record.received_at": "now()",
     }
     memory_unit_ddl = str(CreateTable(Base.metadata.tables["memory_unit"]).compile(dialect=dialect))
@@ -904,9 +956,7 @@ async def test_models_match_authoritative_c2_schema(
             ),
         },
         "curator_action": {
-            "curator_action_outcome_check": (
-                "outcome IN ('queued','executed','noop','refused')"
-            ),
+            "curator_action_outcome_check": ("outcome IN ('queued','executed','noop','refused')"),
         },
         "symphony_run_resolution": {},
         "thread": {},
@@ -989,12 +1039,40 @@ async def test_models_match_authoritative_c2_schema(
             "learner_run_holdout_dispositions_check": "holdout_dispositions >= 0",
             "learner_run_training_pairs_check": "training_pairs >= 0",
         },
+        "optimization_run": {
+            "optimization_run_loop_check": "loop = btrim(loop) AND loop <> ''",
+            "optimization_run_trigger_kind_check": (
+                "trigger_kind = btrim(trigger_kind) AND trigger_kind <> ''"
+            ),
+            "optimization_run_trigger_event_check": (
+                "trigger_event_uid = btrim(trigger_event_uid) AND trigger_event_uid <> ''"
+            ),
+            "optimization_run_corpus_fingerprint_check": ("corpus_fingerprint ~ '^[0-9a-f]{64}$'"),
+            "optimization_run_corpus_size_check": "corpus_size >= 0",
+            "optimization_run_corpus_max_size_check": "corpus_max_size > 0",
+            "optimization_run_stratification_check": (
+                "jsonb_typeof(corpus_stratification) = 'object'"
+            ),
+            "optimization_run_incumbent_params_check": (
+                "jsonb_typeof(incumbent_params) = 'object'"
+            ),
+            "optimization_run_challenger_params_check": (
+                "challenger_params IS NULL OR jsonb_typeof(challenger_params) = 'object'"
+            ),
+            "optimization_run_backtest_scores_check": ("jsonb_typeof(backtest_scores) = 'object'"),
+            "optimization_run_verdict_check": "verdict = btrim(verdict) AND verdict <> ''",
+            "optimization_run_tie_break_check": ("jsonb_typeof(tie_break_applied) = 'object'"),
+            "optimization_run_cost_refs_check": "jsonb_typeof(cost_refs) = 'array'",
+            "optimization_run_corpus_bound_check": "corpus_size <= corpus_max_size",
+            "optimization_run_time_span_check": "completed_at >= started_at",
+        },
         "scorer_activation": {
             "scorer_activation_actor_class_check": ("actor_class IN ('human','passive')"),
             "scorer_activation_reason_check": (
                 "reason IN ('human_control','learner_proposal','contract_migration')"
             ),
         },
+        "optimization_run_adoption": {},
         "transcript_record": {
             "transcript_record_principal_check": (
                 "principal_id = btrim(principal_id) AND principal_id <> ''"
@@ -1069,6 +1147,37 @@ async def test_models_match_authoritative_c2_schema(
     } == {"scorer_config.version"}
     learner_indexes = {index.name: index for index in learner_run.indexes}
     assert set(learner_indexes) == {"learner_run_ts_idx"}
+
+    optimization_run = Base.metadata.tables["optimization_run"]
+    assert {
+        foreign_key.target_fullname
+        for foreign_key in optimization_run.c.incumbent_version.foreign_keys
+    } == {"scorer_config.version"}
+    assert {
+        foreign_key.target_fullname
+        for foreign_key in optimization_run.c.challenger_version.foreign_keys
+    } == {"scorer_config.version"}
+    optimization_indexes = {index.name: index for index in optimization_run.indexes}
+    assert set(optimization_indexes) == {
+        "optimization_run_loop_completed_idx",
+        "optimization_run_trigger_thread_idx",
+    }
+    assert (
+        str(
+            optimization_indexes["optimization_run_trigger_thread_idx"].dialect_options[
+                "postgresql"
+            ]["where"]
+        )
+        == "trigger_thread_id IS NOT NULL"
+    )
+
+    adoption = Base.metadata.tables["optimization_run_adoption"]
+    assert {foreign_key.target_fullname for foreign_key in adoption.c.run_uid.foreign_keys} == {
+        "optimization_run.run_uid"
+    }
+    assert {
+        foreign_key.target_fullname for foreign_key in adoption.c.tap_event_uid.foreign_keys
+    } == {"scorer_activation.event_uid"}
 
 
 async def test_search_tsv_trigger_tracks_sources_and_overwrites_tampering(

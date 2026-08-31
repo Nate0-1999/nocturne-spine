@@ -1,16 +1,22 @@
 """A-051 work notifications wake one process worker without a clock."""
 
 import asyncio
+from uuid import UUID
 
+from spine.learner.service import OptimizationTrigger
 from spine.learner.worker import LearnerWorker
 
 
 class _RecordingService:
     def __init__(self) -> None:
-        self.calls: asyncio.Queue[None] = asyncio.Queue()
+        self.calls: asyncio.Queue[OptimizationTrigger | None] = asyncio.Queue()
 
-    async def retrain_if_due(self) -> None:
-        await self.calls.put(None)
+    async def retrain_if_due(
+        self,
+        *,
+        optimization_trigger: OptimizationTrigger | None = None,
+    ) -> None:
+        await self.calls.put(optimization_trigger)
 
 
 async def test_worker_checks_startup_work_and_subsequent_wakes_then_stops() -> None:
@@ -20,7 +26,8 @@ async def test_worker_checks_startup_work_and_subsequent_wakes_then_stops() -> N
     worker = LearnerWorker(service)  # type: ignore[arg-type]
 
     worker.start()
-    await asyncio.wait_for(service.calls.get(), timeout=1.0)
-    worker.notify()
-    await asyncio.wait_for(service.calls.get(), timeout=1.0)
+    assert await asyncio.wait_for(service.calls.get(), timeout=1.0) is None
+    trigger = OptimizationTrigger(event_uid="work-event", thread_id=UUID(int=4))
+    worker.notify(trigger)
+    assert await asyncio.wait_for(service.calls.get(), timeout=1.0) == trigger
     await worker.stop()

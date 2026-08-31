@@ -8,17 +8,23 @@ from typing import Literal
 from uuid import UUID
 
 import pytest
-from conftest import ACTIVE_SCORER_VERSION
+from conftest import ACTIVE_SCORER_VERSION, ScriptedEmbeddingProvider, basis_vector
 from httpx import AsyncClient
 from sqlalchemy import delete, select, text, update
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from spine.db.models import InjectionEvent, InjectionEventAnnotation, LearnerRun
+from spine.db.models import (
+    InjectionEvent,
+    InjectionEventAnnotation,
+    LearnerRun,
+    OptimizationRun,
+    OptimizationRunAdoption,
+)
 from spine.db.models import ScorerConfig as ScorerConfigRow
 from spine.learner.contracts import RetrainResponse
 from spine.learner.locking import LEARNER_ADVISORY_LOCK_KEY
-from spine.learner.service import LearnerService, LearnerSettings
+from spine.learner.service import LearnerService, LearnerSettings, OptimizationTrigger
 from spine.learner.worker import LearnerWorker
 
 
@@ -39,17 +45,21 @@ def _service(
     min_dispositions: int = 4,
     retrain_signal_stride: int = 25,
     win_margin: float = 1.0,
+    corpus_max_dispositions: int = 1000,
 ) -> LearnerService:
     return LearnerService(
         session_factory,
         settings=_settings(min_dispositions=min_dispositions, win_margin=win_margin),
         retrain_signal_stride=retrain_signal_stride,
+        corpus_max_dispositions=corpus_max_dispositions,
     )
 
 
 async def _reset_proposals(session_factory: async_sessionmaker[AsyncSession]) -> None:
     async with session_factory() as session, session.begin():
-        await session.execute(text("TRUNCATE learner_run"))
+        await session.execute(
+            text("TRUNCATE optimization_run_adoption, optimization_run, learner_run")
+        )
         await session.execute(
             delete(ScorerConfigRow).where(
                 ScorerConfigRow.version.not_in(
@@ -126,6 +136,7 @@ async def _insert_gate(
     gate: int,
     machine_id: str = "studio-mac",
     scorer_version: str = ACTIVE_SCORER_VERSION,
+    thread_id: UUID | None = None,
 ) -> None:
     base = datetime(2026, 8, 3, tzinfo=UTC) + timedelta(hours=gate)
     injection_id = UUID(int=gate)
@@ -133,7 +144,7 @@ async def _insert_gate(
         InjectionEvent(
             event_uid=f"gate-{gate}-positive",
             injection_id=injection_id,
-            thread_id=UUID(int=100 + gate),
+            thread_id=thread_id or UUID(int=100 + gate),
             agent_id="general",
             machine_id=machine_id,
             principal_id="owner",
@@ -162,7 +173,7 @@ async def _insert_gate(
         InjectionEvent(
             event_uid=f"gate-{gate}-negative",
             injection_id=injection_id,
-            thread_id=UUID(int=100 + gate),
+            thread_id=thread_id or UUID(int=100 + gate),
             agent_id="general",
             machine_id=machine_id,
             principal_id="owner",
@@ -290,6 +301,164 @@ async def test_retrain_proposes_inactive_content_addressed_winner_idempotently(
     assert proposal.params["_learner"]["status"] == "proposed"
     assert proposal.params["_learner"]["bias_offsets"]
     await _reset_proposals(memory_session_factory)
+
+
+@pytest.mark.asyncio
+async def test_real_retrain_records_complete_optimization_run_and_later_owner_tap(
+    memory_client: AsyncClient,
+    memory_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """M3OL proves a real Postgres retrain is fully attributable without rewriting history."""
+
+    await _reset_proposals(memory_session_factory)
+    await _insert_gate(memory_session_factory, gate=81)
+    await _insert_gate(memory_session_factory, gate=82)
+    trigger_thread = UUID(int=8081)
+    trigger = OptimizationTrigger(
+        event_uid="01KZ0A00000000000000000001",
+        thread_id=trigger_thread,
+    )
+
+    response = await _service(memory_session_factory).retrain(optimization_trigger=trigger)
+
+    assert response.status == "proposed"
+    assert response.proposal_version is not None
+    async with memory_session_factory() as session:
+        run = (await session.execute(select(OptimizationRun))).scalars().one()
+        legacy = await session.get(LearnerRun, run.run_uid)
+    assert legacy is not None
+    assert run.loop == "injection_scoring"
+    assert run.trigger_kind == "manual"
+    assert run.trigger_event_uid == trigger.event_uid
+    assert run.trigger_thread_id == trigger_thread
+    assert len(run.corpus_fingerprint) == 64
+    assert run.corpus_size == 4
+    assert run.corpus_max_size == 1000
+    assert run.corpus_stratification["strategy"] == "thread_round_robin_newest_oldest_v1"
+    assert run.corpus_stratification["available"] == 4
+    assert run.corpus_stratification["selected"] == 4
+    assert len(run.corpus_stratification["threads"]) == 2
+    assert run.incumbent_version == ACTIVE_SCORER_VERSION
+    assert run.challenger_version == response.proposal_version
+    assert run.incumbent_params["version"] == ACTIVE_SCORER_VERSION
+    assert run.challenger_params is not None
+    assert run.challenger_params["version"] == response.proposal_version
+    assert set(run.backtest_scores) == {"train", "holdout"}
+    assert set(run.backtest_scores["train"]) == {"incumbent", "challenger"}
+    assert set(run.backtest_scores["holdout"]) == {"incumbent", "challenger"}
+    assert run.verdict == "proposed"
+    assert run.tie_break_applied["rule"] in {"replay_margin", "cheaper_at_exact_tie"}
+    assert run.cost_refs == []
+    assert run.started_at.tzinfo is not None
+    assert run.completed_at >= run.started_at
+
+    tap_event_uid = "01KZ0A00000000000000000002"
+    activated = await memory_client.post(
+        f"/v1/scorer-configs/{response.proposal_version}/activate",
+        json={
+            "event_uid": tap_event_uid,
+            "actor_class": "human",
+            "machine_id": "studio-mac",
+        },
+    )
+    assert activated.status_code == 200
+    async with memory_session_factory() as session:
+        adoption = await session.get(OptimizationRunAdoption, run.run_uid)
+    assert adoption is not None
+    assert adoption.tap_event_uid == tap_event_uid
+    assert adoption.adopted_at.tzinfo is not None
+
+
+@pytest.mark.asyncio
+async def test_optimization_corpus_is_capped_and_balanced_by_whole_thread_gates(
+    memory_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """M3OL prevents one long thread from consuming a bounded replay corpus."""
+
+    await _reset_proposals(memory_session_factory)
+    dominant_thread = UUID(int=9001)
+    minority_thread = UUID(int=9002)
+    for gate in (83, 84, 85):
+        await _insert_gate(memory_session_factory, gate=gate, thread_id=dominant_thread)
+    await _insert_gate(memory_session_factory, gate=86, thread_id=minority_thread)
+
+    response = await _service(
+        memory_session_factory,
+        min_dispositions=4,
+        corpus_max_dispositions=4,
+    ).retrain()
+
+    assert response.eligible_dispositions == 8
+    assert response.training_dispositions + response.holdout_dispositions == 4
+    async with memory_session_factory() as session:
+        run = (await session.execute(select(OptimizationRun))).scalars().one()
+    strata = {item["thread_id"]: item for item in run.corpus_stratification["threads"]}
+    assert run.corpus_size == 4
+    assert run.corpus_max_size == 4
+    assert strata[str(dominant_thread)] == {
+        "thread_id": str(dominant_thread),
+        "available": 6,
+        "selected": 2,
+        "selected_gates": 1,
+    }
+    assert strata[str(minority_thread)] == {
+        "thread_id": str(minority_thread),
+        "available": 2,
+        "selected": 2,
+        "selected_gates": 1,
+    }
+
+
+@pytest.mark.asyncio
+async def test_live_prepare_uses_incumbent_while_optimization_is_fitting(
+    memory_client: AsyncClient,
+    memory_session_factory: async_sessionmaker[AsyncSession],
+    embedding_provider: ScriptedEmbeddingProvider,
+) -> None:
+    """M3OL keeps the owner path live and on the incumbent during an optimization fit."""
+
+    entered_fit = asyncio.Event()
+    release_fit = asyncio.Event()
+
+    class PausingLearnerService(LearnerService):
+        async def _fit(self, session: AsyncSession, **kwargs: object):  # type: ignore[no-untyped-def]
+            entered_fit.set()
+            await release_fit.wait()
+            return await super()._fit(session, **kwargs)  # type: ignore[arg-type]
+
+    await _reset_proposals(memory_session_factory)
+    await _insert_gate(memory_session_factory, gate=87)
+    await _insert_gate(memory_session_factory, gate=88)
+    service = PausingLearnerService(
+        memory_session_factory,
+        settings=_settings(min_dispositions=4, win_margin=1.0),
+    )
+    retrain_task = asyncio.create_task(service.retrain())
+    await asyncio.wait_for(entered_fit.wait(), timeout=2)
+    prompt = "live request while optimization fits"
+    embedding_provider.set(prompt, basis_vector(0))
+
+    prepared = await asyncio.wait_for(
+        memory_client.post(
+            "/v1/inject/prepare",
+            json={
+                "thread_id": str(UUID(int=9088)),
+                "agent_id": "agent-1",
+                "machine_id": "studio-mac",
+                "principal_id": "owner",
+                "project_key": "alpha",
+                "prompt": prompt,
+                "model_context_tokens": 8192,
+            },
+        ),
+        timeout=2,
+    )
+
+    assert prepared.status_code == 200
+    assert prepared.json()["scorer_version"] == ACTIVE_SCORER_VERSION
+    release_fit.set()
+    result = await asyncio.wait_for(retrain_task, timeout=2)
+    assert result.status == "proposed"
 
 
 @pytest.mark.asyncio
@@ -756,6 +925,7 @@ async def test_competing_backgrounds_at_one_boundary_fit_once(
     assert second is None
     async with memory_session_factory() as session:
         runs = (await session.execute(select(LearnerRun))).scalars().all()
+        optimization_runs = (await session.execute(select(OptimizationRun))).scalars().all()
         proposals = (
             (
                 await session.execute(
@@ -782,6 +952,7 @@ async def test_competing_backgrounds_at_one_boundary_fit_once(
     assert [(run.trigger, run.result, run.eligible_dispositions) for run in runs] == [
         ("background", "proposed", 4)
     ]
+    assert len(optimization_runs) == 1
     assert [proposal.version for proposal in proposals] == [first.proposal_version]
     assert proposals[0].active is False
     assert active.version == ACTIVE_SCORER_VERSION
@@ -800,8 +971,10 @@ async def test_learner_lock_is_released_after_snapshot_failure(
             *,
             trigger: Literal["manual", "background"],
             due_only: bool,
+            optimization_trigger: OptimizationTrigger,
+            started_at: datetime,
         ) -> RetrainResponse | None:
-            del session, trigger, due_only
+            del session, trigger, due_only, optimization_trigger, started_at
             raise RuntimeError("deterministic learner failure")
 
     failing = FailingLearnerService(
@@ -912,6 +1085,12 @@ async def test_learner_run_receipts_are_database_enforced_append_only(
     with pytest.raises(DBAPIError, match="learner_run is append-only"):
         async with memory_session_factory() as session, session.begin():
             await session.execute(delete(LearnerRun))
+    with pytest.raises(DBAPIError, match="optimization history is append-only"):
+        async with memory_session_factory() as session, session.begin():
+            await session.execute(update(OptimizationRun).values(verdict="rewritten"))
+    with pytest.raises(DBAPIError, match="optimization history is append-only"):
+        async with memory_session_factory() as session, session.begin():
+            await session.execute(delete(OptimizationRun))
 
     async with memory_session_factory() as session:
         runs = (await session.execute(select(LearnerRun))).scalars().all()

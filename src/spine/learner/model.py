@@ -38,6 +38,7 @@ class LearningExample:
     location_feature: float | None = None
     location_weight: float = 0.0
     thread_feature: float | None = None
+    thread_id: UUID | None = None
 
     @property
     def recorded_injected(self) -> bool:

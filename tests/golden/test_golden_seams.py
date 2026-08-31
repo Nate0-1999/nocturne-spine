@@ -88,6 +88,7 @@ def test_runtime_config_resolution_keeps_the_current_provider_and_scorer_default
             "learner_bias_l2": settings.learner_bias_l2,
             "learner_win_margin": settings.learner_win_margin,
             "retrain_signal_stride": settings.retrain_signal_stride,
+            "optimization_corpus_max_dispositions": (settings.optimization_corpus_max_dispositions),
             "graph_edge_sim": settings.graph_edge_sim,
         }
 
@@ -119,6 +120,7 @@ def test_runtime_config_resolution_keeps_the_current_provider_and_scorer_default
         "learner_bias_l2": 1.0,
         "learner_win_margin": 1.0,
         "retrain_signal_stride": 25,
+        "optimization_corpus_max_dispositions": 1000,
         "graph_edge_sim": 0.75,
     }
     expected_direct = {

@@ -1169,3 +1169,34 @@ unpriced state. Separate global/thread/stack endpoints duplicate one filter. A n
 materialized view adds refresh lifecycle before the single-owner ledger needs it.
 Persisting thread names in spend receipts couples a local presentation concern to the
 append-only accounting authority.
+
+## 044 — Optimization history is immutable; adoption is a later receipt [P1.2.2, P2.4, P4.1]
+
+**Decision.** Record every completed optimizer attempt in one append-only
+`optimization_run` relation shared by named loops. Each row binds the trigger event
+and optional thread, exact corpus fingerprint, bounded stratification, incumbent and
+challenger parameters, train and holdout replay scores, verdict, deterministic
+tie-break evidence, spend-ledger references, and database-clock time span. The
+existing injection learner writes its cadence receipt and this general row under the
+same run identity and transaction; the former remains a compatibility projection,
+not a second optimization authority.
+
+Select whole injection gates with deterministic round-robin balance across threads,
+alternating each thread's newest and oldest remaining gates, under a configurable
+1,000-disposition ceiling. Live preparation continues to read only the active
+incumbent. If the owner later fires a proposed generation, append a separate
+`optimization_run_adoption` receipt pointing to that activation event; never revise
+the completed run. Empty cost references are the honest value for the current
+database-only fit, which makes no brokered model call.
+
+**Motivation.** A learning loop is not inspectable if its winner can be reconstructed
+only from scattered proposal metadata, or if a later owner choice rewrites what the
+earlier experiment knew. One cross-loop receipt makes the evidence and rent joinable,
+while the separate tap preserves time and authority: first the system proposes, then
+the owner decides.
+
+**Rejected alternatives.** Per-loop run tables duplicate the audit contract. Updating
+a run with its eventual tap destroys append-only history. Random or partial-gate
+sampling makes replay unstable and can split one decision boundary. A new optimizer
+cost table would compete with ADR-024's spend ledger. Blocking prepares behind a fit
+would charge the owner latency for advisory work.

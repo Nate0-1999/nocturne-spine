@@ -37,6 +37,7 @@ def test_c5_dedup_and_embedding_defaults_are_exact() -> None:
     assert settings.learner_bias_l2 == 1.0
     assert settings.learner_win_margin == 1.0
     assert settings.retrain_signal_stride == 25
+    assert settings.optimization_corpus_max_dispositions == 1000
     assert settings.reconciliation_hours == 24
     assert settings.reconciliation_tolerance_usd == Decimal("0.000001")
 
@@ -68,6 +69,11 @@ def test_config_rejects_overlapping_bands_and_wrong_storage_dimension() -> None:
         _settings(learner_passive_discount=0.0)
     with pytest.raises(ValidationError):
         _settings(retrain_signal_stride=0)
+    with pytest.raises(
+        ValidationError,
+        match="optimization_corpus_max_dispositions must be at least learner_min_dispositions",
+    ):
+        _settings(learner_min_dispositions=26, optimization_corpus_max_dispositions=25)
 
 
 @pytest.mark.parametrize(

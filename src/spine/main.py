@@ -179,6 +179,7 @@ def create_app(
             win_margin=resolved.learner_win_margin,
         ),
         retrain_signal_stride=resolved.retrain_signal_stride,
+        corpus_max_dispositions=resolved.optimization_corpus_max_dispositions,
     )
     m2k_service = M2KService(
         session_factory,

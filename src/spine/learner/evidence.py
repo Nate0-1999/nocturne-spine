@@ -119,6 +119,7 @@ def project_learning_evidence(
                 location_feature=location,
                 location_weight=source.params.location_weight,
                 thread_feature=thread,
+                thread_id=getattr(row, "thread_id", None),
             )
         )
     return LearningEvidence(

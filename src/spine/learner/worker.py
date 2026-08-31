@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from spine.learner.service import LearnerService
+from spine.learner.service import LearnerService, OptimizationTrigger
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +18,7 @@ class LearnerWorker:
         self._wake = asyncio.Event()
         self._stop = asyncio.Event()
         self._task: asyncio.Task[None] | None = None
+        self._pending_trigger: OptimizationTrigger | None = None
 
     def start(self) -> None:
         if self._task is not None:
@@ -26,9 +27,11 @@ class LearnerWorker:
         self._wake.set()
         self._task = asyncio.create_task(self._run(), name="chrysopoeia-learner")
 
-    def notify(self) -> None:
+    def notify(self, trigger: OptimizationTrigger | None = None) -> None:
         """Wake the singleton worker; no caller creates or awaits a learner task."""
 
+        if trigger is not None:
+            self._pending_trigger = trigger
         self._wake.set()
 
     async def stop(self) -> None:
@@ -47,7 +50,12 @@ class LearnerWorker:
             if self._stop.is_set():
                 return
             try:
-                await self._service.retrain_if_due()
+                trigger = self._pending_trigger
+                self._pending_trigger = None
+                if trigger is None:
+                    await self._service.retrain_if_due()
+                else:
+                    await self._service.retrain_if_due(optimization_trigger=trigger)
             except Exception:
                 logger.exception("Background Chrysopoeia retrain failed")
 

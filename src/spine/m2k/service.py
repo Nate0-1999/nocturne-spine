@@ -19,7 +19,13 @@ from sqlalchemy.orm import aliased
 
 from spine.contracts import MemoryFeatures, MemoryUnit
 from spine.db.locking import session_advisory_lock
-from spine.db.models import InjectionEvent, InjectionEventAnnotation, LearnerRun
+from spine.db.models import (
+    InjectionEvent,
+    InjectionEventAnnotation,
+    LearnerRun,
+    OptimizationRun,
+    OptimizationRunAdoption,
+)
 from spine.db.models import MemoryEdge as MemoryEdgeRow
 from spine.db.models import MemoryRevision as MemoryRevisionRow
 from spine.db.models import MemoryUnit as MemoryUnitRow
@@ -709,6 +715,25 @@ class M2KService:
                     )
                 )
                 await session.flush()
+                optimization_runs = (
+                    (
+                        await session.execute(
+                            select(OptimizationRun).where(
+                                OptimizationRun.challenger_version == target.version
+                            )
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
+                for optimization_run in optimization_runs:
+                    if await session.get(OptimizationRunAdoption, optimization_run.run_uid) is None:
+                        session.add(
+                            OptimizationRunAdoption(
+                                run_uid=optimization_run.run_uid,
+                                tap_event_uid=body.event_uid,
+                            )
+                        )
                 return _config_view(target)
 
 

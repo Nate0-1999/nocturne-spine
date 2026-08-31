@@ -117,7 +117,8 @@ async def memory_session_factory(
     session_factory = make_session_factory(engine)
     truncate = text(
         "TRUNCATE curator_action, curator_verdict, curator_finding, curator_run, "
-        "curator_trigger_state, transcript_record, learner_run, scorer_activation, "
+        "curator_trigger_state, transcript_record, optimization_run_adoption, "
+        "optimization_run, learner_run, scorer_activation, "
         "approval_decision, "
         "approval_queue_item, "
         "memory_edge, spend_reconciliation, spend_event, injection_event_annotation, "

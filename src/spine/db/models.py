@@ -897,6 +897,101 @@ class LearnerRun(Base):
     )
 
 
+class OptimizationRun(Base):
+    """One immutable, cross-loop optimization audit record."""
+
+    __tablename__ = "optimization_run"
+    __table_args__ = (
+        CheckConstraint(
+            "loop = btrim(loop) AND loop <> ''",
+            name="optimization_run_loop_check",
+        ),
+        CheckConstraint(
+            "trigger_kind = btrim(trigger_kind) AND trigger_kind <> ''",
+            name="optimization_run_trigger_kind_check",
+        ),
+        CheckConstraint(
+            "trigger_event_uid = btrim(trigger_event_uid) AND trigger_event_uid <> ''",
+            name="optimization_run_trigger_event_check",
+        ),
+        CheckConstraint(
+            "corpus_fingerprint ~ '^[0-9a-f]{64}$'",
+            name="optimization_run_corpus_fingerprint_check",
+        ),
+        CheckConstraint("corpus_size >= 0", name="optimization_run_corpus_size_check"),
+        CheckConstraint("corpus_max_size > 0", name="optimization_run_corpus_max_size_check"),
+        CheckConstraint(
+            "jsonb_typeof(corpus_stratification) = 'object'",
+            name="optimization_run_stratification_check",
+        ),
+        CheckConstraint(
+            "jsonb_typeof(incumbent_params) = 'object'",
+            name="optimization_run_incumbent_params_check",
+        ),
+        CheckConstraint(
+            "challenger_params IS NULL OR jsonb_typeof(challenger_params) = 'object'",
+            name="optimization_run_challenger_params_check",
+        ),
+        CheckConstraint(
+            "jsonb_typeof(backtest_scores) = 'object'",
+            name="optimization_run_backtest_scores_check",
+        ),
+        CheckConstraint(
+            "verdict = btrim(verdict) AND verdict <> ''",
+            name="optimization_run_verdict_check",
+        ),
+        CheckConstraint(
+            "jsonb_typeof(tie_break_applied) = 'object'",
+            name="optimization_run_tie_break_check",
+        ),
+        CheckConstraint(
+            "jsonb_typeof(cost_refs) = 'array'",
+            name="optimization_run_cost_refs_check",
+        ),
+        CheckConstraint(
+            "corpus_size <= corpus_max_size",
+            name="optimization_run_corpus_bound_check",
+        ),
+        CheckConstraint(
+            "completed_at >= started_at",
+            name="optimization_run_time_span_check",
+        ),
+        Index("optimization_run_loop_completed_idx", "loop", "completed_at", "run_uid"),
+        Index(
+            "optimization_run_trigger_thread_idx",
+            "trigger_thread_id",
+            "completed_at",
+            postgresql_where=text("trigger_thread_id IS NOT NULL"),
+        ),
+    )
+
+    run_uid: Mapped[str] = mapped_column(Text, primary_key=True)
+    loop: Mapped[str] = mapped_column(Text, nullable=False)
+    trigger_kind: Mapped[str] = mapped_column(Text, nullable=False)
+    trigger_event_uid: Mapped[str] = mapped_column(Text, nullable=False)
+    trigger_thread_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    corpus_fingerprint: Mapped[str] = mapped_column(Text, nullable=False)
+    corpus_size: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    corpus_max_size: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    corpus_stratification: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    incumbent_version: Mapped[str] = mapped_column(
+        Text, ForeignKey("scorer_config.version"), nullable=False
+    )
+    challenger_version: Mapped[str | None] = mapped_column(
+        Text, ForeignKey("scorer_config.version")
+    )
+    incumbent_params: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    challenger_params: Mapped[dict[str, Any] | None] = mapped_column(JSONB(none_as_null=True))
+    backtest_scores: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    verdict: Mapped[str] = mapped_column(Text, nullable=False)
+    tie_break_applied: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    cost_refs: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'[]'::jsonb")
+    )
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    completed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class ScorerActivation(Base):
     """Append-only authority log for active scorer version changes."""
 
@@ -923,6 +1018,22 @@ class ScorerActivation(Base):
     reason: Mapped[str] = mapped_column(Text, nullable=False)
     changes: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     ts: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class OptimizationRunAdoption(Base):
+    """The later owner tap for an immutable optimization proposal."""
+
+    __tablename__ = "optimization_run_adoption"
+
+    run_uid: Mapped[str] = mapped_column(
+        Text, ForeignKey("optimization_run.run_uid"), primary_key=True
+    )
+    tap_event_uid: Mapped[str] = mapped_column(
+        Text, ForeignKey("scorer_activation.event_uid"), nullable=False
+    )
+    adopted_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )
 

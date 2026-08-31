@@ -31,9 +31,11 @@ ULID_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 class _RecordingLearnerWorker:
     def __init__(self) -> None:
         self.notifications = 0
+        self.triggers = []
 
-    def notify(self) -> None:
+    def notify(self, trigger: object = None) -> None:
         self.notifications += 1
+        self.triggers.append(trigger)
 
 
 def _ulid(seed: int) -> str:

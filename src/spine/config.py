@@ -49,6 +49,7 @@ class Settings(BaseSettings):
     learner_bias_l2: float = Field(default=1.0, gt=0.0)
     learner_win_margin: float = Field(default=1.0, gt=0.0)
     retrain_signal_stride: int = Field(default=25, gt=0)
+    optimization_corpus_max_dispositions: int = Field(default=1000, gt=0)
     graph_edge_sim: float = Field(default=0.75, ge=0.0, le=1.0)
     curator_write_trigger: int = Field(default=25, gt=0)
     curator_pressure_trigger: int = Field(default=3, gt=0)
@@ -61,4 +62,8 @@ class Settings(BaseSettings):
 
         if self.dedup_sim >= self.dedup_dup:
             raise ValueError("dedup_sim must be less than dedup_dup")
+        if self.optimization_corpus_max_dispositions < self.learner_min_dispositions:
+            raise ValueError(
+                "optimization_corpus_max_dispositions must be at least learner_min_dispositions"
+            )
         return self
