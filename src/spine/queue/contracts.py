@@ -1,14 +1,16 @@
 """Closed HTTP contracts for M2H extraction consent."""
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import Field, model_validator
 
 from spine.contracts import ContractModel, MemoryKind, MemoryUnit, SimilarityMemoryCard
 
-Verdict = Literal["new", "merge", "supersede", "contradict"]
+Verdict = Literal[
+    "new", "merge", "supersede", "contradict", "retire", "keyword_repair", "split"
+]
 
 
 class ExtractionCandidate(ContractModel):
@@ -57,7 +59,7 @@ class SeedRequest(ContractModel):
 class QueueCard(ContractModel):
     item_uid: str
     candidate: MemoryUnit
-    birthplace: Literal["thread", "seed", "symphony"]
+    birthplace: Literal["thread", "seed", "symphony", "curator"]
     birthplace_thread_id: UUID | None
     batch_uid: UUID | None
     source_name: str | None
@@ -65,6 +67,10 @@ class QueueCard(ContractModel):
     birthplace_run_id: str | None
     birthplace_origin_agent: str | None
     judged_context: dict[str, object] | None
+    candidate_revision: int | None
+    curator_run_uid: str | None
+    curator_finding_uid: str | None
+    proposal_payload: dict[str, Any] | None
     verdict: Verdict
     neighbors: list[SimilarityMemoryCard]
     target_ids: list[UUID]

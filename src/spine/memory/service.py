@@ -86,6 +86,16 @@ class SplitMemoryChild:
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
+class PreparedSplitChild:
+    """Validated, embedded child for one transaction-owned curator split."""
+
+    label: str
+    body: str
+    keywords: tuple[str, ...]
+    embedding: tuple[float, ...]
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
 class SplitMemoryCommand:
     principal_id: str
     source_body: str
@@ -535,6 +545,157 @@ class MemoryService:
                     neighbors=tuple(matches),
                 )
 
+    async def create_curator_candidate(
+        self,
+        command: CreateMemoryCommand,
+        *,
+        exclude_memory_ids: Sequence[UUID],
+    ) -> CandidateCreated | None:
+        """Create a replacement candidate without deduping against its named sources."""
+
+        self._validate_label(command.label)
+        self._validate_body(command.body)
+        embedding = await embed_one(
+            self._embedding_provider,
+            command.body,
+            expected_dimensions=_EMBEDDING_DIMENSIONS,
+            receipt_context=EmbeddingReceiptContext(
+                principal_id=command.principal_id,
+                machine_id=command.machine_id,
+                origin_agent="maintenance",
+            ),
+        )
+        excluded = tuple(exclude_memory_ids)
+        async with self._session_factory() as session:
+            async with session.begin():
+                await session.execute(
+                    text("SELECT pg_advisory_xact_lock(hashtextextended(:principal_id, 0))"),
+                    {"principal_id": command.principal_id},
+                )
+                matches = await self._dedup_matches(
+                    session,
+                    principal_id=command.principal_id,
+                    embedding=embedding,
+                    statuses=("active", "candidate"),
+                    exclude_memory_ids=excluded,
+                )
+                if matches and matches[0].score >= self._dedup_dup:
+                    return None
+                row = await self._insert_root(session, command, embedding, status="candidate")
+                return CandidateCreated(
+                    memory=contract_memory_from_row(row),
+                    neighbors=tuple(matches),
+                )
+
+    async def prepare_curator_split(
+        self,
+        *,
+        principal_id: str,
+        machine_id: str,
+        children: Sequence[SplitMemoryChild],
+    ) -> tuple[PreparedSplitChild, ...]:
+        """Validate and embed split children before the owner-decision transaction."""
+
+        if not 2 <= len(children) <= 64:
+            raise MemoryValidationError("a curator split requires 2 to 64 children")
+        prepared: list[PreparedSplitChild] = []
+        labels: set[str] = set()
+        bodies: set[str] = set()
+        for child in children:
+            self._validate_label(child.label)
+            self._validate_body(child.body)
+            keywords = tuple(child.keywords)
+            self._validate_split_keywords(keywords)
+            if child.label in labels or child.body in bodies:
+                raise MemoryValidationError(
+                    "curator split children must have distinct labels and bodies"
+                )
+            labels.add(child.label)
+            bodies.add(child.body)
+            embedding = await embed_one(
+                self._embedding_provider,
+                child.body,
+                expected_dimensions=_EMBEDDING_DIMENSIONS,
+                receipt_context=EmbeddingReceiptContext(
+                    principal_id=principal_id,
+                    machine_id=machine_id,
+                    origin_agent="maintenance",
+                ),
+            )
+            prepared.append(
+                PreparedSplitChild(
+                    label=child.label,
+                    body=child.body,
+                    keywords=keywords,
+                    embedding=tuple(embedding),
+                )
+            )
+        return tuple(prepared)
+
+    async def enact_curator_split(
+        self,
+        session: AsyncSession,
+        *,
+        source: Mapping[str, Any],
+        children: Sequence[PreparedSplitChild],
+        machine_id: str,
+        finding_uid: str,
+    ) -> tuple[UUID, ...]:
+        """Revision-tombstone one source and create its lineaged semantic children."""
+
+        if source["status"] != "active":
+            raise MemoryValidationError("curator split source is no longer active")
+        tombstone_revision_uid = mint_ulid()
+        await cas_update_memory_unit(
+            session,
+            CasUpdate(
+                memory_id=source["id"],
+                expected_revision=source["revision"],
+                rev_uid=tombstone_revision_uid,
+                editor="maintenance",
+                origin_machine_id=machine_id,
+                reason=f"curation/{finding_uid}/split-source",
+                changes=MemoryUnitChanges(status="tombstoned"),
+            ),
+        )
+        rows: list[Mapping[str, Any]] = []
+        for child in children:
+            rows.append(
+                await self._insert_root(
+                    session,
+                    CreateMemoryCommand(
+                        principal_id=source["principal_id"],
+                        label=child.label,
+                        body=child.body,
+                        kind=source["kind"],
+                        keywords=child.keywords,
+                        project_key=source["project_key"],
+                        thread_origin=source["thread_origin"],
+                        origin_thread_id=source["origin_thread_id"],
+                        origin_path=source["origin_path"],
+                        editor="maintenance",
+                        machine_id=machine_id,
+                        parent_uid=tombstone_revision_uid,
+                        revision_reason=f"curation/{finding_uid}/split-child",
+                    ),
+                    child.embedding,
+                )
+            )
+        ids = tuple(row["id"] for row in rows)
+        for left in ids:
+            for right in ids:
+                if left == right:
+                    continue
+                await session.execute(
+                    insert(MemoryEdge.__table__).values(
+                        edge_uid=mint_ulid(),
+                        from_memory_id=left,
+                        to_memory_id=right,
+                        edge_type="relates_to",
+                    )
+                )
+        return ids
+
     async def stage_symphony(
         self,
         command: CreateMemoryCommand,
@@ -891,17 +1052,21 @@ class MemoryService:
                 raise MemoryValidationError("split child bodies must be distinct")
             bodies.add(normalized_body)
 
-            if not 2 <= len(child.keywords) <= 5:
-                raise MemoryValidationError("split children require 2-5 keywords")
-            keywords: set[str] = set()
-            for keyword in child.keywords:
-                if not keyword or keyword != keyword.strip() or keyword != keyword.lower():
-                    raise MemoryValidationError(
-                        "split child keywords must be trimmed nonblank lowercase terms"
-                    )
-                if keyword in keywords:
-                    raise MemoryValidationError("split child keywords must be distinct")
-                keywords.add(keyword)
+            self._validate_split_keywords(child.keywords)
+
+    @staticmethod
+    def _validate_split_keywords(keywords: Sequence[str]) -> None:
+        if not 2 <= len(keywords) <= 5:
+            raise MemoryValidationError("split children require 2-5 keywords")
+        seen: set[str] = set()
+        for keyword in keywords:
+            if not keyword or keyword != keyword.strip() or keyword != keyword.lower():
+                raise MemoryValidationError(
+                    "split child keywords must be trimmed nonblank lowercase terms"
+                )
+            if keyword in seen:
+                raise MemoryValidationError("split child keywords must be distinct")
+            seen.add(keyword)
 
     async def _dedup_matches(
         self,
@@ -910,18 +1075,22 @@ class MemoryService:
         principal_id: str,
         embedding: Sequence[float],
         statuses: Sequence[str] = ("active",),
+        exclude_memory_ids: Sequence[UUID] = (),
     ) -> list[SimilarityMemoryCard]:
         unit = MemoryUnit.__table__
         cosine_score = (1.0 - unit.c.embedding.cosine_distance(list(embedding))).label("score")
+        filters = [
+            unit.c.principal_id == principal_id,
+            unit.c.status.in_(tuple(statuses)),
+            cosine_score >= self._dedup_sim,
+        ]
+        if exclude_memory_ids:
+            filters.append(unit.c.id.not_in(tuple(exclude_memory_ids)))
         rows = (
             (
                 await session.execute(
                     select(*unit.c, cosine_score)
-                    .where(
-                        unit.c.principal_id == principal_id,
-                        unit.c.status.in_(tuple(statuses)),
-                        cosine_score >= self._dedup_sim,
-                    )
+                    .where(*filters)
                     .order_by(cosine_score.desc(), unit.c.id.asc())
                 )
             )
@@ -1194,6 +1363,7 @@ __all__ = [
     "MemoryCreated",
     "MemoryNotFoundError",
     "MemoryService",
+    "PreparedSplitChild",
     "MemoryServiceError",
     "MemorySplitCreated",
     "MemoryValidationError",

@@ -152,6 +152,11 @@ async def test_models_match_authoritative_c2_schema(
         "memory_edge",
         "approval_queue_item",
         "approval_decision",
+        "curator_trigger_state",
+        "curator_run",
+        "curator_finding",
+        "curator_verdict",
+        "curator_action",
         "symphony_run_resolution",
         "thread",
         "injection_event",
@@ -220,6 +225,10 @@ async def test_models_match_authoritative_c2_schema(
             "birthplace_run_id",
             "birthplace_origin_agent",
             "judged_context",
+            "candidate_revision",
+            "curator_run_uid",
+            "curator_finding_uid",
+            "proposal_payload",
             "verdict",
             "neighbor_ids",
             "target_ids",
@@ -233,6 +242,54 @@ async def test_models_match_authoritative_c2_schema(
             "decision",
             "approval_mode",
             "actor_class",
+            "created_at",
+        ),
+        "curator_trigger_state": (
+            "principal_id",
+            "admitted_writes",
+            "last_run_writes",
+            "updated_at",
+        ),
+        "curator_run": (
+            "run_uid",
+            "principal_id",
+            "trigger",
+            "report_version",
+            "report",
+            "admitted_writes_snapshot",
+            "verdict_count",
+            "queued_count",
+            "executed_count",
+            "status",
+            "error",
+            "started_at",
+            "completed_at",
+        ),
+        "curator_finding": (
+            "finding_uid",
+            "run_uid",
+            "ordinal",
+            "kind",
+            "memory_ids",
+            "evidence",
+            "fingerprint",
+            "created_at",
+        ),
+        "curator_verdict": (
+            "verdict_uid",
+            "finding_uid",
+            "action",
+            "rationale",
+            "proposal",
+            "created_at",
+        ),
+        "curator_action": (
+            "action_uid",
+            "verdict_uid",
+            "finding_uid",
+            "queue_item_uid",
+            "outcome",
+            "detail",
             "created_at",
         ),
         "symphony_run_resolution": (
@@ -387,9 +444,18 @@ async def test_models_match_authoritative_c2_schema(
             "birthplace_run_id",
             "birthplace_origin_agent",
             "judged_context",
+            "candidate_revision",
+            "curator_run_uid",
+            "curator_finding_uid",
+            "proposal_payload",
             "decided_at",
         },
         "approval_decision": set(),
+        "curator_trigger_state": set(),
+        "curator_run": {"error"},
+        "curator_finding": set(),
+        "curator_verdict": set(),
+        "curator_action": {"queue_item_uid"},
         "symphony_run_resolution": set(),
         "thread": {"project_key", "snapshot_ts"},
         "injection_event": {"project_key", "outcome"},
@@ -431,6 +497,11 @@ async def test_models_match_authoritative_c2_schema(
         "memory_edge": ("edge_uid",),
         "approval_queue_item": ("item_uid",),
         "approval_decision": ("decision_uid",),
+        "curator_trigger_state": ("principal_id",),
+        "curator_run": ("run_uid",),
+        "curator_finding": ("finding_uid",),
+        "curator_verdict": ("verdict_uid",),
+        "curator_action": ("action_uid",),
         "symphony_run_resolution": ("run_id",),
         "thread": ("id",),
         "injection_event": ("id",),
@@ -498,6 +569,10 @@ async def test_models_match_authoritative_c2_schema(
         "approval_queue_item.birthplace_run_id": "TEXT",
         "approval_queue_item.birthplace_origin_agent": "TEXT",
         "approval_queue_item.judged_context": "JSONB",
+        "approval_queue_item.candidate_revision": "INTEGER",
+        "approval_queue_item.curator_run_uid": "TEXT",
+        "approval_queue_item.curator_finding_uid": "TEXT",
+        "approval_queue_item.proposal_payload": "JSONB",
         "approval_queue_item.verdict": "TEXT",
         "approval_queue_item.neighbor_ids": "JSONB",
         "approval_queue_item.target_ids": "JSONB",
@@ -510,6 +585,44 @@ async def test_models_match_authoritative_c2_schema(
         "approval_decision.approval_mode": "TEXT",
         "approval_decision.actor_class": "TEXT",
         "approval_decision.created_at": "TIMESTAMP WITH TIME ZONE",
+        "curator_trigger_state.principal_id": "TEXT",
+        "curator_trigger_state.admitted_writes": "BIGINT",
+        "curator_trigger_state.last_run_writes": "BIGINT",
+        "curator_trigger_state.updated_at": "TIMESTAMP WITH TIME ZONE",
+        "curator_run.run_uid": "TEXT",
+        "curator_run.principal_id": "TEXT",
+        "curator_run.trigger": "TEXT",
+        "curator_run.report_version": "TEXT",
+        "curator_run.report": "JSONB",
+        "curator_run.admitted_writes_snapshot": "BIGINT",
+        "curator_run.verdict_count": "INTEGER",
+        "curator_run.queued_count": "INTEGER",
+        "curator_run.executed_count": "INTEGER",
+        "curator_run.status": "TEXT",
+        "curator_run.error": "TEXT",
+        "curator_run.started_at": "TIMESTAMP WITH TIME ZONE",
+        "curator_run.completed_at": "TIMESTAMP WITH TIME ZONE",
+        "curator_finding.finding_uid": "TEXT",
+        "curator_finding.run_uid": "TEXT",
+        "curator_finding.ordinal": "INTEGER",
+        "curator_finding.kind": "TEXT",
+        "curator_finding.memory_ids": "JSONB",
+        "curator_finding.evidence": "JSONB",
+        "curator_finding.fingerprint": "TEXT",
+        "curator_finding.created_at": "TIMESTAMP WITH TIME ZONE",
+        "curator_verdict.verdict_uid": "TEXT",
+        "curator_verdict.finding_uid": "TEXT",
+        "curator_verdict.action": "TEXT",
+        "curator_verdict.rationale": "TEXT",
+        "curator_verdict.proposal": "JSONB",
+        "curator_verdict.created_at": "TIMESTAMP WITH TIME ZONE",
+        "curator_action.action_uid": "TEXT",
+        "curator_action.verdict_uid": "TEXT",
+        "curator_action.finding_uid": "TEXT",
+        "curator_action.queue_item_uid": "TEXT",
+        "curator_action.outcome": "TEXT",
+        "curator_action.detail": "JSONB",
+        "curator_action.created_at": "TIMESTAMP WITH TIME ZONE",
         "symphony_run_resolution.run_id": "TEXT",
         "symphony_run_resolution.principal_id": "TEXT",
         "symphony_run_resolution.batch_uid": "UUID",
@@ -648,6 +761,14 @@ async def test_models_match_authoritative_c2_schema(
         "approval_queue_item.state": "'pending'",
         "approval_queue_item.created_at": "now()",
         "approval_decision.created_at": "now()",
+        "curator_trigger_state.admitted_writes": "0",
+        "curator_trigger_state.last_run_writes": "0",
+        "curator_trigger_state.updated_at": "now()",
+        "curator_run.started_at": "now()",
+        "curator_run.completed_at": "now()",
+        "curator_finding.created_at": "now()",
+        "curator_verdict.created_at": "now()",
+        "curator_action.created_at": "now()",
         "symphony_run_resolution.created_at": "now()",
         "thread.created_at": "now()",
         "injection_event.agent_kind": "'general'",
@@ -695,30 +816,84 @@ async def test_models_match_authoritative_c2_schema(
             )
         },
         "approval_queue_item": {
-            "approval_queue_item_birthplace_check": ("birthplace IN ('thread','seed','symphony')"),
+            "approval_queue_item_birthplace_check": (
+                "birthplace IN ('thread','seed','symphony','curator')"
+            ),
             "approval_queue_item_birthplace_shape_check": (
                 "(birthplace = 'thread' AND birthplace_thread_id IS NOT NULL "
                 "AND batch_uid IS NULL AND source_name IS NULL AND source_sha256 IS NULL "
                 "AND birthplace_run_id IS NULL AND birthplace_origin_agent IS NULL "
-                "AND judged_context IS NULL) OR "
+                "AND judged_context IS NULL AND curator_run_uid IS NULL "
+                "AND curator_finding_uid IS NULL AND proposal_payload IS NULL "
+                "AND candidate_revision IS NULL) OR "
                 "(birthplace = 'seed' AND birthplace_thread_id IS NULL "
                 "AND batch_uid IS NOT NULL AND source_name IS NOT NULL "
-                "AND source_sha256 IS NOT NULL AND birthplace_run_id IS NULL "
-                "AND birthplace_origin_agent IS NULL AND judged_context IS NULL) OR "
+                "AND source_sha256 IS NOT NULL "
+                "AND birthplace_run_id IS NULL AND birthplace_origin_agent IS NULL "
+                "AND judged_context IS NULL AND curator_run_uid IS NULL "
+                "AND curator_finding_uid IS NULL AND proposal_payload IS NULL "
+                "AND candidate_revision IS NULL) OR "
                 "(birthplace = 'symphony' AND birthplace_thread_id IS NULL "
                 "AND batch_uid IS NOT NULL AND source_name IS NULL AND source_sha256 IS NULL "
                 "AND birthplace_run_id IS NOT NULL AND birthplace_origin_agent IS NOT NULL "
-                "AND judged_context IS NOT NULL)"
+                "AND judged_context IS NOT NULL AND curator_run_uid IS NULL "
+                "AND curator_finding_uid IS NULL AND proposal_payload IS NULL "
+                "AND candidate_revision IS NULL) OR "
+                "(birthplace = 'curator' AND birthplace_thread_id IS NULL "
+                "AND batch_uid IS NULL AND source_name IS NULL AND source_sha256 IS NULL "
+                "AND birthplace_run_id IS NULL AND birthplace_origin_agent IS NULL "
+                "AND judged_context IS NULL AND curator_run_uid IS NOT NULL "
+                "AND curator_finding_uid IS NOT NULL AND proposal_payload IS NOT NULL "
+                "AND candidate_revision IS NOT NULL)"
             ),
             "approval_queue_item_state_check": ("state IN ('pending','approved','rejected')"),
             "approval_queue_item_verdict_check": (
-                "verdict IN ('new','merge','supersede','contradict')"
+                "verdict IN "
+                "('new','merge','supersede','contradict','retire','keyword_repair','split')"
             ),
         },
         "approval_decision": {
             "approval_decision_actor_check": "actor_class IN ('human','passive')",
             "approval_decision_mode_check": ("approval_mode IN ('explicit','passive')"),
             "approval_decision_value_check": "decision IN ('approve','deny')",
+        },
+        "curator_trigger_state": {
+            "curator_trigger_admitted_check": "admitted_writes >= 0",
+            "curator_trigger_cursor_check": (
+                "last_run_writes >= 0 AND last_run_writes <= admitted_writes"
+            ),
+        },
+        "curator_run": {
+            "curator_run_trigger_check": (
+                "trigger IN ('writes','manual','injection_pressure','cron')"
+            ),
+            "curator_run_status_check": "status IN ('completed','failed')",
+            "curator_run_writes_check": "admitted_writes_snapshot >= 0",
+            "curator_run_counts_check": (
+                "verdict_count >= 0 AND queued_count >= 0 AND executed_count >= 0"
+            ),
+            "curator_run_error_shape_check": (
+                "(status = 'completed' AND error IS NULL) OR "
+                "(status = 'failed' AND error IS NOT NULL)"
+            ),
+        },
+        "curator_finding": {
+            "curator_finding_ordinal_check": "ordinal >= 0",
+            "curator_finding_kind_check": (
+                "kind IN ('duplicate','contradiction','stale','slop','keyword')"
+            ),
+            "curator_finding_fingerprint_check": "fingerprint ~ '^[0-9a-f]{64}$'",
+        },
+        "curator_verdict": {
+            "curator_verdict_action_check": (
+                "action IN "
+                "('keep','merge','contradict','supersede','retire','keyword_repair','split')"
+            ),
+        },
+        "curator_action": {
+            "curator_action_outcome_check": (
+                "outcome IN ('queued','executed','noop','refused')"
+            ),
         },
         "symphony_run_resolution": {},
         "thread": {},

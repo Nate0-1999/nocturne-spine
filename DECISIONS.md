@@ -1108,3 +1108,38 @@ learning authority. Counting pins against regular room would let a budget cut
 override the owner's explicit hand. Treating the share as a quota would pad
 prompts with low-value memory. Full-auto activation would bypass the existing
 owner tap; a manual lock would create a second override contract.
+
+## 042 — Curators diagnose deterministically and operate only through consent [P1.4, P1.5, P1.6]
+
+**Decision.** Make the Palace Health Report a deterministic, versioned projection
+of one active corpus snapshot: similarity pairs, contradiction edges, 180-day
+uncited staleness, zero-citation/three-removal slop, keyword hygiene, clusters,
+and revision-derived stats deltas. Run it after each 25 newly admitted active
+units by a durable database cursor, with manual, cron, and injection-pressure
+entry points using the same principal advisory lock. The LLM judges each
+finding through a closed action contract but receives no write capability.
+
+In the early era, every change becomes an ordinary corpus-born curator queue
+card and requires explicit human consent. Queue birth freezes the diagnosed
+revision. Merge and supersede use a proposed candidate; contradiction, retire,
+keyword repair, and split target the active head directly. Enactment is a CAS
+and every resulting revision names the immutable finding UID. Splits tombstone
+the source and parent independently embedded children to that tombstone
+revision. Immutable run, finding, verdict, and action rows retain the whole
+diagnosis-to-proposal chain. An unchanged pending or owner-rejected verdict is
+not queued again. Public callers cannot claim the reserved maintenance editor;
+only these deterministic tools may make maintenance revisions. The client
+contract advances to 0.1.7; product release remains separately authorized.
+
+**Motivation.** Writers are rewarded for recall and admission, so the Palace
+needs a separate precision loop without granting probabilistic judgment direct
+authority over owner memory. A deterministic report makes identical evidence
+inspectable; a narrow verdict seam preserves useful judgment; frozen-revision
+consent and append-only receipts make every eventual act attributable.
+
+**Rejected alternatives.** Giving the model generic memory endpoints collapses
+judgment and authority. Time-only scheduling creates work without work. A
+second curation queue forks the consent lifecycle. Auto-enactment is premature
+before owner trust exists. ANN infrastructure and per-finding incremental
+diagnostics add moving parts before a single-owner corpus proves the simple
+snapshot scan inadequate.

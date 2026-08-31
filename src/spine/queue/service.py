@@ -22,6 +22,8 @@ from spine.memory.service import (
     CandidateCreated,
     CreateMemoryCommand,
     MemoryService,
+    PreparedSplitChild,
+    SplitMemoryChild,
     contract_memory_from_row,
 )
 from spine.queue.contracts import (
@@ -192,8 +194,111 @@ class QueueService:
             )
             return [await self._card(session, row) for row in rows]
 
+    async def enqueue_curator(
+        self,
+        *,
+        run_uid: str,
+        finding_uid: str,
+        principal_id: str,
+        machine_id: str,
+        action: str,
+        memory_ids: list[UUID],
+        proposal: dict[str, Any],
+    ) -> QueueCard | None:
+        """Route one surgeon verdict through the ordinary corpus-born consent queue."""
+
+        if not memory_ids:
+            raise QueueValidationError("curator actions require implicated memories")
+        source = await self._memory_row(memory_ids[0], principal_id=principal_id)
+        candidate: CandidateCreated | None = None
+        target_ids: list[UUID] = []
+        if action in {"merge", "supersede"}:
+            candidate = await self._memory_service.create_curator_candidate(
+                CreateMemoryCommand(
+                    principal_id=principal_id,
+                    label=_proposal_text(proposal, "label"),
+                    body=_proposal_text(proposal, "body"),
+                    kind=source["kind"],
+                    keywords=_proposal_keywords(proposal),
+                    project_key=source["project_key"],
+                    thread_origin=source["thread_origin"],
+                    origin_thread_id=source["origin_thread_id"],
+                    origin_path=source["origin_path"],
+                    editor="maintenance",
+                    machine_id=machine_id,
+                    revision_reason=f"curation/{finding_uid}/proposal",
+                ),
+                exclude_memory_ids=memory_ids,
+            )
+            if candidate is None:
+                return None
+            candidate_row = await self._memory_row(
+                candidate.memory.memory_id, principal_id=principal_id
+            )
+            target_ids = list(memory_ids)
+            neighbors = list(candidate.neighbors)
+        else:
+            candidate_row = source
+            neighbors = []
+            if action == "contradict":
+                target_ids = list(memory_ids[1:])
+
+        row_values = {
+            "item_uid": mint_ulid(),
+            "candidate_memory_id": candidate_row["id"],
+            "principal_id": principal_id,
+            "birthplace": "curator",
+            "birthplace_thread_id": None,
+            "batch_uid": None,
+            "source_name": None,
+            "source_sha256": None,
+            "birthplace_run_id": None,
+            "birthplace_origin_agent": None,
+            "candidate_revision": candidate_row["revision"],
+            "curator_run_uid": run_uid,
+            "curator_finding_uid": finding_uid,
+            "proposal_payload": proposal,
+            "verdict": action,
+            "neighbor_ids": [str(item.memory_id) for item in neighbors],
+            "target_ids": [str(item) for item in target_ids],
+            "state": "pending",
+        }
+        async with self._session_factory() as session:
+            async with session.begin():
+                row = (
+                    (
+                        await session.execute(
+                            insert(ApprovalQueueItem.__table__)
+                            .values(**row_values)
+                            .returning(*ApprovalQueueItem.__table__.c)
+                        )
+                    )
+                    .mappings()
+                    .one()
+                )
+                return await self._card(session, row, neighbors=neighbors)
+
     async def decide(self, item_uid: str, request: QueueDecisionRequest) -> QueueDecisionResponse:
         queue = ApprovalQueueItem.__table__
+        prepared_split: tuple[PreparedSplitChild, ...] | None = None
+        async with self._session_factory() as session:
+            preflight = (
+                (
+                    await session.execute(select(*queue.c).where(queue.c.item_uid == item_uid))
+                )
+                .mappings()
+                .one_or_none()
+            )
+        if preflight is not None and preflight["birthplace"] == "curator" and preflight[
+            "verdict"
+        ] == "split":
+            payload = preflight["proposal_payload"]
+            children = _proposal_children(payload)
+            prepared_split = await self._memory_service.prepare_curator_split(
+                principal_id=preflight["principal_id"],
+                machine_id=request.machine_id,
+                children=children,
+            )
         async with self._session_factory() as session:
             async with session.begin():
                 row = (
@@ -207,7 +312,9 @@ class QueueService:
                 )
                 if row is None:
                     raise QueueNotFoundError(item_uid)
-                return await self._decide_row(session, row, request)
+                return await self._decide_row(
+                    session, row, request, prepared_split=prepared_split
+                )
 
     async def decide_batch(
         self, batch_uid: UUID, request: QueueDecisionRequest
@@ -242,7 +349,12 @@ class QueueService:
                 )
 
     async def _decide_row(
-        self, session: AsyncSession, row: Any, request: QueueDecisionRequest
+        self,
+        session: AsyncSession,
+        row: Any,
+        request: QueueDecisionRequest,
+        *,
+        prepared_split: tuple[PreparedSplitChild, ...] | None = None,
     ) -> QueueDecisionResponse:
         decisions = ApprovalDecision.__table__
         queue = ApprovalQueueItem.__table__
@@ -278,6 +390,14 @@ class QueueService:
         if row["verdict"] == "contradict" and request.approval_mode == "passive":
             raise QueueValidationError("contradictions require explicit approval")
         candidate = await self._locked_memory(session, row["candidate_memory_id"])
+        if row["birthplace"] == "curator":
+            return await self._decide_curator_row(
+                session,
+                row,
+                candidate,
+                request,
+                prepared_split=prepared_split,
+            )
         expected = "approved" if request.decision == "approve" else "rejected"
         if candidate["status"] != "candidate":
             raise QueueConflictError("queue candidate is no longer pending")
@@ -325,6 +445,134 @@ class QueueService:
             approval_mode=request.approval_mode,
             actor_class=request.actor_class,
             decision_uid=decision_uid,
+        )
+
+    async def _decide_curator_row(
+        self,
+        session: AsyncSession,
+        row: Any,
+        candidate: Any,
+        request: QueueDecisionRequest,
+        *,
+        prepared_split: tuple[PreparedSplitChild, ...] | None,
+    ) -> QueueDecisionResponse:
+        if request.approval_mode != "explicit" or request.actor_class != "human":
+            raise QueueValidationError("curator verdicts require an explicit human decision")
+        if candidate["revision"] != row["candidate_revision"]:
+            raise QueueConflictError("curator target changed after diagnosis; run curators again")
+
+        action = row["verdict"]
+        if request.decision == "deny":
+            if candidate["status"] == "candidate":
+                await self._curator_cas(
+                    session,
+                    candidate,
+                    request.machine_id,
+                    row,
+                    suffix="rejected",
+                    changes=MemoryUnitChanges(status="tombstoned"),
+                )
+        elif action in {"merge", "supersede"}:
+            if candidate["status"] != "candidate":
+                raise QueueConflictError("curator replacement is no longer pending")
+            await self._curator_cas(
+                session,
+                candidate,
+                request.machine_id,
+                row,
+                suffix="activate",
+                changes=MemoryUnitChanges(status="active"),
+            )
+            await self._enact_targets(session, row, candidate, request.machine_id)
+        elif action == "contradict":
+            if candidate["status"] != "active":
+                raise QueueConflictError("curator contradiction source is no longer active")
+            await self._enact_targets(session, row, candidate, request.machine_id)
+        elif action == "retire":
+            await self._curator_cas(
+                session,
+                candidate,
+                request.machine_id,
+                row,
+                suffix="retire",
+                changes=MemoryUnitChanges(status="tombstoned"),
+            )
+        elif action == "keyword_repair":
+            await self._curator_cas(
+                session,
+                candidate,
+                request.machine_id,
+                row,
+                suffix="keyword-repair",
+                changes=MemoryUnitChanges(keywords=_proposal_keywords(row["proposal_payload"])),
+            )
+        elif action == "split":
+            if prepared_split is None:
+                raise QueueValidationError("curator split children were not prepared")
+            await self._memory_service.enact_curator_split(
+                session,
+                source=candidate,
+                children=prepared_split,
+                machine_id=request.machine_id,
+                finding_uid=row["curator_finding_uid"],
+            )
+        else:  # pragma: no cover - database check owns the closed action set
+            raise QueueValidationError("unknown curator action")
+
+        decision_uid = mint_ulid()
+        await session.execute(
+            insert(ApprovalDecision.__table__).values(
+                decision_uid=decision_uid,
+                item_uid=row["item_uid"],
+                decision=request.decision,
+                approval_mode=request.approval_mode,
+                actor_class=request.actor_class,
+            )
+        )
+        updated = (
+            (
+                await session.execute(
+                    update(ApprovalQueueItem.__table__)
+                    .where(ApprovalQueueItem.item_uid == row["item_uid"])
+                    .values(
+                        state="approved" if request.decision == "approve" else "rejected",
+                        decided_at=func.now(),
+                    )
+                    .returning(*ApprovalQueueItem.__table__.c)
+                )
+            )
+            .mappings()
+            .one()
+        )
+        return QueueDecisionResponse(
+            card=await self._card(session, updated),
+            decision=request.decision,
+            approval_mode=request.approval_mode,
+            actor_class=request.actor_class,
+            decision_uid=decision_uid,
+        )
+
+    @staticmethod
+    async def _curator_cas(
+        session: AsyncSession,
+        candidate: Any,
+        machine_id: str,
+        row: Any,
+        *,
+        suffix: str,
+        changes: MemoryUnitChanges,
+    ) -> None:
+        await cas_update_memory_unit(
+            session,
+            CasUpdate(
+                memory_id=candidate["id"],
+                expected_revision=candidate["revision"],
+                rev_uid=mint_ulid(),
+                editor="maintenance",
+                origin_machine_id=machine_id,
+                reason=f"curation/{row['curator_finding_uid']}/{suffix}",
+                changes=changes,
+            ),
         )
 
     async def _enqueue(
@@ -553,6 +801,10 @@ class QueueService:
             birthplace_run_id=row["birthplace_run_id"],
             birthplace_origin_agent=row["birthplace_origin_agent"],
             judged_context=row["judged_context"],
+            candidate_revision=row["candidate_revision"],
+            curator_run_uid=row["curator_run_uid"],
+            curator_finding_uid=row["curator_finding_uid"],
+            proposal_payload=row["proposal_payload"],
             verdict=row["verdict"],
             neighbors=neighbors,
             target_ids=[UUID(value) for value in row["target_ids"]],
@@ -590,6 +842,24 @@ class QueueService:
                     ),
                 )
 
+    async def _memory_row(self, memory_id: UUID, *, principal_id: str) -> Any:
+        async with self._session_factory() as session:
+            row = (
+                (
+                    await session.execute(
+                        select(*MemoryUnit.__table__.c).where(
+                            MemoryUnit.id == memory_id,
+                            MemoryUnit.principal_id == principal_id,
+                        )
+                    )
+                )
+                .mappings()
+                .one_or_none()
+            )
+        if row is None:
+            raise QueueValidationError(f"curator memory {memory_id} is missing")
+        return row
+
     @staticmethod
     async def _locked_memory(session: AsyncSession, memory_id: UUID) -> Any:
         row = (
@@ -624,6 +894,9 @@ class QueueService:
                     "verdict target is no longer an active same-principal unit"
                 )
             if row["verdict"] in {"merge", "supersede"}:
+                reason = row["verdict"]
+                if row["birthplace"] == "curator":
+                    reason = f"curation/{row['curator_finding_uid']}/{row['verdict']}"
                 await cas_update_memory_unit(
                     session,
                     CasUpdate(
@@ -632,7 +905,7 @@ class QueueService:
                         rev_uid=mint_ulid(),
                         editor="maintenance",
                         origin_machine_id=machine_id,
-                        reason=row["verdict"],
+                        reason=reason,
                         changes=MemoryUnitChanges(status="tombstoned"),
                     ),
                 )
@@ -644,3 +917,43 @@ class QueueService:
                     edge_type=edge_type,
                 )
             )
+
+
+def _proposal_text(proposal: dict[str, Any], key: str) -> str:
+    value = proposal.get(key)
+    if not isinstance(value, str) or not value.strip():
+        raise QueueValidationError(f"curator {key} must be nonblank text")
+    return value
+
+
+def _proposal_keywords(proposal: dict[str, Any]) -> list[str]:
+    value = proposal.get("keywords")
+    if not isinstance(value, list) or not 2 <= len(value) <= 5:
+        raise QueueValidationError("curator keywords must contain 2-5 values")
+    if any(
+        not isinstance(item, str)
+        or not item
+        or item != item.strip()
+        or item != item.lower()
+        for item in value
+    ) or len(set(value)) != len(value):
+        raise QueueValidationError("curator keywords must be distinct lowercase terms")
+    return value
+
+
+def _proposal_children(proposal: dict[str, Any]) -> list[SplitMemoryChild]:
+    raw = proposal.get("children")
+    if not isinstance(raw, list):
+        raise QueueValidationError("curator split requires children")
+    children: list[SplitMemoryChild] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            raise QueueValidationError("curator split child must be an object")
+        children.append(
+            SplitMemoryChild(
+                label=_proposal_text(item, "label"),
+                body=_proposal_text(item, "body"),
+                keywords=_proposal_keywords(item),
+            )
+        )
+    return children

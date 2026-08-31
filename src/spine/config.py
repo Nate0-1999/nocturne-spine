@@ -50,6 +50,9 @@ class Settings(BaseSettings):
     learner_win_margin: float = Field(default=1.0, gt=0.0)
     retrain_signal_stride: int = Field(default=25, gt=0)
     graph_edge_sim: float = Field(default=0.75, ge=0.0, le=1.0)
+    curator_write_trigger: int = Field(default=25, gt=0)
+    curator_stale_days: int = Field(default=180, gt=0)
+    curator_poll_seconds: float = Field(default=5.0, gt=0)
 
     @model_validator(mode="after")
     def validate_dedup_bands(self) -> "Settings":

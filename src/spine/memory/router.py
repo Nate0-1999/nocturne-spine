@@ -137,6 +137,8 @@ async def create_memory(
     body: CreateMemoryRequest,
     request: Request,
 ) -> CreatedMemoryResponse | JSONResponse:
+    if body.editor == "maintenance":
+        return _maintenance_write_refused(request)
     service = _memory_service(request)
     try:
         outcome = await service.create(
@@ -193,6 +195,8 @@ async def split_memory(
     body: SplitMemoryRequest,
     request: Request,
 ) -> MemorySplitResponse | JSONResponse:
+    if body.editor == "maintenance":
+        return _maintenance_write_refused(request)
     try:
         outcome = await _memory_service(request).split(
             SplitMemoryCommand(
@@ -248,6 +252,8 @@ async def patch_memory(
     body: PatchMemoryRequest,
     request: Request,
 ) -> MemoryUnit | JSONResponse | ProblemJSONResponse:
+    if body.editor == "maintenance":
+        return _maintenance_write_refused(request)
     mutable = {
         field: getattr(body, field)
         for field in ("body", "label", "keywords", "kind", "origin_path", "pin", "status")
@@ -368,6 +374,16 @@ def _unprocessable(request: Request, detail: str) -> ProblemJSONResponse:
         status=422,
         title="Unprocessable Content",
         detail=detail,
+        instance=request.url.path,
+        endpoint=f"{request.method} {request.url.path}",
+    )
+
+
+def _maintenance_write_refused(request: Request) -> ProblemJSONResponse:
+    return problem_response(
+        status=422,
+        title="Unprocessable Content",
+        detail="Maintenance writes must pass through the bounded curator queue tools.",
         instance=request.url.path,
         endpoint=f"{request.method} {request.url.path}",
     )

@@ -53,7 +53,7 @@ async def queue(
     request: Request,
     principal_id: str = Query(min_length=1),
     thread_id: UUID | None = None,
-    birthplace: str | None = Query(default=None, pattern="^(thread|seed|symphony)$"),
+    birthplace: str | None = Query(default=None, pattern="^(thread|seed|symphony|curator)$"),
 ) -> QueueResponse:
     return await request.app.state.queue_service.list_pending(principal_id, thread_id, birthplace)
 

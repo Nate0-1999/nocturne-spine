@@ -18,6 +18,15 @@ from spine import __version__
 from spine.api_contract import API_CONTRACT_VERSION
 from spine.auth import StaticBearerAuthMiddleware
 from spine.config import Settings
+from spine.curation.diagnostics import HealthReportBuilder
+from spine.curation.provider import (
+    CuratorVerdictProvider,
+    OpenRouterCuratorProvider,
+    UnavailableCuratorProvider,
+)
+from spine.curation.router import router as curation_router
+from spine.curation.service import CuratorService
+from spine.curation.worker import CuratorWorker
 from spine.db.engine import make_engine
 from spine.db.migrate import packaged_head
 from spine.db.session import make_session_factory
@@ -67,6 +76,7 @@ def create_app(
     *,
     session_factory: async_sessionmaker[AsyncSession] | None = None,
     embedding_provider: EmbeddingProvider | None = None,
+    curator_verdict_provider: CuratorVerdictProvider | None = None,
 ) -> FastAPI:
     """Create the service app; production calls this as a Uvicorn factory."""
 
@@ -100,6 +110,33 @@ def create_app(
         memory_max_tokens=resolved.memory_max_tokens,
     )
     queue_service = QueueService(session_factory, memory_service)
+    owned_curator_provider = None
+    if curator_verdict_provider is None:
+        if configured_key:
+            owned_curator_provider = OpenRouterCuratorProvider(
+                api_key=configured_key,
+                model=resolved.chat_model,
+                spend_service=spend_service,
+            )
+            curator_verdict_provider = owned_curator_provider
+        else:
+            curator_verdict_provider = UnavailableCuratorProvider()
+    curator_service = CuratorService(
+        session_factory,
+        HealthReportBuilder(
+            session_factory,
+            duplicate_floor=resolved.dedup_sim,
+            stale_days=resolved.curator_stale_days,
+        ),
+        curator_verdict_provider,
+        queue_service,
+        trigger_every=resolved.curator_write_trigger,
+    )
+    curator_worker = CuratorWorker(
+        curator_service,
+        poll_seconds=resolved.curator_poll_seconds,
+    )
+    curator_worker_enabled = configured_key is not None
     symphony_service = SymphonyService(session_factory, memory_service, queue_service)
     prepare_service = PrepareService(session_factory, embedding_provider)
     decision_service = DecisionService(session_factory)
@@ -156,6 +193,8 @@ def create_app(
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         learner_worker.start()
+        if curator_worker_enabled:
+            curator_worker.start()
         if owned_engine is not None:
             spend_view_refresher.start()
             if reconciliation_scheduler is not None:
@@ -164,17 +203,20 @@ def create_app(
             yield
         finally:
             await learner_worker.stop()
+            if curator_worker_enabled:
+                await curator_worker.stop()
             if owned_engine is not None:
                 if reconciliation_scheduler is not None:
                     await reconciliation_scheduler.stop()
                 await spend_view_refresher.stop()
             if owned_provider is not None:
                 await owned_provider.aclose()
+            if owned_curator_provider is not None:
+                await owned_curator_provider.aclose()
             if reconciliation_client is not None:
                 await reconciliation_client.aclose()
             if owned_engine is not None:
                 await owned_engine.dispose()
-
     bearer_contract = HTTPBearer(auto_error=False, scheme_name="StaticBearer")
     app = FastAPI(
         title="N8 Spine",
@@ -185,6 +227,8 @@ def create_app(
     app.state.settings = resolved
     app.state.memory_service = memory_service
     app.state.queue_service = queue_service
+    app.state.curator_service = curator_service
+    app.state.curator_worker = curator_worker
     app.state.symphony_service = symphony_service
     app.state.prepare_service = prepare_service
     app.state.decision_service = decision_service
@@ -271,6 +315,7 @@ def create_app(
     app.include_router(m2k_router)
     app.include_router(memory_router)
     app.include_router(queue_router)
+    app.include_router(curation_router)
     app.include_router(spend_router)
     app.include_router(symphony_router)
     app.include_router(transcripts_router)

@@ -18,6 +18,7 @@ from sqlalchemy import (
     Numeric,
     Text,
     UniqueConstraint,
+    desc,
     text,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TSVECTOR
@@ -204,7 +205,7 @@ class ApprovalQueueItem(Base):
     __tablename__ = "approval_queue_item"
     __table_args__ = (
         CheckConstraint(
-            "verdict IN ('new','merge','supersede','contradict')",
+            "verdict IN ('new','merge','supersede','contradict','retire','keyword_repair','split')",
             name="approval_queue_item_verdict_check",
         ),
         CheckConstraint(
@@ -212,25 +213,43 @@ class ApprovalQueueItem(Base):
             name="approval_queue_item_state_check",
         ),
         CheckConstraint(
-            "birthplace IN ('thread','seed','symphony')",
+            "birthplace IN ('thread','seed','symphony','curator')",
             name="approval_queue_item_birthplace_check",
         ),
         CheckConstraint(
             "(birthplace = 'thread' AND birthplace_thread_id IS NOT NULL "
             "AND batch_uid IS NULL AND source_name IS NULL AND source_sha256 IS NULL "
             "AND birthplace_run_id IS NULL AND birthplace_origin_agent IS NULL "
-            "AND judged_context IS NULL) OR "
+            "AND judged_context IS NULL AND curator_run_uid IS NULL "
+            "AND curator_finding_uid IS NULL AND proposal_payload IS NULL "
+            "AND candidate_revision IS NULL) OR "
             "(birthplace = 'seed' AND birthplace_thread_id IS NULL "
             "AND batch_uid IS NOT NULL AND source_name IS NOT NULL AND source_sha256 IS NOT NULL "
             "AND birthplace_run_id IS NULL AND birthplace_origin_agent IS NULL "
-            "AND judged_context IS NULL) OR "
+            "AND judged_context IS NULL AND curator_run_uid IS NULL "
+            "AND curator_finding_uid IS NULL AND proposal_payload IS NULL "
+            "AND candidate_revision IS NULL) OR "
             "(birthplace = 'symphony' AND birthplace_thread_id IS NULL "
             "AND batch_uid IS NOT NULL AND source_name IS NULL AND source_sha256 IS NULL "
             "AND birthplace_run_id IS NOT NULL AND birthplace_origin_agent IS NOT NULL "
-            "AND judged_context IS NOT NULL)",
+            "AND judged_context IS NOT NULL AND curator_run_uid IS NULL "
+            "AND curator_finding_uid IS NULL AND proposal_payload IS NULL "
+            "AND candidate_revision IS NULL) OR "
+            "(birthplace = 'curator' AND birthplace_thread_id IS NULL "
+            "AND batch_uid IS NULL AND source_name IS NULL AND source_sha256 IS NULL "
+            "AND birthplace_run_id IS NULL AND birthplace_origin_agent IS NULL "
+            "AND judged_context IS NULL AND curator_run_uid IS NOT NULL "
+            "AND curator_finding_uid IS NOT NULL AND proposal_payload IS NOT NULL "
+            "AND candidate_revision IS NOT NULL)",
             name="approval_queue_item_birthplace_shape_check",
         ),
-        UniqueConstraint("candidate_memory_id"),
+        UniqueConstraint("curator_finding_uid"),
+        Index(
+            "approval_queue_item_non_curator_candidate_uidx",
+            "candidate_memory_id",
+            unique=True,
+            postgresql_where=text("birthplace <> 'curator'"),
+        ),
         Index("approval_queue_item_principal_state_idx", "principal_id", "state"),
         Index("approval_queue_item_thread_state_idx", "birthplace_thread_id", "state"),
         Index("approval_queue_item_batch_state_idx", "batch_uid", "state"),
@@ -249,6 +268,10 @@ class ApprovalQueueItem(Base):
     birthplace_run_id: Mapped[str | None] = mapped_column(Text)
     birthplace_origin_agent: Mapped[str | None] = mapped_column(Text)
     judged_context: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    candidate_revision: Mapped[int | None] = mapped_column(Integer)
+    curator_run_uid: Mapped[str | None] = mapped_column(Text)
+    curator_finding_uid: Mapped[str | None] = mapped_column(Text)
+    proposal_payload: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     verdict: Mapped[str] = mapped_column(Text, nullable=False)
     neighbor_ids: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
     target_ids: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
@@ -283,6 +306,155 @@ class ApprovalDecision(Base):
     decision: Mapped[str] = mapped_column(Text, nullable=False)
     approval_mode: Mapped[str] = mapped_column(Text, nullable=False)
     actor_class: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class CuratorTriggerState(Base):
+    """Durable admitted-write cursor for work-triggered curator runs."""
+
+    __tablename__ = "curator_trigger_state"
+    __table_args__ = (
+        CheckConstraint("admitted_writes >= 0", name="curator_trigger_admitted_check"),
+        CheckConstraint(
+            "last_run_writes >= 0 AND last_run_writes <= admitted_writes",
+            name="curator_trigger_cursor_check",
+        ),
+    )
+
+    principal_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    admitted_writes: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, server_default=text("0")
+    )
+    last_run_writes: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, server_default=text("0")
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class CuratorRun(Base):
+    """One immutable versioned Palace Health Report and pass receipt."""
+
+    __tablename__ = "curator_run"
+    __table_args__ = (
+        CheckConstraint(
+            "trigger IN ('writes','manual','injection_pressure','cron')",
+            name="curator_run_trigger_check",
+        ),
+        CheckConstraint("status IN ('completed','failed')", name="curator_run_status_check"),
+        CheckConstraint("admitted_writes_snapshot >= 0", name="curator_run_writes_check"),
+        CheckConstraint(
+            "verdict_count >= 0 AND queued_count >= 0 AND executed_count >= 0",
+            name="curator_run_counts_check",
+        ),
+        CheckConstraint(
+            "(status = 'completed' AND error IS NULL) OR "
+            "(status = 'failed' AND error IS NOT NULL)",
+            name="curator_run_error_shape_check",
+        ),
+        Index(
+            "curator_run_principal_completed_idx",
+            "principal_id",
+            desc("completed_at"),
+            desc("run_uid"),
+        ),
+    )
+
+    run_uid: Mapped[str] = mapped_column(Text, primary_key=True)
+    principal_id: Mapped[str] = mapped_column(Text, nullable=False)
+    trigger: Mapped[str] = mapped_column(Text, nullable=False)
+    report_version: Mapped[str] = mapped_column(Text, nullable=False)
+    report: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    admitted_writes_snapshot: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    verdict_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    queued_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    executed_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False)
+    error: Mapped[str | None] = mapped_column(Text)
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    completed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class CuratorFinding(Base):
+    """One deterministic diagnostic finding within a Health Report."""
+
+    __tablename__ = "curator_finding"
+    __table_args__ = (
+        CheckConstraint("ordinal >= 0", name="curator_finding_ordinal_check"),
+        CheckConstraint(
+            "kind IN ('duplicate','contradiction','stale','slop','keyword')",
+            name="curator_finding_kind_check",
+        ),
+        CheckConstraint(
+            "fingerprint ~ '^[0-9a-f]{64}$'", name="curator_finding_fingerprint_check"
+        ),
+        UniqueConstraint("run_uid", "ordinal"),
+    )
+
+    finding_uid: Mapped[str] = mapped_column(Text, primary_key=True)
+    run_uid: Mapped[str] = mapped_column(Text, ForeignKey("curator_run.run_uid"), nullable=False)
+    ordinal: Mapped[int] = mapped_column(Integer, nullable=False)
+    kind: Mapped[str] = mapped_column(Text, nullable=False)
+    memory_ids: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    evidence: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    fingerprint: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class CuratorVerdict(Base):
+    """One immutable LLM verdict over one deterministic finding."""
+
+    __tablename__ = "curator_verdict"
+    __table_args__ = (
+        CheckConstraint(
+            "action IN ('keep','merge','contradict','supersede','retire','keyword_repair','split')",
+            name="curator_verdict_action_check",
+        ),
+        UniqueConstraint("finding_uid"),
+    )
+
+    verdict_uid: Mapped[str] = mapped_column(Text, primary_key=True)
+    finding_uid: Mapped[str] = mapped_column(
+        Text, ForeignKey("curator_finding.finding_uid"), nullable=False
+    )
+    action: Mapped[str] = mapped_column(Text, nullable=False)
+    rationale: Mapped[str] = mapped_column(Text, nullable=False)
+    proposal: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class CuratorAction(Base):
+    """One append-only deterministic-tool outcome tied back to its finding."""
+
+    __tablename__ = "curator_action"
+    __table_args__ = (
+        CheckConstraint(
+            "outcome IN ('queued','executed','noop','refused')",
+            name="curator_action_outcome_check",
+        ),
+    )
+
+    action_uid: Mapped[str] = mapped_column(Text, primary_key=True)
+    verdict_uid: Mapped[str] = mapped_column(
+        Text, ForeignKey("curator_verdict.verdict_uid"), nullable=False
+    )
+    finding_uid: Mapped[str] = mapped_column(
+        Text, ForeignKey("curator_finding.finding_uid"), nullable=False
+    )
+    queue_item_uid: Mapped[str | None] = mapped_column(Text)
+    outcome: Mapped[str] = mapped_column(Text, nullable=False)
+    detail: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )

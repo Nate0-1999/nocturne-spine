@@ -606,6 +606,167 @@
         "title": "CreatedMemoryResponse",
         "type": "object"
       },
+      "CuratorActivity": {
+        "additionalProperties": false,
+        "properties": {
+          "admitted_writes": {
+            "minimum": 0.0,
+            "title": "Admitted Writes",
+            "type": "integer"
+          },
+          "last_run_writes": {
+            "minimum": 0.0,
+            "title": "Last Run Writes",
+            "type": "integer"
+          },
+          "latest_run": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CuratorRunReceipt"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pending_cards": {
+            "minimum": 0.0,
+            "title": "Pending Cards",
+            "type": "integer"
+          },
+          "principal_id": {
+            "title": "Principal Id",
+            "type": "string"
+          },
+          "trigger_every": {
+            "exclusiveMinimum": 0.0,
+            "title": "Trigger Every",
+            "type": "integer"
+          },
+          "writes_until_run": {
+            "minimum": 0.0,
+            "title": "Writes Until Run",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "principal_id",
+          "admitted_writes",
+          "last_run_writes",
+          "trigger_every",
+          "writes_until_run",
+          "latest_run",
+          "pending_cards"
+        ],
+        "title": "CuratorActivity",
+        "type": "object"
+      },
+      "CuratorRunReceipt": {
+        "additionalProperties": false,
+        "properties": {
+          "admitted_writes_snapshot": {
+            "minimum": 0.0,
+            "title": "Admitted Writes Snapshot",
+            "type": "integer"
+          },
+          "completed_at": {
+            "format": "date-time",
+            "title": "Completed At",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "executed_count": {
+            "minimum": 0.0,
+            "title": "Executed Count",
+            "type": "integer"
+          },
+          "principal_id": {
+            "title": "Principal Id",
+            "type": "string"
+          },
+          "queued_count": {
+            "minimum": 0.0,
+            "title": "Queued Count",
+            "type": "integer"
+          },
+          "report": {
+            "$ref": "#/components/schemas/PalaceHealthReport"
+          },
+          "run_uid": {
+            "title": "Run Uid",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "completed",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "trigger": {
+            "enum": [
+              "writes",
+              "manual",
+              "injection_pressure",
+              "cron"
+            ],
+            "title": "Trigger",
+            "type": "string"
+          },
+          "verdict_count": {
+            "minimum": 0.0,
+            "title": "Verdict Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "run_uid",
+          "principal_id",
+          "trigger",
+          "status",
+          "admitted_writes_snapshot",
+          "verdict_count",
+          "queued_count",
+          "executed_count",
+          "report",
+          "error",
+          "completed_at"
+        ],
+        "title": "CuratorRunReceipt",
+        "type": "object"
+      },
+      "CuratorRunRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "machine_id": {
+            "minLength": 1,
+            "title": "Machine Id",
+            "type": "string"
+          },
+          "principal_id": {
+            "minLength": 1,
+            "title": "Principal Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "principal_id",
+          "machine_id"
+        ],
+        "title": "CuratorRunRequest",
+        "type": "object"
+      },
       "DecimalString": {
         "pattern": "^(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$",
         "type": "string"
@@ -681,7 +842,10 @@
               "new",
               "merge",
               "supersede",
-              "contradict"
+              "contradict",
+              "retire",
+              "keyword_repair",
+              "split"
             ],
             "title": "Verdict",
             "type": "string"
@@ -826,6 +990,68 @@
           "placeholder"
         ],
         "type": "string"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HealthFinding": {
+        "additionalProperties": false,
+        "properties": {
+          "evidence": {
+            "additionalProperties": true,
+            "title": "Evidence",
+            "type": "object"
+          },
+          "fingerprint": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Fingerprint",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "duplicate",
+              "contradiction",
+              "stale",
+              "slop",
+              "keyword"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "memory_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Memory Ids",
+            "type": "array"
+          },
+          "ordinal": {
+            "minimum": 0.0,
+            "title": "Ordinal",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "ordinal",
+          "kind",
+          "memory_ids",
+          "evidence",
+          "fingerprint"
+        ],
+        "title": "HealthFinding",
+        "type": "object"
       },
       "HealthResponse": {
         "properties": {
@@ -1948,6 +2174,83 @@
         "title": "PalaceCount",
         "type": "object"
       },
+      "PalaceHealthReport": {
+        "additionalProperties": false,
+        "properties": {
+          "active_units": {
+            "minimum": 0.0,
+            "title": "Active Units",
+            "type": "integer"
+          },
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "clusters": {
+            "items": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": "Clusters",
+            "type": "array"
+          },
+          "corpus_revision": {
+            "title": "Corpus Revision",
+            "type": "string"
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/components/schemas/HealthFinding"
+            },
+            "title": "Findings",
+            "type": "array"
+          },
+          "format": {
+            "const": "nocturne.palace-health",
+            "default": "nocturne.palace-health",
+            "title": "Format",
+            "type": "string"
+          },
+          "keyword_coverage_percent": {
+            "title": "Keyword Coverage Percent",
+            "type": "string"
+          },
+          "principal_id": {
+            "minLength": 1,
+            "title": "Principal Id",
+            "type": "string"
+          },
+          "stats_delta": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Stats Delta",
+            "type": "object"
+          },
+          "version": {
+            "const": "1",
+            "default": "1",
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "principal_id",
+          "as_of",
+          "corpus_revision",
+          "active_units",
+          "clusters",
+          "findings",
+          "keyword_coverage_percent",
+          "stats_delta"
+        ],
+        "title": "PalaceHealthReport",
+        "type": "object"
+      },
       "PalaceMetric": {
         "enum": [
           "active_units",
@@ -2317,7 +2620,8 @@
             "enum": [
               "thread",
               "seed",
-              "symphony"
+              "symphony",
+              "curator"
             ],
             "title": "Birthplace",
             "type": "string"
@@ -2359,10 +2663,43 @@
           "candidate": {
             "$ref": "#/components/schemas/MemoryUnit"
           },
+          "candidate_revision": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidate Revision"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
             "type": "string"
+          },
+          "curator_finding_uid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Curator Finding Uid"
+          },
+          "curator_run_uid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Curator Run Uid"
           },
           "item_uid": {
             "title": "Item Uid",
@@ -2386,6 +2723,18 @@
             },
             "title": "Neighbors",
             "type": "array"
+          },
+          "proposal_payload": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposal Payload"
           },
           "source_name": {
             "anyOf": [
@@ -2431,7 +2780,10 @@
               "new",
               "merge",
               "supersede",
-              "contradict"
+              "contradict",
+              "retire",
+              "keyword_repair",
+              "split"
             ],
             "title": "Verdict",
             "type": "string"
@@ -2448,6 +2800,10 @@
           "birthplace_run_id",
           "birthplace_origin_agent",
           "judged_context",
+          "candidate_revision",
+          "curator_run_uid",
+          "curator_finding_uid",
+          "proposal_payload",
           "verdict",
           "neighbors",
           "target_ids",
@@ -4814,6 +5170,46 @@
       "ULID": {
         "type": "string"
       },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
       "VisibilityRequest": {
         "additionalProperties": false,
         "properties": {
@@ -5161,7 +5557,7 @@
             "schema": {
               "anyOf": [
                 {
-                  "pattern": "^(thread|seed|symphony)$",
+                  "pattern": "^(thread|seed|symphony|curator)$",
                   "type": "string"
                 },
                 {
@@ -5817,6 +6213,312 @@
         "summary": "Decide",
         "tags": [
           "approval-queue"
+        ]
+      }
+    },
+    "/v1/curation": {
+      "get": {
+        "operationId": "activity_v1_curation_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "principal_id",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "title": "Principal Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CuratorActivity"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "description": "RFC 7807 problem details with an optional endpoint extension.",
+                  "properties": {
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    },
+                    "endpoint": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Endpoint"
+                    },
+                    "instance": {
+                      "title": "Instance",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "title": "ProblemDetail",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bearer token missing or invalid"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "description": "RFC 7807 problem details with an optional endpoint extension.",
+                  "properties": {
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    },
+                    "endpoint": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Endpoint"
+                    },
+                    "instance": {
+                      "title": "Instance",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "title": "ProblemDetail",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "A curator pass is already running"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StaticBearer": []
+          }
+        ],
+        "summary": "Activity",
+        "tags": [
+          "curation"
+        ]
+      }
+    },
+    "/v1/curation/runs": {
+      "post": {
+        "operationId": "run_v1_curation_runs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CuratorRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CuratorRunReceipt"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "description": "RFC 7807 problem details with an optional endpoint extension.",
+                  "properties": {
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    },
+                    "endpoint": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Endpoint"
+                    },
+                    "instance": {
+                      "title": "Instance",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "title": "ProblemDetail",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bearer token missing or invalid"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "description": "RFC 7807 problem details with an optional endpoint extension.",
+                  "properties": {
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    },
+                    "endpoint": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Endpoint"
+                    },
+                    "instance": {
+                      "title": "Instance",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail",
+                    "instance"
+                  ],
+                  "title": "ProblemDetail",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "A curator pass is already running"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "StaticBearer": []
+          }
+        ],
+        "summary": "Run",
+        "tags": [
+          "curation"
         ]
       }
     },
