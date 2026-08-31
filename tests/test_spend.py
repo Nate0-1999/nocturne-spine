@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 
@@ -13,6 +13,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from spine.spend.contracts import SpendTableSnapshot
 from spine.spend.views import CANONICAL_SPEND_VIEWS, SpendViewRefresher
 
 _EVENT_UID = "01K1M2A0000000000000000001"
@@ -27,10 +28,14 @@ def _event(
     quantity_type: str = "input_fresh",
     quantity: str = "125",
     cost_usd: str | None = "0.000250",
+    ts: str = "2026-08-01T12:34:56.789Z",
+    purpose: str = "building",
+    thread_id: str | None = _THREAD_ID,
+    model: str | None = "anthropic/claude-sonnet-4.6",
 ) -> dict[str, object]:
     return {
         "event_uid": event_uid,
-        "ts": "2026-08-01T12:34:56.789Z",
+        "ts": ts,
         "product_type": "llm.request",
         "quantity_type": quantity_type,
         "unit_of_measure": "tokens",
@@ -38,15 +43,15 @@ def _event(
         "cost_usd": cost_usd,
         "basis": "measured",
         "behavior": "variable",
-        "purpose": "building",
+        "purpose": purpose,
         "principal_id": "owner",
         "machine_id": "workstation",
         "origin_agent": "harness-chat",
-        "thread_id": _THREAD_ID,
+        "thread_id": thread_id,
         "run_id": "01K1M2A0000000000000000003",
         "prompt_id": "01K1M2A0000000000000000004",
         "memory_id": _MEMORY_ID,
-        "model": "anthropic/claude-sonnet-4.6",
+        "model": model,
         "provider": "anthropic",
         "quantization": None,
         "ref": "gen-test-1",
@@ -103,6 +108,86 @@ async def test_spend_contract_rejects_zero_lines_bad_enums_and_duplicate_ids(
     ):
         response = await memory_client.post("/v1/spend/events", json=body)
         assert response.status_code == 422
+
+
+async def test_spend_table_groups_threads_models_token_lanes_and_non_thread_purposes(
+    memory_client: AsyncClient,
+) -> None:
+    """M3SP reads one exact global projection and one repeated-thread ATTUNED slice."""
+
+    now = datetime.now(UTC)
+    current = now.isoformat()
+    old = (now - timedelta(hours=2)).isoformat()
+    second_thread = "33333333-3333-4333-8333-333333333333"
+    second_model = "openai/gpt-5.4-mini"
+
+    def uid(suffix: str) -> str:
+        return f"{_EVENT_UID[:-1]}{suffix}"
+
+    events = [
+        _event(uid("3"), quantity="100", cost_usd="0.010", ts=current),
+        _event(uid("4"), quantity_type="input_cached", quantity="50", cost_usd="0.002", ts=current),
+        _event(uid("5"), quantity_type="cache_write", quantity="25", cost_usd="0.001", ts=current),
+        _event(uid("6"), quantity_type="reasoning", quantity="10", cost_usd="0.005", ts=current),
+        _event(uid("7"), quantity_type="output", quantity="20", cost_usd="0.004", ts=current),
+        _event(uid("8"), quantity="30", cost_usd="0.003", ts=old, model=second_model),
+        _event(uid("9"), quantity="12", cost_usd="0.002", ts=current, thread_id=second_thread),
+        _event(
+            uid("A"),
+            quantity="5",
+            cost_usd="0.0001",
+            ts=current,
+            purpose="embedding",
+            thread_id=None,
+            model="text-embedding-3-small",
+        ),
+        _event(
+            uid("B"),
+            quantity="7",
+            cost_usd=None,
+            ts=current,
+            purpose="curation",
+            thread_id=None,
+            model="minimax/minimax-m3",
+        ),
+    ]
+    written = await memory_client.post("/v1/spend/events", json={"events": events})
+    assert written.status_code == 200
+
+    response = await memory_client.get("/v1/spend/table")
+    assert response.status_code == 200
+    snapshot = SpendTableSnapshot.model_validate(response.json())
+    by_thread = {str(row.thread_id): row for row in snapshot.threads}
+    first = by_thread[_THREAD_ID]
+    assert first.input_tokens == Decimal("130")
+    assert first.kv_cache_tokens == Decimal("75")
+    assert first.reasoning_tokens == Decimal("10")
+    assert first.output_tokens == Decimal("20")
+    assert first.total_usd == Decimal("0.025")
+    assert first.spend_per_hour_usd == Decimal("0.022")
+    assert [row.model for row in first.models] == [
+        "anthropic/claude-sonnet-4.6",
+        second_model,
+    ]
+    assert [(row.purpose, row.label) for row in snapshot.purposes] == [
+        ("curation", "Memory keeping"),
+        ("embedding", "Embeddings"),
+    ]
+    assert snapshot.purposes[0].total_usd is None
+    assert snapshot.purposes[0].total_unpriced_lines == 1
+
+    scoped_response = await memory_client.get(
+        "/v1/spend/table",
+        params=[("thread_id", _THREAD_ID)],
+    )
+    scoped = SpendTableSnapshot.model_validate(scoped_response.json())
+    assert [str(row.thread_id) for row in scoped.threads] == [_THREAD_ID]
+    assert scoped.purposes == []
+
+    empty_response = await memory_client.get("/v1/spend/table?scope=threads")
+    empty = SpendTableSnapshot.model_validate(empty_response.json())
+    assert empty.threads == []
+    assert empty.purposes == []
 
 
 async def test_spend_event_database_is_append_only(

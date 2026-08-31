@@ -1143,3 +1143,29 @@ second curation queue forks the consent lifecycle. Auto-enactment is premature
 before owner trust exists. ANN infrastructure and per-finding incremental
 diagnostics add moving parts before a single-owner corpus proves the simple
 snapshot scan inadequate.
+
+## 043 — Spend table is one server-authored projection of the receipt ledger [P2.4, ADR-024, M3SP]
+
+**Decision.** Add one bearer-protected `GET /v1/spend/table` read at API contract
+0.1.9. With no repeated `thread_id` parameters it returns every conversation plus
+non-thread work grouped by purpose; with thread ids it returns only that thread or
+stack slice. The projection reads `spend_event` directly in one statement. It groups
+conversation then model, maps `input_fresh` to input, combines `input_cached` and
+`cache_write` as KV cache, and preserves reasoning and output. Totals cover all time;
+spend per hour covers the trailing sixty minutes from one server timestamp. Costs,
+receipt counts, and unpriced counts travel together so partial pricing stays visible.
+
+Keep conversation names out of Palace: the local Harness catalog resolves them. An
+explicit empty thread slice returns no rows without reading global state. No new view,
+table, cache, or write path is introduced.
+
+**Motivation.** P2.4 needs a table the existing minute Vitals lanes cannot express,
+but ADR-024 already owns every source fact. A single projection answers global,
+thread, and stack cost questions without making the browser a second accountant or
+making display state durable Palace data.
+
+**Rejected alternatives.** Browser aggregation loses authoritative nesting and exact
+unpriced state. Separate global/thread/stack endpoints duplicate one filter. A new
+materialized view adds refresh lifecycle before the single-owner ledger needs it.
+Persisting thread names in spend receipts couples a local presentation concern to the
+append-only accounting authority.

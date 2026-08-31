@@ -104,6 +104,77 @@ class SpendEventsResponse(SpendContract):
     accepted: int = Field(strict=True, ge=1)
 
 
+class SpendTableMetrics(SpendContract):
+    """Exact token lanes plus honest known-cost state for one ledger grouping."""
+
+    input_tokens: Decimal = Field(ge=0, max_digits=30, decimal_places=9)
+    kv_cache_tokens: Decimal = Field(ge=0, max_digits=30, decimal_places=9)
+    reasoning_tokens: Decimal = Field(ge=0, max_digits=30, decimal_places=9)
+    output_tokens: Decimal = Field(ge=0, max_digits=30, decimal_places=9)
+    total_usd: Decimal | None = Field(default=None, ge=0, max_digits=20, decimal_places=12)
+    total_receipt_lines: int = Field(strict=True, ge=0)
+    total_unpriced_lines: int = Field(strict=True, ge=0)
+    spend_per_hour_usd: Decimal | None = Field(
+        default=None, ge=0, max_digits=20, decimal_places=12
+    )
+    hourly_receipt_lines: int = Field(strict=True, ge=0)
+    hourly_unpriced_lines: int = Field(strict=True, ge=0)
+
+    @model_validator(mode="after")
+    def require_honest_costs(self) -> SpendTableMetrics:
+        _require_honest_cost(
+            self.total_usd, self.total_receipt_lines, self.total_unpriced_lines
+        )
+        _require_honest_cost(
+            self.spend_per_hour_usd,
+            self.hourly_receipt_lines,
+            self.hourly_unpriced_lines,
+        )
+        return self
+
+
+class ModelSpendRow(SpendTableMetrics):
+    model: NonBlankString | None
+
+
+class ThreadSpendRow(SpendTableMetrics):
+    thread_id: UUID
+    models: list[ModelSpendRow]
+
+
+class PurposeSpendRow(SpendTableMetrics):
+    purpose: SpendPurpose
+    label: NonBlankString
+
+
+class SpendTableSnapshot(SpendContract):
+    as_of: datetime
+    window_minutes: Literal[60]
+    threads: list[ThreadSpendRow]
+    purposes: list[PurposeSpendRow]
+
+    @field_validator("as_of")
+    @classmethod
+    def require_aware_as_of(cls, value: datetime) -> datetime:
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError("as_of must include a UTC offset")
+        return value
+
+
+def _require_honest_cost(
+    cost: Decimal | None,
+    receipt_lines: int,
+    unpriced_lines: int,
+) -> None:
+    if unpriced_lines > receipt_lines:
+        raise ValueError("unpriced receipt lines cannot exceed receipt lines")
+    all_unpriced = receipt_lines == unpriced_lines
+    if all_unpriced and receipt_lines > 0 and cost is not None:
+        raise ValueError("an all-unpriced row must have null cost")
+    if not all_unpriced and cost is None:
+        raise ValueError("a row with priced receipt lines must carry known cost")
+
+
 def event_values(event: SpendEventInput) -> dict[str, Any]:
     """Return database-ready values without lossy JSON number conversion."""
 
@@ -117,6 +188,11 @@ __all__ = [
     "SpendEventInput",
     "SpendEventsRequest",
     "SpendEventsResponse",
+    "SpendTableMetrics",
+    "SpendTableSnapshot",
+    "ModelSpendRow",
+    "ThreadSpendRow",
+    "PurposeSpendRow",
     "SpendProductType",
     "SpendPurpose",
     "event_values",
