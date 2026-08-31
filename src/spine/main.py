@@ -131,6 +131,7 @@ def create_app(
         curator_verdict_provider,
         queue_service,
         trigger_every=resolved.curator_write_trigger,
+        pressure_trigger_every=resolved.curator_pressure_trigger,
     )
     curator_worker = CuratorWorker(
         curator_service,

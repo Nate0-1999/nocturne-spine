@@ -614,6 +614,11 @@
             "title": "Admitted Writes",
             "type": "integer"
           },
+          "last_run_pressure": {
+            "minimum": 0.0,
+            "title": "Last Run Pressure",
+            "type": "integer"
+          },
           "last_run_writes": {
             "minimum": 0.0,
             "title": "Last Run Writes",
@@ -632,6 +637,21 @@
           "pending_cards": {
             "minimum": 0.0,
             "title": "Pending Cards",
+            "type": "integer"
+          },
+          "pressure_events": {
+            "minimum": 0.0,
+            "title": "Pressure Events",
+            "type": "integer"
+          },
+          "pressure_trigger_every": {
+            "exclusiveMinimum": 0.0,
+            "title": "Pressure Trigger Every",
+            "type": "integer"
+          },
+          "pressure_until_run": {
+            "minimum": 0.0,
+            "title": "Pressure Until Run",
             "type": "integer"
           },
           "principal_id": {
@@ -653,8 +673,12 @@
           "principal_id",
           "admitted_writes",
           "last_run_writes",
+          "pressure_events",
+          "last_run_pressure",
           "trigger_every",
+          "pressure_trigger_every",
           "writes_until_run",
+          "pressure_until_run",
           "latest_run",
           "pending_cards"
         ],
@@ -688,6 +712,11 @@
           "executed_count": {
             "minimum": 0.0,
             "title": "Executed Count",
+            "type": "integer"
+          },
+          "pressure_snapshot": {
+            "minimum": 0.0,
+            "title": "Pressure Snapshot",
             "type": "integer"
           },
           "principal_id": {
@@ -736,6 +765,7 @@
           "trigger",
           "status",
           "admitted_writes_snapshot",
+          "pressure_snapshot",
           "verdict_count",
           "queued_count",
           "executed_count",

@@ -136,6 +136,33 @@ async def test_health_report_is_byte_stable_for_one_snapshot(
 
 
 @pytest.mark.asyncio
+async def test_removal_pressure_wakes_the_same_durable_curator_path(
+    memory_client: AsyncClient,
+    memory_app: FastAPI,
+    embedding_provider: ScriptedEmbeddingProvider,
+    memory_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    await _seed_mess(memory_client, embedding_provider, memory_session_factory)
+    service = CuratorService(
+        memory_session_factory,
+        HealthReportBuilder(memory_session_factory, duplicate_floor=0.89),
+        FixtureCuratorProvider(),
+        memory_app.state.queue_service,
+        trigger_every=100,
+        pressure_trigger_every=3,
+    )
+
+    receipts = await service.run_due()
+
+    assert len(receipts) == 1
+    assert receipts[0].trigger == "injection_pressure"
+    assert receipts[0].pressure_snapshot == 3
+    activity = await service.activity("fixture-owner")
+    assert activity.last_run_pressure == activity.pressure_events == 3
+    assert activity.pressure_until_run == 3
+
+
+@pytest.mark.asyncio
 async def test_messy_palace_runs_queues_and_tidies_only_after_explicit_consent(
     memory_client: AsyncClient,
     memory_app: FastAPI,

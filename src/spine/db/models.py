@@ -321,6 +321,11 @@ class CuratorTriggerState(Base):
             "last_run_writes >= 0 AND last_run_writes <= admitted_writes",
             name="curator_trigger_cursor_check",
         ),
+        CheckConstraint("pressure_events >= 0", name="curator_trigger_pressure_check"),
+        CheckConstraint(
+            "last_run_pressure >= 0 AND last_run_pressure <= pressure_events",
+            name="curator_trigger_pressure_cursor_check",
+        ),
     )
 
     principal_id: Mapped[str] = mapped_column(Text, primary_key=True)
@@ -328,6 +333,12 @@ class CuratorTriggerState(Base):
         BigInteger, nullable=False, server_default=text("0")
     )
     last_run_writes: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, server_default=text("0")
+    )
+    pressure_events: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, server_default=text("0")
+    )
+    last_run_pressure: Mapped[int] = mapped_column(
         BigInteger, nullable=False, server_default=text("0")
     )
     updated_at: Mapped[datetime] = mapped_column(
@@ -346,6 +357,7 @@ class CuratorRun(Base):
         ),
         CheckConstraint("status IN ('completed','failed')", name="curator_run_status_check"),
         CheckConstraint("admitted_writes_snapshot >= 0", name="curator_run_writes_check"),
+        CheckConstraint("pressure_snapshot >= 0", name="curator_run_pressure_check"),
         CheckConstraint(
             "verdict_count >= 0 AND queued_count >= 0 AND executed_count >= 0",
             name="curator_run_counts_check",
@@ -369,6 +381,7 @@ class CuratorRun(Base):
     report_version: Mapped[str] = mapped_column(Text, nullable=False)
     report: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     admitted_writes_snapshot: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    pressure_snapshot: Mapped[int] = mapped_column(BigInteger, nullable=False)
     verdict_count: Mapped[int] = mapped_column(Integer, nullable=False)
     queued_count: Mapped[int] = mapped_column(Integer, nullable=False)
     executed_count: Mapped[int] = mapped_column(Integer, nullable=False)

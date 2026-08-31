@@ -1115,9 +1115,9 @@ owner tap; a manual lock would create a second override contract.
 of one active corpus snapshot: similarity pairs, contradiction edges, 180-day
 uncited staleness, zero-citation/three-removal slop, keyword hygiene, clusters,
 and revision-derived stats deltas. Run it after each 25 newly admitted active
-units by a durable database cursor, with manual, cron, and injection-pressure
-entry points using the same principal advisory lock. The LLM judges each
-finding through a closed action contract but receives no write capability.
+units or three newly recorded removals by durable database cursors, with manual
+and cron entry points using the same principal advisory lock. The LLM judges
+each finding through a closed action contract but receives no write capability.
 
 In the early era, every change becomes an ordinary corpus-born curator queue
 card and requires explicit human consent. Queue birth freezes the diagnosed

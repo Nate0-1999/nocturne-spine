@@ -52,37 +52,58 @@ class CuratorService:
         queue_service: QueueService,
         *,
         trigger_every: int = 25,
+        pressure_trigger_every: int = 3,
     ) -> None:
-        if trigger_every <= 0:
-            raise ValueError("curator_write_trigger must be positive")
+        if trigger_every <= 0 or pressure_trigger_every <= 0:
+            raise ValueError("curator trigger thresholds must be positive")
         self._session_factory = session_factory
         self._report_builder = report_builder
         self._provider = verdict_provider
         self._queue_service = queue_service
         self._trigger_every = trigger_every
+        self._pressure_trigger_every = pressure_trigger_every
 
     async def run_due(self) -> list[CuratorRunReceipt]:
-        """Run each principal whose durable admitted-write cursor crossed the threshold."""
+        """Run principals whose durable write or removal-pressure cursor is due."""
 
         state = CuratorTriggerState.__table__
         async with self._session_factory() as session:
-            principals = (
+            due_rows = (
                 (
                     await session.execute(
-                        select(state.c.principal_id)
+                        select(
+                            state.c.principal_id,
+                            (
+                                state.c.admitted_writes - state.c.last_run_writes
+                                >= self._trigger_every
+                            ).label("writes_due"),
+                            (
+                                state.c.pressure_events - state.c.last_run_pressure
+                                >= self._pressure_trigger_every
+                            ).label("pressure_due"),
+                        )
                         .where(
-                            state.c.admitted_writes - state.c.last_run_writes
-                            >= self._trigger_every
+                            (
+                                state.c.admitted_writes - state.c.last_run_writes
+                                >= self._trigger_every
+                            )
+                            | (
+                                state.c.pressure_events - state.c.last_run_pressure
+                                >= self._pressure_trigger_every
+                            )
                         )
                         .order_by(state.c.principal_id.asc())
                     )
                 )
-                .scalars()
+                .mappings()
                 .all()
             )
         receipts: list[CuratorRunReceipt] = []
-        for principal_id in principals:
-            receipt = await self.run(principal_id, machine_id="spine:curator", trigger="writes")
+        for due in due_rows:
+            trigger: Trigger = "writes" if due["writes_due"] else "injection_pressure"
+            receipt = await self.run(
+                due["principal_id"], machine_id="spine:curator", trigger=trigger
+            )
             if receipt is not None:
                 receipts.append(receipt)
         return receipts
@@ -160,13 +181,22 @@ class CuratorService:
             )
         admitted = 0 if state_row is None else int(state_row["admitted_writes"])
         cursor = 0 if state_row is None else int(state_row["last_run_writes"])
+        pressure = 0 if state_row is None else int(state_row["pressure_events"])
+        pressure_cursor = 0 if state_row is None else int(state_row["last_run_pressure"])
         outstanding = max(0, admitted - cursor)
+        pressure_outstanding = max(0, pressure - pressure_cursor)
         return CuratorActivity(
             principal_id=principal_id,
             admitted_writes=admitted,
             last_run_writes=cursor,
+            pressure_events=pressure,
+            last_run_pressure=pressure_cursor,
             trigger_every=self._trigger_every,
+            pressure_trigger_every=self._pressure_trigger_every,
             writes_until_run=max(0, self._trigger_every - outstanding),
+            pressure_until_run=max(
+                0, self._pressure_trigger_every - pressure_outstanding
+            ),
             latest_run=None if run_row is None else _receipt(run_row),
             pending_cards=int(pending or 0),
         )
@@ -180,7 +210,7 @@ class CuratorService:
     ) -> CuratorRunReceipt:
         run_uid = mint_ulid()
         report = await self._report_builder.build(principal_id)
-        admitted = await self._admitted_writes(principal_id)
+        admitted, pressure = await self._trigger_snapshot(principal_id)
         judged: list[_JudgedFinding] = []
         try:
             for finding in report.findings:
@@ -211,6 +241,7 @@ class CuratorService:
                 trigger=trigger,
                 report=report,
                 admitted=admitted,
+                pressure=pressure,
                 error=error,
             )
             return await self._run_receipt(run_uid)
@@ -264,21 +295,27 @@ class CuratorService:
             trigger=trigger,
             report=report,
             admitted=admitted,
+            pressure=pressure,
             judged=judged,
             actions=actions,
             queued=queued,
         )
-        await self._advance_cursor(principal_id, admitted)
+        await self._advance_cursor(principal_id, admitted, pressure)
         return await self._run_receipt(run_uid)
 
-    async def _admitted_writes(self, principal_id: str) -> int:
+    async def _trigger_snapshot(self, principal_id: str) -> tuple[int, int]:
         async with self._session_factory() as session:
-            value = await session.scalar(
-                select(CuratorTriggerState.admitted_writes).where(
-                    CuratorTriggerState.principal_id == principal_id
+            row = (
+                await session.execute(
+                    select(
+                        CuratorTriggerState.admitted_writes,
+                        CuratorTriggerState.pressure_events,
+                    ).where(
+                        CuratorTriggerState.principal_id == principal_id
+                    )
                 )
-            )
-        return int(value or 0)
+            ).one_or_none()
+        return (0, 0) if row is None else (int(row[0]), int(row[1]))
 
     async def _was_seen_unchanged(self, finding: HealthFinding, action: str) -> bool:
         async with self._session_factory() as session:
@@ -306,6 +343,7 @@ class CuratorService:
         trigger: Trigger,
         report: PalaceHealthReport,
         admitted: int,
+        pressure: int,
         error: str,
     ) -> None:
         async with self._session_factory() as session:
@@ -318,6 +356,7 @@ class CuratorService:
                         report_version=report.version,
                         report=report.model_dump(mode="json"),
                         admitted_writes_snapshot=admitted,
+                        pressure_snapshot=pressure,
                         verdict_count=0,
                         queued_count=0,
                         executed_count=0,
@@ -334,6 +373,7 @@ class CuratorService:
         trigger: Trigger,
         report: PalaceHealthReport,
         admitted: int,
+        pressure: int,
         judged: list[_JudgedFinding],
         actions: list[tuple[_JudgedFinding, str, str | None, dict[str, Any]]],
         queued: int,
@@ -348,6 +388,7 @@ class CuratorService:
                         report_version=report.version,
                         report=report.model_dump(mode="json"),
                         admitted_writes_snapshot=admitted,
+                        pressure_snapshot=pressure,
                         verdict_count=len(judged),
                         queued_count=queued,
                         executed_count=0,
@@ -388,7 +429,7 @@ class CuratorService:
                         )
                     )
 
-    async def _advance_cursor(self, principal_id: str, admitted: int) -> None:
+    async def _advance_cursor(self, principal_id: str, admitted: int, pressure: int) -> None:
         async with self._session_factory() as session:
             async with session.begin():
                 await session.execute(
@@ -397,10 +438,16 @@ class CuratorService:
                         principal_id=principal_id,
                         admitted_writes=admitted,
                         last_run_writes=admitted,
+                        pressure_events=pressure,
+                        last_run_pressure=pressure,
                     )
                     .on_conflict_do_update(
                         index_elements=[CuratorTriggerState.principal_id],
-                        set_={"last_run_writes": admitted, "updated_at": func.now()},
+                        set_={
+                            "last_run_writes": admitted,
+                            "last_run_pressure": pressure,
+                            "updated_at": func.now(),
+                        },
                     )
                 )
 
@@ -425,6 +472,7 @@ def _receipt(row: Any) -> CuratorRunReceipt:
         trigger=row["trigger"],
         status=row["status"],
         admitted_writes_snapshot=row["admitted_writes_snapshot"],
+        pressure_snapshot=row["pressure_snapshot"],
         verdict_count=row["verdict_count"],
         queued_count=row["queued_count"],
         executed_count=row["executed_count"],

@@ -248,6 +248,8 @@ async def test_models_match_authoritative_c2_schema(
             "principal_id",
             "admitted_writes",
             "last_run_writes",
+            "pressure_events",
+            "last_run_pressure",
             "updated_at",
         ),
         "curator_run": (
@@ -257,6 +259,7 @@ async def test_models_match_authoritative_c2_schema(
             "report_version",
             "report",
             "admitted_writes_snapshot",
+            "pressure_snapshot",
             "verdict_count",
             "queued_count",
             "executed_count",
@@ -588,6 +591,8 @@ async def test_models_match_authoritative_c2_schema(
         "curator_trigger_state.principal_id": "TEXT",
         "curator_trigger_state.admitted_writes": "BIGINT",
         "curator_trigger_state.last_run_writes": "BIGINT",
+        "curator_trigger_state.pressure_events": "BIGINT",
+        "curator_trigger_state.last_run_pressure": "BIGINT",
         "curator_trigger_state.updated_at": "TIMESTAMP WITH TIME ZONE",
         "curator_run.run_uid": "TEXT",
         "curator_run.principal_id": "TEXT",
@@ -595,6 +600,7 @@ async def test_models_match_authoritative_c2_schema(
         "curator_run.report_version": "TEXT",
         "curator_run.report": "JSONB",
         "curator_run.admitted_writes_snapshot": "BIGINT",
+        "curator_run.pressure_snapshot": "BIGINT",
         "curator_run.verdict_count": "INTEGER",
         "curator_run.queued_count": "INTEGER",
         "curator_run.executed_count": "INTEGER",
@@ -763,6 +769,8 @@ async def test_models_match_authoritative_c2_schema(
         "approval_decision.created_at": "now()",
         "curator_trigger_state.admitted_writes": "0",
         "curator_trigger_state.last_run_writes": "0",
+        "curator_trigger_state.pressure_events": "0",
+        "curator_trigger_state.last_run_pressure": "0",
         "curator_trigger_state.updated_at": "now()",
         "curator_run.started_at": "now()",
         "curator_run.completed_at": "now()",
@@ -862,6 +870,10 @@ async def test_models_match_authoritative_c2_schema(
             "curator_trigger_cursor_check": (
                 "last_run_writes >= 0 AND last_run_writes <= admitted_writes"
             ),
+            "curator_trigger_pressure_check": "pressure_events >= 0",
+            "curator_trigger_pressure_cursor_check": (
+                "last_run_pressure >= 0 AND last_run_pressure <= pressure_events"
+            ),
         },
         "curator_run": {
             "curator_run_trigger_check": (
@@ -869,6 +881,7 @@ async def test_models_match_authoritative_c2_schema(
             ),
             "curator_run_status_check": "status IN ('completed','failed')",
             "curator_run_writes_check": "admitted_writes_snapshot >= 0",
+            "curator_run_pressure_check": "pressure_snapshot >= 0",
             "curator_run_counts_check": (
                 "verdict_count >= 0 AND queued_count >= 0 AND executed_count >= 0"
             ),
