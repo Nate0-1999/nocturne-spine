@@ -10,7 +10,7 @@ import pytest
 from conftest import ScriptedEmbeddingProvider, basis_vector, vector_with_cosine
 from fastapi import FastAPI
 from httpx import AsyncClient
-from sqlalchemy import func, select, update
+from sqlalchemy import func, insert, select, update
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -26,6 +26,7 @@ from spine.db.models import (
     MemoryRevision,
     MemoryUnit,
 )
+from spine.ids import mint_ulid
 from spine.queue.contracts import QueueDecisionRequest
 
 
@@ -55,6 +56,67 @@ class FixtureCuratorProvider:
                 rationale="Repeated removals and no citations make this unit harmful.",
             )
         return CuratorVerdictDraft(action="keep", rationale="No bounded change is justified.")
+
+
+class CompleteFixtureCuratorProvider:
+    """Exercise every diagnostic family through one closed surgeon action."""
+
+    async def verdict(
+        self,
+        finding: HealthFinding,
+        report: PalaceHealthReport,
+        *,
+        run_uid: str,
+        machine_id: str,
+    ) -> CuratorVerdictDraft:
+        del report, run_uid, machine_id
+        if finding.kind == "duplicate":
+            return CuratorVerdictDraft(
+                action="merge",
+                rationale="These units duplicate one durable claim.",
+                label="Canonical archive hour",
+                body="The canonical archive closing time is nine.",
+                keywords=["archive", "closing"],
+            )
+        if finding.kind == "contradiction":
+            return CuratorVerdictDraft(
+                action="supersede",
+                rationale="One current statement should supersede both conflicting claims.",
+                label="Current studio access",
+                body="The studio is open on Tuesdays by appointment.",
+                keywords=["studio", "tuesday"],
+            )
+        if finding.kind == "stale":
+            return CuratorVerdictDraft(
+                action="retire",
+                rationale="This uncited operating note has been stale for more than a year.",
+            )
+        if finding.kind == "slop":
+            return CuratorVerdictDraft(
+                action="split",
+                rationale="The repeatedly removed note contains two independent useful facts.",
+                children=[
+                    {
+                        "label": "North entrance",
+                        "body": "Use the north entrance after sunset.",
+                        "kind": "fact",
+                        "keywords": ["north", "entrance"],
+                    },
+                    {
+                        "label": "Badge desk",
+                        "body": "Visitor badges are collected at the front desk.",
+                        "kind": "fact",
+                        "keywords": ["visitor", "badge"],
+                    },
+                ],
+            )
+        if finding.kind == "keyword":
+            return CuratorVerdictDraft(
+                action="keyword_repair",
+                rationale="Stable lowercase terms restore lexical findability.",
+                keywords=["owner", "provenance"],
+            )
+        raise AssertionError(f"unhandled finding: {finding.kind}")
 
 
 def _memory(label: str, body: str, *, force: bool = False) -> dict[str, Any]:
@@ -377,6 +439,209 @@ async def test_split_tool_preserves_lineage_and_public_maintenance_bypass_is_ref
     assert source_tombstone is not None
     assert {revision.parent_uid for revision in revisions} == {source_tombstone.rev_uid}
     assert sibling_edges == 2
+
+
+@pytest.mark.asyncio
+async def test_full_messy_fixture_runs_trigger_report_verdict_queue_and_every_tool(
+    memory_client: AsyncClient,
+    memory_app: FastAPI,
+    embedding_provider: ScriptedEmbeddingProvider,
+    memory_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """M3CU exit: one owned fixture measurably tidies every reported rot family."""
+
+    bodies = {
+        "duplicate_a": "The archive closes at nine.",
+        "duplicate_b": "Archive closing time is nine.",
+        "contradiction_a": "The studio is never open on Tuesdays.",
+        "contradiction_b": "The studio is always open on Tuesdays.",
+        "stale": "Call the retired pager for weekend access.",
+        "slop": "Use the north entrance. Collect visitor badges at the front desk.",
+        "keyword": "The owner architecture preserves provenance.",
+    }
+    vectors = {
+        bodies["duplicate_a"]: basis_vector(0),
+        bodies["duplicate_b"]: vector_with_cosine(0.90),
+        bodies["contradiction_a"]: basis_vector(2),
+        bodies["contradiction_b"]: basis_vector(3),
+        bodies["stale"]: basis_vector(4),
+        bodies["slop"]: basis_vector(5),
+        bodies["keyword"]: basis_vector(6),
+        "The canonical archive closing time is nine.": basis_vector(7),
+        "The studio is open on Tuesdays by appointment.": basis_vector(8),
+        "Use the north entrance after sunset.": basis_vector(9),
+        "Visitor badges are collected at the front desk.": basis_vector(10),
+    }
+    for body, vector in vectors.items():
+        embedding_provider.set(body, vector)
+
+    labels = {
+        "duplicate_a": "Archive first",
+        "duplicate_b": "Archive second",
+        "contradiction_a": "Studio closed",
+        "contradiction_b": "Studio open",
+        "stale": "Retired pager",
+        "slop": "Mixed access note",
+        "keyword": "Owner architecture",
+    }
+    created: dict[str, UUID] = {}
+    for key in bodies:
+        response = await memory_client.post(
+            "/v1/memories",
+            json=_memory(labels[key], bodies[key], force=key == "duplicate_b"),
+        )
+        assert response.status_code == 201
+        created[key] = UUID(response.json()["created"]["memory_id"])
+
+    async with memory_session_factory() as session, session.begin():
+        await session.execute(
+            update(MemoryUnit)
+            .where(MemoryUnit.id == created["stale"])
+            .values(
+                updated_at=datetime(2025, 1, 1, tzinfo=UTC),
+                stats={"citations": 0, "removals": 0, "reinforcements": 0},
+            )
+        )
+        await session.execute(
+            update(MemoryUnit)
+            .where(MemoryUnit.id == created["slop"])
+            .values(stats={"citations": 0, "removals": 3, "reinforcements": 0})
+        )
+        await session.execute(
+            update(MemoryUnit)
+            .where(MemoryUnit.id == created["keyword"])
+            .values(keywords=["Broken", "Broken"])
+        )
+        await session.execute(
+            insert(MemoryEdge).values(
+                edge_uid=mint_ulid(),
+                from_memory_id=created["contradiction_a"],
+                to_memory_id=created["contradiction_b"],
+                edge_type="contradicts",
+            )
+        )
+
+    service = CuratorService(
+        memory_session_factory,
+        HealthReportBuilder(memory_session_factory, duplicate_floor=0.89),
+        CompleteFixtureCuratorProvider(),
+        memory_app.state.queue_service,
+        trigger_every=7,
+    )
+    receipts = await service.run_due()
+
+    assert len(receipts) == 1
+    receipt = receipts[0]
+    assert receipt.trigger == "writes"
+    assert receipt.admitted_writes_snapshot == 7
+    assert [finding.kind for finding in receipt.report.findings] == [
+        "contradiction",
+        "duplicate",
+        "keyword",
+        "slop",
+        "stale",
+    ]
+    assert receipt.verdict_count == receipt.queued_count == 5
+    assert receipt.executed_count == 0
+
+    async with memory_session_factory() as session:
+        cards = (
+            await session.scalars(
+                select(ApprovalQueueItem)
+                .where(ApprovalQueueItem.curator_run_uid == receipt.run_uid)
+                .order_by(ApprovalQueueItem.verdict)
+            )
+        ).all()
+    assert {card.verdict for card in cards} == {
+        "keyword_repair",
+        "merge",
+        "retire",
+        "split",
+        "supersede",
+    }
+    assert all(card.state == "pending" for card in cards)
+
+    for card in cards:
+        await memory_app.state.queue_service.decide(
+            card.item_uid,
+            QueueDecisionRequest(
+                decision="approve",
+                approval_mode="explicit",
+                actor_class="human",
+                machine_id="fixture-mac",
+            ),
+        )
+
+    async with memory_session_factory() as session:
+        units = (
+            await session.scalars(
+                select(MemoryUnit).where(MemoryUnit.principal_id == "fixture-owner")
+            )
+        ).all()
+        edge_counts = dict(
+            (
+                await session.execute(
+                    select(MemoryEdge.edge_type, func.count())
+                    .group_by(MemoryEdge.edge_type)
+                    .order_by(MemoryEdge.edge_type)
+                )
+            ).all()
+        )
+        reasons = set(
+            await session.scalars(
+                select(MemoryRevision.reason).where(MemoryRevision.editor == "maintenance")
+            )
+        )
+        final_states = set(
+            await session.scalars(
+                select(ApprovalQueueItem.state).where(
+                    ApprovalQueueItem.curator_run_uid == receipt.run_uid
+                )
+            )
+        )
+        action_outcomes = list(
+            await session.scalars(
+                select(CuratorAction.outcome)
+                .join(
+                    CuratorFinding,
+                    CuratorFinding.finding_uid == CuratorAction.finding_uid,
+                )
+                .where(CuratorFinding.run_uid == receipt.run_uid)
+                .order_by(CuratorAction.action_uid)
+            )
+        )
+
+    by_label = {unit.label: unit for unit in units}
+    active_labels = {unit.label for unit in units if unit.status == "active"}
+    assert active_labels == {
+        "Badge desk",
+        "Canonical archive hour",
+        "Current studio access",
+        "North entrance",
+        "Owner architecture",
+    }
+    assert by_label["Owner architecture"].keywords == ["owner", "provenance"]
+    assert by_label["Retired pager"].status == "tombstoned"
+    assert by_label["Mixed access note"].status == "tombstoned"
+    assert edge_counts == {
+        "contradicts": 1,
+        "merged_from": 2,
+        "relates_to": 2,
+        "supersedes": 2,
+    }
+    child_vectors = [
+        list(by_label["North entrance"].embedding),
+        list(by_label["Badge desk"].embedding),
+    ]
+    assert child_vectors[0] != child_vectors[1]
+    assert child_vectors == [basis_vector(9), basis_vector(10)]
+    assert final_states == {"approved"}
+    assert action_outcomes == ["queued"] * 5
+    assert any(reason.endswith("/merge") for reason in reasons)
+    assert any(reason.endswith("/supersede") for reason in reasons)
+    assert any(reason.endswith("/retire") for reason in reasons)
+    assert any(reason.endswith("/keyword-repair") for reason in reasons)
+    assert any(reason.endswith("/split-source") for reason in reasons)
 
 
 @pytest.mark.asyncio
