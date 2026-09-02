@@ -42,6 +42,7 @@ class ExtractionRequest(ContractModel):
     thread_id: UUID
     machine_id: str = Field(min_length=1)
     editor: str = Field(min_length=1)
+    origin_location: str | None = None
     candidates: list[ExtractionCandidate] = Field(max_length=5)
 
 

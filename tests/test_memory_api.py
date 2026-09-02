@@ -444,6 +444,7 @@ async def test_create_writes_root_attribution_and_checks_label_before_embedding(
             thread_origin="thread-1",
             origin_thread_id="00000000-0000-4000-8000-000000000111",
             origin_path="src/spine/memory",
+            origin_location="/workspace/src/spine/memory",
         ),
     )
     created = _assert_json(created_response, 201)["created"]
@@ -459,6 +460,7 @@ async def test_create_writes_root_attribution_and_checks_label_before_embedding(
         "thread_origin",
         "origin_thread_id",
         "origin_path",
+        "origin_location",
         "pin",
         "status",
         "revision",
@@ -473,6 +475,7 @@ async def test_create_writes_root_attribution_and_checks_label_before_embedding(
     assert created["keywords"] == ["editor", "style"]
     assert created["project_key"] == "alpha"
     assert created["thread_origin"] == "thread-1"
+    assert created["origin_location"] == "/workspace/src/spine/memory"
     assert created["origin_thread_id"] == "00000000-0000-4000-8000-000000000111"
     assert created["origin_path"] == "src/spine/memory"
     assert created["status"] == "active"

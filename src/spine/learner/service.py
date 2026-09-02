@@ -330,6 +330,7 @@ class LearnerService:
                 training,
                 incumbent_weights=_weight_tuple(incumbent.weights),
                 incumbent_thread_weight=incumbent.params.thread_weight,
+                incumbent_where_weight=incumbent.params.where_weight,
                 incumbent_tau=incumbent.params.tau,
                 incumbent_memory_context_share=incumbent.params.memory_context_share,
                 share_boundaries=training_boundaries,
@@ -357,6 +358,7 @@ class LearnerService:
             weights=fit.weights,
             bias_offsets=fit.bias_offsets,
             thread_weight=fit.thread_weight,
+            where_weight=fit.where_weight,
             tau=fit.tau,
             share_boundaries=training_boundaries,
             memory_context_share=fit.memory_context_share,
@@ -371,6 +373,7 @@ class LearnerService:
             weights=fit.weights,
             bias_offsets=fit.bias_offsets,
             thread_weight=fit.thread_weight,
+            where_weight=fit.where_weight,
             tau=fit.tau,
             share_boundaries=holdout_boundaries,
             memory_context_share=fit.memory_context_share,
@@ -390,6 +393,8 @@ class LearnerService:
         evaluated_params.pop("_learner", None)
         if "thread_weight" in evaluated_params or fit.thread_weight != 0.0:
             evaluated_params["thread_weight"] = fit.thread_weight
+        if "where_weight" in evaluated_params or fit.where_weight != 0.0:
+            evaluated_params["where_weight"] = fit.where_weight
         if fit.share_tau_active:
             evaluated_params["tau"] = fit.tau
             evaluated_params["memory_context_share"] = fit.memory_context_share
@@ -485,6 +490,7 @@ class LearnerService:
                 "objective": fit.objective,
                 "training_pairs": fit.pair_count,
                 "thread_weight": fit.thread_weight,
+                "where_weight": fit.where_weight,
                 "tau": fit.tau,
                 "memory_context_share": fit.memory_context_share,
                 "share_tau_active": fit.share_tau_active,
@@ -502,6 +508,8 @@ class LearnerService:
         }
         if "thread_weight" in proposal_params or fit.thread_weight != 0.0:
             proposal_params["thread_weight"] = fit.thread_weight
+        if "where_weight" in proposal_params or fit.where_weight != 0.0:
+            proposal_params["where_weight"] = fit.where_weight
         if fit.share_tau_active:
             proposal_params["tau"] = fit.tau
             proposal_params["memory_context_share"] = fit.memory_context_share

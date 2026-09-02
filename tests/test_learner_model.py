@@ -35,6 +35,7 @@ def _example(
     shown_as: str,
     actor_weight: Decimal = Decimal(1),
     thread_feature: float | None = None,
+    where_feature: float | None = None,
 ) -> LearningExample:
     return LearningExample(
         event_uid=f"event-{event:02d}",
@@ -48,6 +49,7 @@ def _example(
         shown_as=shown_as,  # type: ignore[arg-type]
         body_tokens=event,
         thread_feature=thread_feature,
+        where_feature=where_feature,
     )
 
 
@@ -205,6 +207,41 @@ def test_fit_learns_thread_locality_from_human_pairwise_evidence() -> None:
 
     assert fit.thread_weight > 0.08
     assert fit.thread_weight < 1.0
+
+
+def test_fit_learns_where_locality_from_human_pairwise_evidence() -> None:
+    """A-063 registers WHERE with the one learner instead of freezing a hidden coefficient."""
+
+    examples = (
+        _example(
+            event=1,
+            gate=1,
+            memory_id=POSITIVE_ID,
+            sem=0.5,
+            target=True,
+            shown_as="near_miss",
+            where_feature=1.0,
+        ),
+        _example(
+            event=2,
+            gate=1,
+            memory_id=NEGATIVE_ID,
+            sem=0.5,
+            target=False,
+            shown_as="injected",
+            where_feature=0.0,
+        ),
+    )
+
+    fit = fit_pairwise(
+        examples,
+        incumbent_weights=(1 / 6,) * 6,
+        incumbent_where_weight=0.04,
+        settings=FitSettings(pair_margin=0.4, bias_l2=100.0),
+    )
+
+    assert fit.where_weight > 0.04
+    assert fit.where_weight < 1.0
 
 
 def test_share_and_line_stay_fixed_until_the_authentic_feedback_floor() -> None:

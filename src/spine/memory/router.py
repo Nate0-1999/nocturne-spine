@@ -74,6 +74,7 @@ class CreateMemoryRequest(ContractRequest):
     thread_origin: str | None = None
     origin_thread_id: UUID | None = None
     origin_path: str | None = None
+    origin_location: str | None = None
     editor: str
     machine_id: str
     force: bool = False
@@ -92,6 +93,7 @@ class SplitMemoryRequest(ContractRequest):
     thread_origin: str | None = None
     origin_thread_id: UUID | None = None
     origin_path: str | None = None
+    origin_location: str | None = None
     editor: str
     machine_id: str
 
@@ -152,6 +154,7 @@ async def create_memory(
                 thread_origin=body.thread_origin,
                 origin_thread_id=body.origin_thread_id,
                 origin_path=body.origin_path,
+                origin_location=body.origin_location,
                 editor=body.editor,
                 machine_id=body.machine_id,
                 force=body.force,
@@ -213,6 +216,7 @@ async def split_memory(
                 thread_origin=body.thread_origin,
                 origin_thread_id=body.origin_thread_id,
                 origin_path=body.origin_path,
+                origin_location=body.origin_location,
                 editor=body.editor,
                 machine_id=body.machine_id,
             )

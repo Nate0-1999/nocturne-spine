@@ -49,6 +49,7 @@ def _candidate(
     project_key: str | None = None,
     origin_thread_id: UUID | None = None,
     origin_path: str | None = None,
+    origin_location: str | None = None,
     pin: bool = False,
     updated_at: datetime = SNAPSHOT,
     last_human_edit_at: datetime | None = None,
@@ -65,6 +66,7 @@ def _candidate(
         project_key=project_key,
         origin_thread_id=origin_thread_id,
         origin_path=origin_path,
+        origin_location=origin_location,
         pin=pin,
         updated_at=updated_at,
         last_human_edit_at=last_human_edit_at,
@@ -163,6 +165,38 @@ def test_zero_thread_weight_preserves_the_previous_score_exactly() -> None:
     )
 
     assert result.injected[0].score == pytest.approx(0.61)
+
+
+def test_where_feature_orders_same_ancestor_sibling_unrelated_and_missing() -> None:
+    """A-063 makes folder proximity ordered, explainable, and absent for legacy rows."""
+
+    candidates = (
+        _candidate(1, origin_location="/work/atlas/api"),
+        _candidate(2, origin_location="/work/atlas"),
+        _candidate(3, origin_location="/work/atlas/web"),
+        _candidate(4, origin_location="/elsewhere"),
+        _candidate(5),
+    )
+    result = score_and_select(
+        prompt="the and",
+        query_embedding=(1.0, 0.0),
+        snapshot_ts=SNAPSHOT,
+        thread_project_key="/work/atlas",
+        current_location="/work/atlas/api",
+        pinned_candidates=(),
+        regular_candidates=candidates,
+        model_context_tokens=10_000,
+        config=_config(tau=0.0, where_weight=0.04),
+    )
+
+    by_id = {item.candidate.memory_id.int: item for item in result.injected}
+    assert by_id[1].features.where == 1.0
+    assert 0.75 < (by_id[2].features.where or 0.0) < 1.0
+    assert by_id[3].features.where == 0.5
+    assert by_id[4].features.where == 0.0
+    assert by_id[5].features.where is None
+    assert by_id[1].score > by_id[2].score > by_id[3].score > by_id[4].score
+    assert by_id[5].score == pytest.approx(0.61)
 
 
 def test_golden_tau_is_inclusive_and_negative_cosine_clamps_to_zero() -> None:

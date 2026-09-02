@@ -1200,3 +1200,23 @@ a run with its eventual tap destroys append-only history. Random or partial-gate
 sampling makes replay unstable and can split one decision boundary. A new optimizer
 cost table would compete with ADR-024's spend ledger. Blocking prepares behind a fit
 would charge the owner latency for advisory work.
+
+## 045 — WHERE is a nullable learned scalar after thread locality [P1.2, P2.2, A-063]
+
+**Decision.** Store canonical absolute `origin_location` as nullable immutable memory
+birthplace provenance. Score it only when both memory and request locations exist:
+exact folder is 1.0, ancestor or descendant decays above 0.75 by segment distance,
+siblings are 0.5, and unrelated folders are 0.0. Apply the 0.04 term after the existing
+six-feature, workspace-relative location, and conversation-birthplace terms, then add
+bias. Register `where_weight` in the existing pairwise learner as a bounded scalar fit
+and expose its feature and contribution in frozen evidence.
+
+**Motivation.** A separate term answers a different question from project-relative
+location: whether two memories were made while standing near each other on the actual
+filesystem. Null bypass preserves every legacy score exactly, while a smaller initial
+weight than thread birthplace keeps conversation affinity primary.
+
+**Rejected alternatives.** Folding canonical path into `origin_path` breaks existing
+project-relative replay. Treating missing location as unrelated invents negative
+evidence for old rows. A fixed coefficient or second learner would violate the ruled
+single adaptive scorer.

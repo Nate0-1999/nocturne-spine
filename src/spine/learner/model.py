@@ -39,6 +39,8 @@ class LearningExample:
     location_weight: float = 0.0
     thread_feature: float | None = None
     thread_id: UUID | None = None
+    where_feature: float | None = None
+    where_weight: float = 0.0
 
     @property
     def recorded_injected(self) -> bool:
@@ -67,6 +69,7 @@ class FitSettings:
 class FitResult:
     weights: tuple[float, float, float, float, float, float]
     thread_weight: float
+    where_weight: float
     tau: float
     memory_context_share: float
     share_tau_active: bool
@@ -150,6 +153,7 @@ def fit_pairwise(
     *,
     incumbent_weights: Sequence[float],
     incumbent_thread_weight: float = 0.0,
+    incumbent_where_weight: float = 0.0,
     incumbent_tau: float = 0.55,
     incumbent_memory_context_share: float = 0.10,
     share_boundaries: Sequence[ShareBoundary] = (),
@@ -170,8 +174,12 @@ def fit_pairwise(
     biases = {memory_id: 0.0 for memory_id in memory_ids}
     lipschitz = 2.0 * settings.bias_l2
     for positive, negative, actor_weight in pairs:
-        positive_features, _ = _linearized(positive, incumbent_thread_weight)
-        negative_features, _ = _linearized(negative, incumbent_thread_weight)
+        positive_features, _ = _linearized(
+            positive, incumbent_thread_weight, incumbent_where_weight
+        )
+        negative_features, _ = _linearized(
+            negative, incumbent_thread_weight, incumbent_where_weight
+        )
         feature_delta = tuple(
             left - right for left, right in zip(positive_features, negative_features, strict=True)
         )
@@ -187,6 +195,7 @@ def fit_pairwise(
             biases,
             pairs,
             thread_weight=incumbent_thread_weight,
+            where_weight=incumbent_where_weight,
             settings=settings,
         )
         next_weights = _project_simplex(
@@ -204,6 +213,7 @@ def fit_pairwise(
             next_biases,
             pairs,
             thread_weight=incumbent_thread_weight,
+            where_weight=incumbent_where_weight,
             settings=settings,
         )
         change = max(
@@ -224,6 +234,15 @@ def fit_pairwise(
         biases,
         pairs,
         initial=incumbent_thread_weight,
+        where_weight=incumbent_where_weight,
+        settings=settings,
+    )
+    where_weight, where_iterations, objective = _fit_where_weight(
+        weights,
+        biases,
+        pairs,
+        initial=incumbent_where_weight,
+        thread_weight=thread_weight,
         settings=settings,
     )
     tau = incumbent_tau
@@ -235,6 +254,7 @@ def fit_pairwise(
             weights=weights,
             biases=biases,
             thread_weight=thread_weight,
+            where_weight=where_weight,
             incumbent=incumbent_tau,
         )
         memory_context_share, share_iterations = _fit_share(
@@ -245,12 +265,13 @@ def fit_pairwise(
     return FitResult(
         weights=weights,
         thread_weight=thread_weight,
+        where_weight=where_weight,
         tau=tau,
         memory_context_share=memory_context_share,
         share_tau_active=tune_share_and_tau,
         bias_offsets=normalized_biases,
         pair_count=len(pairs),
-        iterations=iterations + thread_iterations + boundary_iterations,
+        iterations=iterations + thread_iterations + where_iterations + boundary_iterations,
         objective=objective,
     )
 
@@ -276,6 +297,7 @@ def challenger_score(
     weights: Sequence[float],
     bias_offsets: Mapping[UUID, float],
     thread_weight: float = 0.0,
+    where_weight: float = 0.0,
     tau: float,
     share_boundaries: Iterable[ShareBoundary] = (),
     memory_context_share: float = 0.10,
@@ -285,7 +307,7 @@ def challenger_score(
     def predicted(example: LearningExample) -> bool:
         if example.shown_as == "pinned":
             return True
-        score = _example_score(example, weights, thread_weight)
+        score = _example_score(example, weights, thread_weight, where_weight)
         score += bias_offsets.get(example.memory_id, 0.0)
         return score >= tau
 
@@ -377,6 +399,7 @@ def _objective_and_gradient(
     pairs: Sequence[tuple[LearningExample, LearningExample, float]],
     *,
     thread_weight: float,
+    where_weight: float,
     settings: FitSettings,
 ) -> tuple[float, list[float], dict[UUID, float]]:
     weight_gradient = [0.0] * len(FEATURE_NAMES)
@@ -385,8 +408,12 @@ def _objective_and_gradient(
     }
     objective = settings.bias_l2 * math.fsum(value * value for value in biases.values())
     for positive, negative, actor_weight in pairs:
-        positive_features, positive_constant = _linearized(positive, thread_weight)
-        negative_features, negative_constant = _linearized(negative, thread_weight)
+        positive_features, positive_constant = _linearized(
+            positive, thread_weight, where_weight
+        )
+        negative_features, negative_constant = _linearized(
+            negative, thread_weight, where_weight
+        )
         feature_delta = tuple(
             left - right for left, right in zip(positive_features, negative_features, strict=True)
         )
@@ -413,6 +440,7 @@ def _objective(
     pairs: Sequence[tuple[LearningExample, LearningExample, float]],
     *,
     thread_weight: float,
+    where_weight: float,
     settings: FitSettings,
 ) -> float:
     return _objective_and_gradient(
@@ -420,6 +448,7 @@ def _objective(
         biases,
         pairs,
         thread_weight=thread_weight,
+        where_weight=where_weight,
         settings=settings,
     )[0]
 
@@ -427,6 +456,7 @@ def _objective(
 def _linearized(
     example: LearningExample,
     thread_weight: float,
+    where_weight: float,
 ) -> tuple[tuple[float, ...], float]:
     """Express one score as six linear weights plus a fixed locality constant."""
 
@@ -443,6 +473,14 @@ def _linearized(
             + (1.0 - thread_weight) * location_constant
             + thread_weight * example.thread_feature
         )
+    if example.where_feature is not None:
+        feature_scale *= 1.0 - where_weight
+        locality_constant = constant - example.baseline_bias
+        constant = (
+            example.baseline_bias
+            + (1.0 - where_weight) * locality_constant
+            + where_weight * example.where_feature
+        )
     return tuple(feature_scale * value for value in example.features), constant
 
 
@@ -450,8 +488,9 @@ def _example_score(
     example: LearningExample,
     weights: Sequence[float],
     thread_weight: float,
+    where_weight: float,
 ) -> float:
-    features, constant = _linearized(example, thread_weight)
+    features, constant = _linearized(example, thread_weight, where_weight)
     return (
         math.fsum(weight * feature for weight, feature in zip(weights, features, strict=True))
         + constant
@@ -464,6 +503,7 @@ def _fit_thread_weight(
     pairs: Sequence[tuple[LearningExample, LearningExample, float]],
     *,
     initial: float,
+    where_weight: float,
     settings: FitSettings,
 ) -> tuple[float, int, float]:
     """Fit the bounded thread coefficient while holding the six weights and biases fixed."""
@@ -472,7 +512,8 @@ def _fit_thread_weight(
     derivatives: list[float] = []
     for positive, negative, _ in pairs:
         derivatives.append(
-            _thread_derivative(positive, weights) - _thread_derivative(negative, weights)
+            _thread_derivative(positive, weights, where_weight)
+            - _thread_derivative(negative, weights, where_weight)
         )
     lipschitz = 2.0 * math.fsum(
         actor_weight * derivative * derivative
@@ -487,6 +528,7 @@ def _fit_thread_weight(
                 biases,
                 pairs,
                 thread_weight=thread_weight,
+                where_weight=where_weight,
                 settings=settings,
             ),
         )
@@ -496,8 +538,8 @@ def _fit_thread_weight(
         iterations = iteration
         gradient = 0.0
         for (positive, negative, actor_weight), derivative in zip(pairs, derivatives, strict=True):
-            difference = _example_score(positive, weights, thread_weight)
-            difference -= _example_score(negative, weights, thread_weight)
+            difference = _example_score(positive, weights, thread_weight, where_weight)
+            difference -= _example_score(negative, weights, thread_weight, where_weight)
             difference += biases[positive.memory_id] - biases[negative.memory_id]
             hinge = settings.pair_margin - difference
             if hinge > 0.0:
@@ -515,12 +557,17 @@ def _fit_thread_weight(
             biases,
             pairs,
             thread_weight=thread_weight,
+            where_weight=where_weight,
             settings=settings,
         ),
     )
 
 
-def _thread_derivative(example: LearningExample, weights: Sequence[float]) -> float:
+def _thread_derivative(
+    example: LearningExample,
+    weights: Sequence[float],
+    where_weight: float,
+) -> float:
     if example.thread_feature is None:
         return 0.0
     pre_thread = math.fsum(
@@ -530,7 +577,95 @@ def _thread_derivative(example: LearningExample, weights: Sequence[float]) -> fl
         pre_thread = (
             1.0 - example.location_weight
         ) * pre_thread + example.location_weight * example.location_feature
-    return example.thread_feature - pre_thread
+    return (1.0 - where_weight) * (example.thread_feature - pre_thread)
+
+
+def _fit_where_weight(
+    weights: Sequence[float],
+    biases: Mapping[UUID, float],
+    pairs: Sequence[tuple[LearningExample, LearningExample, float]],
+    *,
+    initial: float,
+    thread_weight: float,
+    settings: FitSettings,
+) -> tuple[float, int, float]:
+    """Fit the bounded birthplace-folder coefficient after the thread coefficient."""
+
+    where_weight = min(max(float(initial), 0.0), 1.0 - 1e-12)
+    derivatives = [
+        _where_derivative(positive, weights, thread_weight)
+        - _where_derivative(negative, weights, thread_weight)
+        for positive, negative, _ in pairs
+    ]
+    lipschitz = 2.0 * math.fsum(
+        actor_weight * derivative * derivative
+        for (_, _, actor_weight), derivative in zip(pairs, derivatives, strict=True)
+    )
+    if lipschitz <= 0.0:
+        return (
+            where_weight,
+            0,
+            _objective(
+                weights,
+                biases,
+                pairs,
+                thread_weight=thread_weight,
+                where_weight=where_weight,
+                settings=settings,
+            ),
+        )
+    step = 1.0 / lipschitz
+    iterations = 0
+    for iteration in range(1, 10_001):
+        iterations = iteration
+        gradient = 0.0
+        for (positive, negative, actor_weight), derivative in zip(
+            pairs, derivatives, strict=True
+        ):
+            difference = _example_score(positive, weights, thread_weight, where_weight)
+            difference -= _example_score(negative, weights, thread_weight, where_weight)
+            difference += biases[positive.memory_id] - biases[negative.memory_id]
+            hinge = settings.pair_margin - difference
+            if hinge > 0.0:
+                gradient += -2.0 * actor_weight * hinge * derivative
+        next_weight = min(max(where_weight - step * gradient, 0.0), 1.0 - 1e-12)
+        if abs(next_weight - where_weight) <= 1e-11:
+            where_weight = next_weight
+            break
+        where_weight = next_weight
+    return (
+        where_weight,
+        iterations,
+        _objective(
+            weights,
+            biases,
+            pairs,
+            thread_weight=thread_weight,
+            where_weight=where_weight,
+            settings=settings,
+        ),
+    )
+
+
+def _where_derivative(
+    example: LearningExample,
+    weights: Sequence[float],
+    thread_weight: float,
+) -> float:
+    if example.where_feature is None:
+        return 0.0
+    pre_where = math.fsum(
+        weight * feature for weight, feature in zip(weights, example.features, strict=True)
+    )
+    if example.location_feature is not None:
+        pre_where = (
+            1.0 - example.location_weight
+        ) * pre_where + example.location_weight * example.location_feature
+    if example.thread_feature is not None:
+        pre_where = (
+            1.0 - thread_weight
+        ) * pre_where + thread_weight * example.thread_feature
+    return example.where_feature - pre_where
 
 
 def _fit_tau(
@@ -539,6 +674,7 @@ def _fit_tau(
     weights: Sequence[float],
     biases: Mapping[UUID, float],
     thread_weight: float,
+    where_weight: float,
     incumbent: float,
 ) -> tuple[float, int]:
     """Choose the cheapest binary threshold among exact hundredth controls."""
@@ -551,7 +687,8 @@ def _fit_tau(
         injected_tokens = 0
         for example in examples:
             selected = example.shown_as == "pinned" or (
-                _example_score(example, weights, thread_weight) + biases.get(example.memory_id, 0.0)
+                _example_score(example, weights, thread_weight, where_weight)
+                + biases.get(example.memory_id, 0.0)
                 >= candidate
             )
             if selected:
@@ -693,6 +830,8 @@ def _canonical_example(example: LearningExample) -> dict[str, object]:
         "location_feature": example.location_feature,
         "location_weight": example.location_weight,
         "thread_feature": example.thread_feature,
+        "where_feature": example.where_feature,
+        "where_weight": example.where_weight,
     }
 
 

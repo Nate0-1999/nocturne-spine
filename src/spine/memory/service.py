@@ -73,6 +73,7 @@ class CreateMemoryCommand:
     thread_origin: str | None = None
     origin_thread_id: UUID | None = None
     origin_path: str | None = None
+    origin_location: str | None = None
     force: bool = False
     parent_uid: str | None = None
     revision_reason: str = ""
@@ -105,6 +106,7 @@ class SplitMemoryCommand:
     thread_origin: str | None = None
     origin_thread_id: UUID | None = None
     origin_path: str | None = None
+    origin_location: str | None = None
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -426,6 +428,7 @@ class MemoryService:
                     thread_origin=command.thread_origin,
                     origin_thread_id=command.origin_thread_id,
                     origin_path=command.origin_path,
+                    origin_location=command.origin_location,
                     editor=command.editor,
                     machine_id=command.machine_id,
                     revision_reason="remember/source-split",
@@ -466,6 +469,7 @@ class MemoryService:
                                         thread_origin=command.thread_origin,
                                         origin_thread_id=command.origin_thread_id,
                                         origin_path=command.origin_path,
+                                        origin_location=command.origin_location,
                                         editor=command.editor,
                                         machine_id=command.machine_id,
                                         parent_uid=source_revision_uid,
@@ -673,6 +677,7 @@ class MemoryService:
                         thread_origin=source["thread_origin"],
                         origin_thread_id=source["origin_thread_id"],
                         origin_path=source["origin_path"],
+                        origin_location=source["origin_location"],
                         editor="maintenance",
                         machine_id=machine_id,
                         parent_uid=tombstone_revision_uid,
@@ -1128,6 +1133,7 @@ class MemoryService:
                         thread_origin=command.thread_origin,
                         origin_thread_id=command.origin_thread_id,
                         origin_path=command.origin_path,
+                        origin_location=command.origin_location,
                         run_id=run_id,
                         origin_agent=origin_agent,
                         status=status,
@@ -1193,6 +1199,7 @@ class MemoryService:
             "project_key": command.project_key,
             "origin_thread_id": command.origin_thread_id,
             "origin_path": command.origin_path,
+            "origin_location": command.origin_location,
             "status": "staged",
         }
         if any(row[key] != value for key, value in expected.items()) or revision is None:
@@ -1269,6 +1276,7 @@ def contract_memory_from_snapshot(snapshot: MemoryUnitSnapshot) -> ContractMemor
         thread_origin=snapshot.thread_origin,
         origin_thread_id=snapshot.origin_thread_id,
         origin_path=snapshot.origin_path,
+        origin_location=snapshot.origin_location,
         pin=snapshot.pin,
         status=snapshot.status,
         revision=snapshot.revision,

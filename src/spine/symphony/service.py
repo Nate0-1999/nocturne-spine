@@ -53,6 +53,7 @@ class SymphonyService:
                 project_key=request.project_key,
                 origin_thread_id=request.origin_thread_id,
                 origin_path=request.origin_path,
+                origin_location=request.origin_location,
                 editor=f"agent:{request.origin_agent}",
                 machine_id=request.machine_id,
                 revision_reason="symphony/staged",

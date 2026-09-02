@@ -78,6 +78,7 @@ class PrepareRequest(ContractRequest):
     principal_id: str
     project_key: str | None = None
     location_path: str | None = None
+    current_location: str | None = None
     agent_kind: str | None = None
     prompt: str
     model_context_tokens: Annotated[int, Field(gt=0)]
@@ -140,6 +141,7 @@ async def prepare(
                 principal_id=body.principal_id,
                 project_key=body.project_key,
                 location_path=body.location_path,
+                current_location=body.current_location,
                 agent_kind=body.agent_kind if body.agent_kind is not None else "general",
                 prompt=body.prompt,
                 model_context_tokens=body.model_context_tokens,

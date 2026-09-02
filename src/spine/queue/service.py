@@ -82,6 +82,7 @@ class QueueService:
                     project_key=draft.project_key,
                     thread_origin=str(request.thread_id),
                     origin_thread_id=request.thread_id,
+                    origin_location=request.origin_location,
                     editor=request.editor,
                     machine_id=request.machine_id,
                 )

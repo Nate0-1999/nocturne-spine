@@ -60,6 +60,7 @@ class PrepareCommand:
     principal_id: str
     project_key: str | None
     location_path: str | None = None
+    current_location: str | None = None
     agent_kind: str
     prompt: str
     model_context_tokens: int
@@ -195,6 +196,7 @@ class PrepareService:
                     thread_project_key=command.project_key,
                     thread_id=command.thread_id,
                     location_path=command.location_path,
+                    current_location=command.current_location,
                     pinned_candidates=pinned,
                     regular_candidates=regular,
                     locked_memory_ids=frozenset(command.confirmed_memory_ids),
@@ -496,6 +498,7 @@ def _candidate_from_row(
         project_key=row["project_key"],
         origin_thread_id=row["origin_thread_id"],
         origin_path=row["origin_path"],
+        origin_location=row["origin_location"],
         pin=row["pin"],
         updated_at=row["updated_at"],
         last_human_edit_at=row["last_human_edit_at"],
@@ -645,7 +648,10 @@ def _event_values(
         "model_context_tokens": command.model_context_tokens,
         **allocation.model_dump(mode="python"),
     }
-    features["_location"] = {"cwd": command.location_path}
+    features["_location"] = {
+        "cwd": command.location_path,
+        "where": command.current_location,
+    }
     features["_retrieval"] = {"sources": list(candidate.pool_sources)}
     return {
         "event_uid": mint_ulid(),

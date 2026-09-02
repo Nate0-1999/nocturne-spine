@@ -38,6 +38,7 @@ class StageMemoryRequest(_RunAttempt):
     project_key: str | None = None
     origin_thread_id: UUID
     origin_path: str | None = None
+    origin_location: str | None = None
     machine_id: NonBlankString
 
 
@@ -55,6 +56,7 @@ class SymphonyMemoryRecord(ContractModel):
     project_key: str | None
     origin_thread_id: UUID | None
     origin_path: str | None
+    origin_location: str | None
     pin: bool
     status: Literal["active", "candidate", "staged", "quarantined", "tombstoned"]
     revision: int
@@ -115,6 +117,7 @@ def record_from_row(row: Mapping[str, Any]) -> SymphonyMemoryRecord:
         project_key=row["project_key"],
         origin_thread_id=row["origin_thread_id"],
         origin_path=row["origin_path"],
+        origin_location=row["origin_location"],
         pin=row["pin"],
         status=row["status"],
         revision=row["revision"],

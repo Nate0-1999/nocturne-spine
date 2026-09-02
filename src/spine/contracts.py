@@ -51,6 +51,7 @@ class MemoryFeatures(ContractModel):
     hist: float
     loc: float | None = None
     thread: float | None = None
+    where: float | None = None
 
 
 class MemoryCard(ContractModel):
@@ -89,6 +90,7 @@ class MemoryUnit(ContractModel):
     thread_origin: str | None
     origin_thread_id: UUID | None
     origin_path: str | None
+    origin_location: str | None = None
     pin: bool
     status: MemoryStatus
     revision: int

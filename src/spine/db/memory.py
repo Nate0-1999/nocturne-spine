@@ -38,6 +38,7 @@ class MemoryUnitChanges:
     thread_origin: str | None | _Unset = _UNSET
     origin_thread_id: UUID | None | _Unset = _UNSET
     origin_path: str | None | _Unset = _UNSET
+    origin_location: str | None | _Unset = _UNSET
     pin: bool | _Unset = _UNSET
     status: MemoryStatus | _Unset = _UNSET
     stats: Mapping[str, Any] | _Unset = _UNSET
@@ -58,6 +59,7 @@ class MemoryUnitChanges:
             "thread_origin",
             "origin_thread_id",
             "origin_path",
+            "origin_location",
             "pin",
             "status",
             "stats",
@@ -107,6 +109,7 @@ class MemoryUnitSnapshot:
     thread_origin: str | None
     origin_thread_id: UUID | None
     origin_path: str | None
+    origin_location: str | None
     pin: bool
     status: str
     revision: int
@@ -132,6 +135,7 @@ class MemoryUnitSnapshot:
             thread_origin=row["thread_origin"],
             origin_thread_id=row["origin_thread_id"],
             origin_path=row["origin_path"],
+            origin_location=row["origin_location"],
             pin=row["pin"],
             status=row["status"],
             revision=row["revision"],

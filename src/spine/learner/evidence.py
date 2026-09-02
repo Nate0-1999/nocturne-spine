@@ -84,6 +84,7 @@ def project_learning_evidence(
         features = _features(row)
         location = _optional_feature(row, "loc")
         thread = _optional_feature(row, "thread")
+        where = _optional_feature(row, "where")
         pre_location = math.fsum(
             weight * feature
             for weight, feature in zip(_weight_tuple(source), features, strict=True)
@@ -99,6 +100,12 @@ def project_learning_evidence(
             if thread is None
             else (1.0 - source.params.thread_weight) * localized
             + source.params.thread_weight * thread
+        )
+        localized = (
+            localized
+            if where is None
+            else (1.0 - source.params.where_weight) * localized
+            + source.params.where_weight * where
         )
         baseline_bias = float(row.score) - localized
         baseline_bias -= source.bias_offset(row.memory_id)
@@ -120,6 +127,8 @@ def project_learning_evidence(
                 location_weight=source.params.location_weight,
                 thread_feature=thread,
                 thread_id=getattr(row, "thread_id", None),
+                where_feature=where,
+                where_weight=source.params.where_weight,
             )
         )
     return LearningEvidence(

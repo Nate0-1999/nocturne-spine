@@ -596,6 +596,7 @@ class M2KService:
                 weights=_weight_tuple(incumbent_values),
                 bias_offsets=base_runtime.bias_offsets,
                 thread_weight=base_runtime.params.thread_weight,
+                where_weight=base_runtime.params.where_weight,
                 tau=incumbent_values.tau,
                 share_boundaries=holdout_boundaries,
                 memory_context_share=incumbent_values.memory_context_share,
@@ -609,6 +610,7 @@ class M2KService:
                 weights=_weight_tuple(values),
                 bias_offsets=base_runtime.bias_offsets,
                 thread_weight=base_runtime.params.thread_weight,
+                where_weight=base_runtime.params.where_weight,
                 tau=values.tau,
                 share_boundaries=holdout_boundaries,
                 memory_context_share=values.memory_context_share,
@@ -790,6 +792,7 @@ def _memory_unit(row: MemoryUnitRow) -> MemoryUnit:
         thread_origin=row.thread_origin,
         origin_thread_id=row.origin_thread_id,
         origin_path=row.origin_path,
+        origin_location=row.origin_location,
         pin=row.pin,
         status=row.status,  # type: ignore[arg-type]
         revision=row.revision,
@@ -1073,6 +1076,7 @@ def _candidate_histories(
         )
         raw_location = event.features.get("loc")
         raw_thread = event.features.get("thread")
+        raw_where = event.features.get("where")
         features = MemoryFeatures(
             **{name: float(event.features[name]) for name in FEATURE_NAMES},
             loc=(
@@ -1083,6 +1087,11 @@ def _candidate_histories(
             thread=(
                 float(raw_thread)
                 if isinstance(raw_thread, (int, float)) and not isinstance(raw_thread, bool)
+                else None
+            ),
+            where=(
+                float(raw_where)
+                if isinstance(raw_where, (int, float)) and not isinstance(raw_where, bool)
                 else None
             ),
         )
@@ -1111,12 +1120,24 @@ def _candidate_histories(
             if location_contribution is not None:
                 location_contribution *= thread_scale
             thread_contribution = Decimal(str(features.thread)) * thread_weight
+        where_contribution = None
+        if features.where is not None:
+            where_weight = Decimal(str(config.params.get("where_weight", 0.0)))
+            where_scale = Decimal(1) - where_weight
+            contributions = {name: value * where_scale for name, value in contributions.items()}
+            if location_contribution is not None:
+                location_contribution *= where_scale
+            if thread_contribution is not None:
+                thread_contribution *= where_scale
+            where_contribution = Decimal(str(features.where)) * where_weight
         stored_score = Decimal(str(event.score))
         bias = stored_score - sum(contributions.values(), start=Decimal(0))
         if location_contribution is not None:
             bias -= location_contribution
         if thread_contribution is not None:
             bias -= thread_contribution
+        if where_contribution is not None:
+            bias -= where_contribution
         grouped[event.memory_id].append(
             CandidateScorePoint(
                 event_uid=event.event_uid,
@@ -1231,6 +1252,12 @@ def _example(
         if isinstance(raw_thread, (int, float)) and not isinstance(raw_thread, bool)
         else None
     )
+    raw_where = row.features.get("where")
+    where = (
+        float(raw_where)
+        if isinstance(raw_where, (int, float)) and not isinstance(raw_where, bool)
+        else None
+    )
     source_score = math.fsum(
         weight * feature
         for weight, feature in zip(
@@ -1254,6 +1281,10 @@ def _example(
         source_score = (
             1.0 - source.params.thread_weight
         ) * source_score + source.params.thread_weight * thread
+    if where is not None:
+        source_score = (
+            1.0 - source.params.where_weight
+        ) * source_score + source.params.where_weight * where
     baseline_bias = float(row.score) - source_score
     baseline_bias -= source.bias_offset(row.memory_id)
     frozen = row.features.get("_memory")
@@ -1275,6 +1306,8 @@ def _example(
         location_feature=location,
         location_weight=source.params.location_weight,
         thread_feature=thread,
+        where_feature=where,
+        where_weight=source.params.where_weight,
     )
 
 

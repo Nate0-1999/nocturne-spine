@@ -75,6 +75,7 @@ class ScorerParams:
     location_weight: float = 0.0
     half_life_location_hops: float = 2.0
     thread_weight: float = 0.0
+    where_weight: float = 0.0
     legacy_budget_tokens: int | None = None
 
     def __post_init__(self) -> None:
@@ -98,6 +99,8 @@ class ScorerParams:
             raise ValueError("location half life must be positive")
         if not 0.0 <= self.thread_weight < 1.0:
             raise ValueError("thread_weight must be at least zero and less than one")
+        if not 0.0 <= self.where_weight < 1.0:
+            raise ValueError("where_weight must be at least zero and less than one")
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -174,6 +177,7 @@ class ScorerConfig:
                 location_weight=_optional_number(params, "location_weight", 0.0),
                 half_life_location_hops=_optional_number(params, "half_life_location_hops", 2.0),
                 thread_weight=_optional_number(params, "thread_weight", 0.0),
+                where_weight=_optional_number(params, "where_weight", 0.0),
                 legacy_budget_tokens=(
                     None if "memory_context_share" in params else _integer(params, "budget_tokens")
                 ),
@@ -200,6 +204,7 @@ class ScoringCandidate:
     project_key: str | None
     origin_thread_id: UUID | None = None
     origin_path: str | None = None
+    origin_location: str | None = None
     pin: bool
     updated_at: datetime
     last_human_edit_at: datetime | None
@@ -221,6 +226,7 @@ class ScoreFeatures:
     hist: float
     loc: float | None = None
     thread: float | None = None
+    where: float | None = None
 
     def as_dict(self) -> dict[str, float | None]:
         """Return the exact public feature object without scorer internals."""
@@ -234,11 +240,14 @@ class ScoreFeatures:
             "hist": self.hist,
             "loc": self.loc,
             "thread": self.thread,
+            "where": self.where,
         }
         if self.loc is None:
             del values["loc"]
         if self.thread is None:
             del values["thread"]
+        if self.where is None:
+            del values["where"]
         return values
 
 
@@ -276,6 +285,7 @@ def score_and_select(
     thread_project_key: str | None,
     thread_id: UUID | None = None,
     location_path: str | None = None,
+    current_location: str | None = None,
     pinned_candidates: Sequence[ScoringCandidate],
     regular_candidates: Sequence[ScoringCandidate],
     locked_memory_ids: frozenset[UUID] = frozenset(),
@@ -302,6 +312,7 @@ def score_and_select(
             thread_project_key=thread_project_key,
             thread_id=thread_id,
             location_path=location_path,
+            current_location=current_location,
             weights=config.weights,
             params=config.params,
             learned_bias=config.bias_offset(candidate.memory_id),
@@ -321,6 +332,7 @@ def score_and_select(
             thread_project_key=thread_project_key,
             thread_id=thread_id,
             location_path=location_path,
+            current_location=current_location,
             weights=config.weights,
             params=config.params,
             learned_bias=config.bias_offset(candidate.memory_id),
@@ -418,6 +430,7 @@ def _score_candidate(
     thread_project_key: str | None,
     thread_id: UUID,
     location_path: str | None,
+    current_location: str | None = None,
     weights: ScorerWeights,
     params: ScorerParams,
     learned_bias: float = 0.0,
@@ -462,6 +475,10 @@ def _score_candidate(
             thread_id=thread_id,
             origin_thread_id=candidate.origin_thread_id,
         ),
+        where=_where_feature(
+            current_location=current_location,
+            origin_location=candidate.origin_location,
+        ),
     )
     base_score = math.fsum(
         (
@@ -482,6 +499,11 @@ def _score_candidate(
         location_score
         if features.thread is None
         else (1.0 - params.thread_weight) * location_score + params.thread_weight * features.thread
+    )
+    score = (
+        score
+        if features.where is None
+        else (1.0 - params.where_weight) * score + params.where_weight * features.where
     )
     score += candidate.bias + learned_bias
     if not math.isfinite(score):
@@ -612,6 +634,32 @@ def _thread_feature(*, thread_id: UUID | None, origin_thread_id: UUID | None) ->
     if thread_id is None or origin_thread_id is None:
         return None
     return 1.0 if origin_thread_id == thread_id else 0.0
+
+
+def _where_feature(*, current_location: str | None, origin_location: str | None) -> float | None:
+    """Score canonical folder proximity without penalizing unstamped history."""
+
+    if current_location is None or origin_location is None:
+        return None
+    current = PurePosixPath(current_location)
+    origin = PurePosixPath(origin_location)
+    if (
+        not current.is_absolute()
+        or not origin.is_absolute()
+        or ".." in current.parts
+        or ".." in origin.parts
+        or str(current) != current_location
+        or str(origin) != origin_location
+    ):
+        raise ValueError("origin locations must be canonical absolute paths")
+    if current == origin:
+        return 1.0
+    if current.is_relative_to(origin) or origin.is_relative_to(current):
+        distance = abs(len(current.parts) - len(origin.parts))
+        return 0.75 + 0.25 * (2.0 ** (-distance))
+    if current.parent == origin.parent:
+        return 0.5
+    return 0.0
 
 
 def _location_parts(value: str) -> tuple[str, ...]:

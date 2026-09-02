@@ -17,7 +17,9 @@ from spine.db.models import InjectionEvent, MemoryRevision, MemoryUnit, Thread
 from spine.embeddings import EmbeddingTransportError
 from spine.ids import mint_ulid
 
-FEATURE_NAMES = {"sem", "kw", "time", "proj", "freq", "hist", "loc", "thread"}
+FEATURE_NAMES = {
+    "sem", "kw", "time", "proj", "freq", "hist", "loc", "thread", "where",
+}
 DEFAULT_STATS = {
     "injections": 0,
     "removals": 0,
@@ -278,6 +280,7 @@ async def test_prepare_commit_replays_gate_and_prepare_updates_only_injected(
     assert set(injected["features"]) == FEATURE_NAMES
     assert injected["features"]["loc"] is None
     assert injected["features"]["thread"] is None
+    assert injected["features"]["where"] is None
     assert {key: injected["features"][key] for key in expected_features} == pytest.approx(
         expected_features, abs=2e-5
     )
@@ -297,6 +300,7 @@ async def test_prepare_commit_replays_gate_and_prepare_updates_only_injected(
     assert near["features"]["proj"] == pytest.approx(0.5)
     assert near["features"]["loc"] is None
     assert near["features"]["thread"] is None
+    assert near["features"]["where"] is None
     assert set(near["features"]) == FEATURE_NAMES
     assert embedding_provider.calls == [(prompt,)]
 

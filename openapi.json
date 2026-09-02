@@ -489,6 +489,17 @@
             "title": "Machine Id",
             "type": "string"
           },
+          "origin_location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin Location"
+          },
           "origin_path": {
             "anyOf": [
               {
@@ -911,6 +922,17 @@
             "minLength": 1,
             "title": "Machine Id",
             "type": "string"
+          },
+          "origin_location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin Location"
           },
           "principal_id": {
             "minLength": 1,
@@ -1771,6 +1793,17 @@
           "time": {
             "title": "Time",
             "type": "number"
+          },
+          "where": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Where"
           }
         },
         "required": [
@@ -2052,6 +2085,17 @@
             "format": "uuid",
             "title": "Memory Id",
             "type": "string"
+          },
+          "origin_location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin Location"
           },
           "origin_path": {
             "anyOf": [
@@ -2583,6 +2627,17 @@
             },
             "title": "Confirmed Memory Ids",
             "type": "array"
+          },
+          "current_location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Location"
           },
           "current_memory_ids": {
             "items": {
@@ -4966,6 +5021,17 @@
             "title": "Machine Id",
             "type": "string"
           },
+          "origin_location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin Location"
+          },
           "origin_path": {
             "anyOf": [
               {
@@ -5057,6 +5123,17 @@
           },
           "origin_agent": {
             "$ref": "#/components/schemas/NonBlankString"
+          },
+          "origin_location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin Location"
           },
           "origin_path": {
             "anyOf": [
@@ -5170,6 +5247,17 @@
             ],
             "title": "Origin Agent"
           },
+          "origin_location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin Location"
+          },
           "origin_path": {
             "anyOf": [
               {
@@ -5258,6 +5346,7 @@
           "project_key",
           "origin_thread_id",
           "origin_path",
+          "origin_location",
           "pin",
           "status",
           "revision",
@@ -5650,7 +5739,7 @@
   },
   "info": {
     "title": "N8 Spine",
-    "version": "0.1.9"
+    "version": "0.1.10"
   },
   "openapi": "3.1.0",
   "paths": {
